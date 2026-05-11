@@ -1,227 +1,344 @@
 # μChordbot
-微分音・独自和声体系対応の  
-Webベース コード進行設計 / 和声プロトタイピング環境。
+
+微分音対応コード進行エディタ / 和声プロトタイピングPWA
+
 μChordbot は、
+
 - 微分音コード設計
 - コード進行編集
-- 和声実験
-- 相対進行テンプレート
-- xenharmonic / microtonal 作曲
-を目的とした、ブラウザベースの PWA アプリです。
----
-# 特徴
-## 微分音対応
-1オクターブを 3600 microStep で管理。
+- 相対コード進行展開
+- 和声テンプレート化
+- xenharmonic 実験
+- WebAudio によるリアルタイム再生
 
+を目的とした、ブラウザベースの音楽制作ツールです。
+
+---
+
+# 特徴
+
+## 微分音対応
+
+μChordbot は、1オクターブを 3600 microStep として扱います。
+
+```text
 1 cent = 3 microStep
-1200 cent = 3600 microStep
+1 octave = 1200 cent = 3600 microStep
+```
 
 これにより、
 
-* 12EDO
-* 微分音
-* 独自音律
-* xenharmonic
-* 純正律的運用
+- 24EDO
+- 31EDO
+- 72EDO
+- 純正律
+- 倍音近似
+- 独自音律
 
 などを柔軟に扱えます。
 
-⸻
+---
 
-コードライブラリ
+## コードライブラリ
 
-コードをプリセット化し保存可能。
-
-保存内容:
-
-* 名前
-* タグ
-* 構成音
-* テンション
-* bass
-* メモ
-
-⸻
-
-コード進行プリセット
-
-コード進行自体をプリセット化可能。
+コードをプリセット化して保存可能です。
 
 保存内容:
 
-* 名前
-* 短名
-* タグ
-* 構成コード列
-* メモ
+- 名前
+- タグ
+- 構成音
+- bass
+- メモ
+
+---
+
+## コード進行編集
+
+コード進行をグリッド形式で編集できます。
+
+対応:
+
+- コード追加
+- 並び替え
+- 拍数変更
+- ループ
+- コードプレビュー
+- コード再生
+
+---
+
+## コード進行プリセット
+
+コード進行自体をプリセット化可能です。
+
+保存内容:
+
+- 名前
+- 短名
+- タグ
+- 構成コード列
+- メモ
 
 例:
 
+```text
 ii-V-I
 V/V-V-I
 IV-V-iii-vi
+```
 
-⸻
+---
 
-Relative Progression
+## Relative Progression（先頭相対挿入）
 
-現在選択中コードを基準に、
-進行プリセットを相対展開可能。
+μChordbot の特徴的機能。
+
+現在選択中コードを基準として、
+進行プリセットを相対展開できます。
 
 例:
 
-Preset:
+```text
+プリセット:
 Dm7 | G7 | CM7
-Selected:
+
+現在選択:
 Fm9
-Result:
+
+結果:
 Fm9 | Bb7 | EbM7
+```
 
-選択コード自体は保持されるため、
+この時、
 
-* 独自テンション
-* 微分音構造
-* 特殊コード
+- 現在選択コードの品質
+- テンション
+- 微分音構造
+- 独自ボイシング
 
-を壊さずに進行だけ適用できます。
+は保持されます。
 
-⸻
+つまり、
 
-コード進行編集
+```text
+「現在のコードから、こう進行したい」
+```
 
-* ドラッグ並び替え
-* コード追加
-* 一括移調
-* relative transpose
-* slash bass
-* Undo / Redo
+という和声文脈を再利用できます。
 
-に対応。
+---
 
-⸻
+## コード進行一括トランスポーズ
 
-PWA 対応
+選択したコード群のみを一括移調可能です。
 
-ブラウザ上で動作し、
+対応:
 
-* PC
-* タブレット
-* スマートフォン
+- 半音
+- 全音
+- オクターブ
+- cent
+- microStep
 
-から利用可能。
+また、
 
-PWA インストールにも対応。
+```text
+選択範囲の先頭を指定rootへ合わせる
+```
 
-⸻
+ような相対移調も可能です。
 
-主な機能
+---
 
-* 微分音ピッチ編集
-* コードプリセット
-* コード進行編集
-* コード進行プリセット
-* Relative Progression
-* 一括トランスポーズ
-* WebAudio リアルタイム再生
-* Import / Export
-* IndexedDB 永続保存
-* Undo / Redo
-* PWA Support
+## WebAudio リアルタイム再生
 
-⸻
+WebAudio API により、
 
-技術仕様
+- コードプレビュー
+- 進行再生
+- リアルタイム編集確認
 
-Pitch System
+を行えます。
 
-1 octave = 3600 microStep
+---
 
-内部では microStep ベースで管理。
+## PWA 対応
 
-⸻
+ブラウザアプリとしてだけでなく、
+PWA としてインストール可能です。
 
-Audio
+対応:
 
-* WebAudio API
-* OscillatorNode
-* realtime playback
+- オフライン動作
+- ホーム画面追加
+- IndexedDB 保存
 
-⸻
+---
 
-Storage
+# 主な機能
 
-* IndexedDB
-* Project export/import
-* Library export/import
+- 微分音ピッチ入力
+- microStep ベース内部音高
+- 音高プリセット
+- コードプリセット
+- コード進行編集
+- コード進行プリセット
+- Relative Progression
+- 一括トランスポーズ
+- WebAudio 再生
+- Import / Export
+- IndexedDB 自動保存
+- PWA
 
-⸻
+---
 
-Import / Export
+# ファイル構成
 
-Project (.mcb)
+```text
+code/
+ ├ index.html
+ ├ styles.css
+ ├ service-worker.js
+ ├ manifest.webmanifest
+ └ src/
+    ├ app.js
+    ├ audio.js
+    ├ history.js
+    ├ pitch.js
+    └ storage.js
 
-アプリ全体状態を保存。
+docs/
+ └ specs/
+```
 
-含まれるもの:
+---
 
-* settings
-* pitch presets
-* chord presets
-* progression
-* progression presets
+# データ構造
 
-⸻
+## PitchPreset
 
-Library (.mcbl)
+```text
+音高プリセット
+```
 
-ライブラリ共有用。
+保持内容:
 
-含まれるもの:
+- 名前
+- shortName
+- microStep
+- cent
+- タグ
+- メモ
 
-* pitch presets
-* chord presets
-* progression presets
+---
 
-⸻
+## ChordPreset
 
-Runtime
+```text
+コードプリセット
+```
+
+保持内容:
+
+- 名前
+- タグ
+- tones
+- bass
+- メモ
+
+---
+
+## ProgressionPreset
+
+```text
+コード進行プリセット
+```
+
+保持内容:
+
+- 名前
+- shortName
+- タグ
+- parts
+- メモ
+
+---
+
+# Import / Export
+
+## Project (.mcb)
+
+保存対象:
+
+- 設定
+- 音高プリセット
+- コードプリセット
+- コード進行
+- 進行プリセット
+
+---
+
+## Library (.mcbl)
+
+保存対象:
+
+- 音高プリセット
+- コードプリセット
+- 進行プリセット
+
+---
+
+# 動作環境
 
 推奨:
 
-http://localhost
-https://
+- Chrome
+- Edge
+- Firefox
 
-file:// 直開きは非推奨。
+PWA:
 
-⸻
+- HTTPS 環境推奨
 
-開発状況
+---
 
-現在は experimental / alpha 段階。
+# 開発状況
 
-仕様変更・破壊的変更を含む可能性があります。
+現在 alpha 段階です。
 
-⸻
+仕様変更・構造変更が頻繁に行われます。
 
-Screenshots
+---
 
-準備中
+# 今後の予定
 
-⸻
+- スケールシステム
+- bass 編集強化
+- 高度な微分音表示
+- MIDI連携
+- 外部音源連携
+- DSL連携
+- 和声分析支援
+- progression search
+- progression morphing
 
-Roadmap
+---
 
-* Scale System
-* Relative Harmonic Templates
-* Advanced Progression Editor
-* Bass-aware progression editing
-* MIDI export
-* Scala support
-* Custom tuning systems
-* Harmonic analysis helpers
-
-⸻
-
-License
+# License
 
 MIT License予定
+
+---
+
+# Keywords
+
+microtonal  
+xenharmonic  
+music-theory  
+chord-progression  
+harmonic-analysis  
+web-audio  
+music-composition  
+pwa  
+microtuning  
