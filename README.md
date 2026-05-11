@@ -12,7 +12,7 @@ Webベース コード進行設計 / 和声プロトタイピング環境。
 # 特徴
 ## 微分音対応
 1オクターブを 3600 microStep で管理。
-```text
+
 1 cent = 3 microStep
 1200 cent = 3600 microStep
 
