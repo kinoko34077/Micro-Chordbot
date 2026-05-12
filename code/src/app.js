@@ -710,6 +710,9 @@ function progressionPartLabel(part) {
 function resolveProgressionRootInput() {
   const noteName = String(els.progRootNoteInput?.value || "").trim();
   const octave = String(els.progRootOctaveInput?.value || "").trim();
+  if (/^[A-Ga-g][#b]?-?\d+$/.test(noteName)) {
+    return parseDirectRootNote(noteName);
+  }
   return parseDirectRootNote(`${noteName}${octave}`);
 }
 
@@ -1447,13 +1450,7 @@ function populateComposerRootPresetSelect(select, selectedId = "") {
   empty.textContent = "基音プリセット";
   select.appendChild(empty);
 
-  if (presets.length === 0) {
-    const emptyRow = document.createElement("tr");
-    emptyRow.innerHTML = `<td colspan="5" class="composer-note">条件に合う音高プリセットがありません。</td>`;
-    tbody.appendChild(emptyRow);
-  }
-
-  presets.forEach((preset) => {
+  sortedPitchPresets().forEach((preset) => {
     const option = document.createElement("option");
     option.value = preset.id;
     option.textContent = formatPresetDisplayName(preset);
@@ -1666,8 +1663,7 @@ function renderPitchPresets() {
       const nameCell = document.createElement("td");
       nameCell.appendChild(buildPresetMainCell(
         preset.name,
-        String(preset.id || "").toLowerCase(),
-        formatPresetDisplayName(preset) !== preset.name ? `表示 ${formatPresetDisplayName(preset)}` : ""
+        String(preset.id || "").toLowerCase()
       ));
       row.appendChild(nameCell);
 
@@ -2173,7 +2169,7 @@ function attachEvents() {
   els.progRootNoteInput.addEventListener("change", () => {
     const parsed = resolveProgressionRootInput();
     if (!parsed) {
-      setStatus(els.progStatus, "ルートは D#3 のように入力してください。", "error");
+      setStatus(els.progStatus, "ルートは D# のように入力してください。オクターブは右欄です。", "error");
       const parts = rootEditorParts();
       els.progRootNoteInput.value = `${parts.letter}${parts.accidental}`;
       if (els.progRootOctaveInput) els.progRootOctaveInput.value = parts.octave;
@@ -2183,12 +2179,18 @@ function attachEvents() {
     setStatus(els.progStatus, "", "");
     syncProgressionSelectionFromEditor("進行セルのルート変更", true);
   });
-  els.progRootOctaveInput?.addEventListener("change", () => {
+  const syncProgressionRootOctave = () => {
     const parsed = resolveProgressionRootInput();
-    if (!parsed) return;
+    if (!parsed) {
+      const parts = rootEditorParts();
+      if (els.progRootOctaveInput) els.progRootOctaveInput.value = parts.octave;
+      return;
+    }
     state.progressionEditor.rootNoteText = parsed.noteText;
-    syncProgressionSelectionFromEditor("騾ｲ陦後そ繝ｫ縺ｮ繧ｪ繧ｯ繧ｿ繝ｼ繝門､画峩", true);
-  });
+    syncProgressionSelectionFromEditor("進行セルのオクターブ変更", true);
+  };
+  els.progRootOctaveInput?.addEventListener("input", syncProgressionRootOctave);
+  els.progRootOctaveInput?.addEventListener("change", syncProgressionRootOctave);
   els.progFlatBtn.addEventListener("click", () => {
     const parts = rootEditorParts();
     setProgressionEditorRoot({ ...parts, accidental: "b" });
@@ -2256,6 +2258,7 @@ function attachEvents() {
     input?.addEventListener("input", () => {
       state.settings.tableColumnWidths[key] = clamp(Number(input.value) || fallback, min, max);
       applyLayoutSettings();
+      render();
     });
   };
   bindWidthInput(els.presetNameWidthInput, "name", 8, 30, 14);
@@ -2266,6 +2269,7 @@ function attachEvents() {
   els.progressionCellWidthInput?.addEventListener("input", () => {
     state.settings.progressionCellWidth = clamp(Number(els.progressionCellWidthInput.value) || 192, 140, 320);
     applyLayoutSettings();
+    render();
   });
   els.activeNotesList.addEventListener("click", (ev) => {
     const target = ev.target;
@@ -2736,8 +2740,6 @@ function renderActiveNotes() {
         <th></th>
         <th>音高</th>
         <th>cent</th>
-        <th>音高ID</th>
-        <th>音名</th>
         <th>短名</th>
         <th>タグ</th>
         <th>メモ</th>
@@ -2745,71 +2747,75 @@ function renderActiveNotes() {
       </tr>
     </thead>
   `;
-  table.prepend(buildPresetColGroup(["remove", "name", "cent", "id", "name-input", "short", "tags", "memo", "actions"]));
+  table.prepend(buildPresetColGroup(["remove", "name", "cent", "short", "tags", "memo", "actions"]));
   const tbody = document.createElement("tbody");
 
   const notes = filteredActiveNotes(els.activeNotesFilterInput?.value);
   if (notes.length === 0) {
     const emptyRow = document.createElement("tr");
-    emptyRow.innerHTML = `<td colspan="9" class="composer-note">条件に合う activeNotes がありません。</td>`;
+    emptyRow.innerHTML = `<td colspan="7" class="composer-note">条件に合う activeNotes がありません。</td>`;
     tbody.appendChild(emptyRow);
   }
 
   notes.forEach((note, index) => {
-      const row = document.createElement("tr");
-      row.dataset.noteId = note.id;
-      const preset = findPitchPresetByMicroStep(note.microStepInOctave);
+    const row = document.createElement("tr");
+    row.dataset.noteId = note.id;
+    const preset = findPitchPresetByMicroStep(note.microStepInOctave);
 
-      const removeCell = document.createElement("td");
-      removeCell.innerHTML = `<button type="button" class="danger-button active-note-remove" data-note-id="${note.id}" aria-label="削除">×</button>`;
-      row.appendChild(removeCell);
+    const removeCell = document.createElement("td");
+    removeCell.innerHTML = `<button type="button" class="danger-button active-note-remove" data-note-id="${note.id}" aria-label="削除">×</button>`;
+    row.appendChild(removeCell);
 
-      const labelCell = document.createElement("td");
-      labelCell.appendChild(buildPresetMainCell(
-        describeNoteTitle(note, index),
-        note.id.toLowerCase()
-      ));
-      row.appendChild(labelCell);
+    const labelCell = document.createElement("td");
+    const resolvedName = preset?.name || describeNoteTitle(note, index);
+    labelCell.appendChild(buildPresetMainCell(resolvedName, String(preset?.id || note.id).toLowerCase()));
+    const hiddenName = document.createElement("input");
+    hiddenName.type = "hidden";
+    hiddenName.dataset.field = "name";
+    hiddenName.value = preset?.name || resolvedName;
+    labelCell.appendChild(hiddenName);
+    const hiddenId = document.createElement("input");
+    hiddenId.type = "hidden";
+    hiddenId.dataset.field = "id";
+    hiddenId.value = preset?.id || "";
+    labelCell.appendChild(hiddenId);
+    row.appendChild(labelCell);
 
-      const centCell = document.createElement("td");
-      const centInput = document.createElement("input");
-      centInput.type = "number";
-      centInput.className = "preset-inline-input";
-      centInput.step = String(state.settings.snapCent || 1);
-      centInput.value = formatDecimal(note.cent);
-      centInput.dataset.field = "cent";
-      centCell.appendChild(centInput);
-      row.appendChild(centCell);
+    const centCell = document.createElement("td");
+    const centInput = document.createElement("input");
+    centInput.type = "number";
+    centInput.className = "preset-inline-input";
+    centInput.step = String(state.settings.snapCent || 1);
+    centInput.value = formatDecimal(note.cent);
+    centInput.dataset.field = "cent";
+    centCell.appendChild(centInput);
+    row.appendChild(centCell);
 
-      const fields = [
-        ["id", "音高ID"],
-        ["name", "音名"],
-        ["shortName", "短名"],
-        ["tags", "タグ"],
-        ["memo", "メモ"]
-      ];
-      fields.forEach(([field, placeholder]) => {
-        const td = document.createElement("td");
-        const input = document.createElement("input");
-        input.type = "text";
-        input.className = "preset-inline-input";
-        input.placeholder = placeholder;
-        input.dataset.field = field;
-        if (field === "id") input.value = preset?.id || "";
-        if (field === "name") input.value = preset?.name || "";
-        if (field === "shortName") input.value = preset?.shortName || "";
-        if (field === "tags") input.value = (preset?.tags || []).join(", ");
-        if (field === "memo") input.value = preset?.memo || "";
-        td.appendChild(input);
-        row.appendChild(td);
-      });
-
-      const actionCell = document.createElement("td");
-      actionCell.innerHTML = `<div class="preset-inline-actions"><button type="button" data-action="update-active-note" data-note-id="${note.id}">更新</button><button type="button" data-action="save-pitch-preset" data-note-id="${note.id}">追加</button></div>`;
-      row.appendChild(actionCell);
-
-      tbody.appendChild(row);
+    const fields = [
+      ["shortName", "短名"],
+      ["tags", "タグ"],
+      ["memo", "メモ"]
+    ];
+    fields.forEach(([field, placeholder]) => {
+      const td = document.createElement("td");
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "preset-inline-input";
+      input.placeholder = placeholder;
+      input.dataset.field = field;
+      if (field === "shortName") input.value = preset?.shortName || "";
+      if (field === "tags") input.value = (preset?.tags || []).join(", ");
+      if (field === "memo") input.value = preset?.memo || "";
+      td.appendChild(input);
+      row.appendChild(td);
     });
+
+    const actionCell = document.createElement("td");
+    actionCell.innerHTML = `<div class="preset-inline-actions"><button type="button" data-action="update-active-note" data-note-id="${note.id}">更新</button><button type="button" data-action="save-pitch-preset" data-note-id="${note.id}">追加</button></div>`;
+    row.appendChild(actionCell);
+
+    tbody.appendChild(row);
+  });
 
   table.appendChild(tbody);
   container.appendChild(table);

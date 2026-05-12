@@ -396,12 +396,15 @@ label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); mi
 .progression-editor-body { margin-top: 12px; }
 .progression-root-row {
   display: grid;
-  grid-template-columns: minmax(140px, 180px) auto;
+  grid-template-columns: minmax(200px, 260px) auto;
   gap: 8px;
   align-items: center;
   margin-bottom: 10px;
 }
-.progression-root-inline { min-width: 0; }
+.progression-root-inline {
+  min-width: 0;
+  gap: 4px;
+}
 .progression-root-combo {
   display: inline-grid;
   grid-template-columns: minmax(0, 1fr) 4.2rem;
@@ -409,6 +412,9 @@ label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); mi
   align-items: center;
 }
 .progression-root-combo input { min-width: 0; }
+#progRootNoteInput {
+  min-width: 0;
+}
 .quick-row { display: flex; gap: 8px; }
 .quick-grid {
   display: grid;
