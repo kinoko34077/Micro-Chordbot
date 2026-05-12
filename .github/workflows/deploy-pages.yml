@@ -28,6 +28,17 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
+      - name: Prepare site files
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f "project (2).mcb" ]; then
+            cp "project (2).mcb" code/default_project.mcb
+          else
+            echo "project (2).mcb was not found." >&2
+            exit 1
+          fi
+
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
