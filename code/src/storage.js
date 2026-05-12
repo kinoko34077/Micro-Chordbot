@@ -1,6 +1,7 @@
 const DB_NAME = "muChordbotDB";
 const STORE_NAME = "project";
 const KEY = "current";
+const DEFAULT_PROJECT_URL = "./default_project.mcb";
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -27,6 +28,19 @@ export async function saveProject(stateWithoutHistory) {
   db.close();
 }
 
+async function loadDefaultProject() {
+  const response = await fetch(DEFAULT_PROJECT_URL, { cache: "no-cache" });
+  if (!response.ok) {
+    throw new Error(`Default project load failed: ${response.status}`);
+  }
+  const projectFile = await response.json();
+  const payload = projectFile?.payload;
+  if (!payload || projectFile?.app !== "muChordbot" || projectFile?.extensionType !== "mcb") {
+    throw new Error("Default project file is invalid.");
+  }
+  return payload;
+}
+
 export async function loadProject() {
   const db = await openDb();
   const value = await new Promise((resolve, reject) => {
@@ -36,5 +50,17 @@ export async function loadProject() {
     req.onerror = () => reject(req.error);
   });
   db.close();
-  return value;
+
+  if (value) {
+    return value;
+  }
+
+  try {
+    const defaultProject = await loadDefaultProject();
+    await saveProject(defaultProject);
+    return defaultProject;
+  } catch (error) {
+    console.warn(error);
+    return null;
+  }
 }
