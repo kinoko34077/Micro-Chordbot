@@ -4,9 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       zip_path:
-        description: "Path to zip file in repository"
+        description: "Path to zip file in repository. Leave default unless needed."
         required: true
         default: "uploads/muchordbot_v0.2.zip"
+      strip_top_folder:
+        description: "Strip first directory level from extracted zip"
+        required: true
+        default: "true"
 
 permissions:
   contents: write
@@ -15,22 +19,64 @@ jobs:
   extract:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Locate zip
+        id: locate_zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          requested="${{ inputs.zip_path }}"
+          echo "Requested zip_path: $requested"
+          if [ -f "$requested" ]; then
+            zip_path="$requested"
+          elif [ -f "uploads/μchordbot_v0.2.zip" ]; then
+            zip_path="uploads/μchordbot_v0.2.zip"
+          elif [ -f "μchordbot_v0.2.zip" ]; then
+            zip_path="μchordbot_v0.2.zip"
+          else
+            echo "ZIP not found. Current repository files:" >&2
+            find . -maxdepth 4 -type f | sort >&2
+            exit 1
+          fi
+          echo "Using zip_path: $zip_path"
+          echo "zip_path=$zip_path" >> "$GITHUB_OUTPUT"
 
       - name: Extract zip
+        shell: bash
         run: |
+          set -euo pipefail
+          zip_path="${{ steps.locate_zip.outputs.zip_path }}"
           rm -rf .extract_tmp
           mkdir .extract_tmp
-          unzip "${{ inputs.zip_path }}" -d .extract_tmp
-          top_dir="$(find .extract_tmp -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-          cp -R "$top_dir"/. .
+          unzip -q "$zip_path" -d .extract_tmp
+          echo "Extracted top-level entries:"
+          find .extract_tmp -mindepth 1 -maxdepth 2 -print | sort
+          if [ "${{ inputs.strip_top_folder }}" = "true" ]; then
+            top_dir="$(find .extract_tmp -mindepth 1 -maxdepth 1 -type d | head -n 1 || true)"
+            if [ -z "$top_dir" ]; then
+              echo "No top-level directory found in zip." >&2
+              exit 1
+            fi
+            cp -R "$top_dir"/. .
+          else
+            cp -R .extract_tmp/. .
+          fi
           rm -rf .extract_tmp
-          rm -f "${{ inputs.zip_path }}"
+          rm -f "$zip_path"
+          rm -f "μchordbot_v0.2.zip" "uploads/μchordbot_v0.2.zip" "uploads/muchordbot_v0.2.zip"
 
       - name: Commit extracted files
+        shell: bash
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git diff --cached --quiet || git commit -m "Extract uploaded zip contents"
-          git push
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Extract uploaded zip contents"
+            git push
+          fi
