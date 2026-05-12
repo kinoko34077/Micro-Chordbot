@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       zip_path:
-        description: "Path to zip file in repository. Leave default unless needed."
+        description: "Path to zip file in repository. Root zip is used by default."
         required: true
-        default: "uploads/muchordbot_v0.2.zip"
+        default: "μchordbot_v0.2.zip"
       strip_top_folder:
         description: "Strip first directory level from extracted zip"
         required: true
@@ -31,16 +31,20 @@ jobs:
           echo "Requested zip_path: $requested"
           if [ -f "$requested" ]; then
             zip_path="$requested"
-          elif [ -f "uploads/μchordbot_v0.2.zip" ]; then
-            zip_path="uploads/μchordbot_v0.2.zip"
           elif [ -f "μchordbot_v0.2.zip" ]; then
             zip_path="μchordbot_v0.2.zip"
+          elif [ -f "uploads/μchordbot_v0.2.zip" ]; then
+            zip_path="uploads/μchordbot_v0.2.zip"
+          elif [ -f "uploads/muchordbot_v0.2.zip" ]; then
+            zip_path="uploads/muchordbot_v0.2.zip"
           else
             echo "ZIP not found. Current repository files:" >&2
             find . -maxdepth 4 -type f | sort >&2
             exit 1
           fi
           echo "Using zip_path: $zip_path"
+          file "$zip_path" || true
+          unzip -t "$zip_path"
           echo "zip_path=$zip_path" >> "$GITHUB_OUTPUT"
 
       - name: Extract zip
