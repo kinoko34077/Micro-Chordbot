@@ -34,7 +34,17 @@ const state = {
     activeNotesVolume: 0.5,
     snapCent: 16.666,
     playMode: "toggle",
-    waveform: "sine"
+    waveform: "sine",
+    dismissedRuntimeNotice: false,
+    dismissedPwaNotice: false,
+    progressionCellWidth: 192,
+    tableColumnWidths: {
+      name: 14,
+      cent: 7,
+      short: 7,
+      tags: 10,
+      memo: 12
+    }
   },
   pitchDraft: {
     octave: 4,
@@ -62,9 +72,12 @@ const state = {
 
 const els = {
   runtimeWarning: document.getElementById("runtimeWarning"),
+  runtimeWarningMessage: document.getElementById("runtimeWarningMessage"),
+  runtimeWarningCloseBtn: document.getElementById("runtimeWarningCloseBtn"),
   pwaPrompt: document.getElementById("pwaPrompt"),
   pwaPromptMessage: document.getElementById("pwaPromptMessage"),
   installPwaBtn: document.getElementById("installPwaBtn"),
+  pwaPromptCloseBtn: document.getElementById("pwaPromptCloseBtn"),
   views: [...document.querySelectorAll(".view")],
   navButtons: [...document.querySelectorAll(".view-nav button")],
   undoBtn: document.getElementById("undoBtn"),
@@ -83,6 +96,7 @@ const els = {
   lineReadout: document.getElementById("lineReadout"),
   activeNotesSummary: document.getElementById("activeNotesSummary"),
   activeNotesList: document.getElementById("activeNotesList"),
+  activeNotesFilterInput: document.getElementById("activeNotesFilterInput"),
   clearActiveNotesBtn: document.getElementById("clearActiveNotesBtn"),
   pitchPresetIdInput: document.getElementById("pitchPresetIdInput"),
   pitchPresetNameInput: document.getElementById("pitchPresetNameInput"),
@@ -92,6 +106,7 @@ const els = {
   savePitchPresetBtn: document.getElementById("savePitchPresetBtn"),
   pitchPresetStatus: document.getElementById("pitchPresetStatus"),
   pitchPresetList: document.getElementById("pitchPresetList"),
+  pitchPresetFilterInput: document.getElementById("pitchPresetFilterInput"),
   chordIdInput: document.getElementById("chordIdInput"),
   chordNameInput: document.getElementById("chordNameInput"),
   chordBaseRootSelect: document.getElementById("chordBaseRootSelect"),
@@ -121,6 +136,7 @@ const els = {
   progEditorToggleBtn: document.getElementById("progEditorToggleBtn"),
   progressionEditorBody: document.getElementById("progressionEditorBody"),
   progRootNoteInput: document.getElementById("progRootNoteInput"),
+  progRootOctaveInput: document.getElementById("progRootOctaveInput"),
   progFlatBtn: document.getElementById("progFlatBtn"),
   progNaturalBtn: document.getElementById("progNaturalBtn"),
   progSharpBtn: document.getElementById("progSharpBtn"),
@@ -141,6 +157,13 @@ const els = {
   bpmInput: document.getElementById("bpmInput"),
   roundUnitInput: document.getElementById("roundUnitInput"),
   roundingModeSelect: document.getElementById("roundingModeSelect"),
+  runtimeInfoText: document.getElementById("runtimeInfoText"),
+  presetNameWidthInput: document.getElementById("presetNameWidthInput"),
+  presetCentWidthInput: document.getElementById("presetCentWidthInput"),
+  presetShortWidthInput: document.getElementById("presetShortWidthInput"),
+  presetTagWidthInput: document.getElementById("presetTagWidthInput"),
+  presetMemoWidthInput: document.getElementById("presetMemoWidthInput"),
+  progressionCellWidthInput: document.getElementById("progressionCellWidthInput"),
   exportBtn: document.getElementById("exportBtn"),
   exportLibraryBtn: document.getElementById("exportLibraryBtn"),
   importFileInput: document.getElementById("importFileInput")
@@ -156,6 +179,7 @@ let progressionPlayback = {
 let progressionPreviewTimerId = null;
 let deferredInstallPrompt = null;
 let runtimeState = null;
+let runtimeBanner = { message: "", tone: "", visible: false };
 const progressionUi = {
   draggingPartId: null,
   dragOverPartId: null,
@@ -177,16 +201,13 @@ const presetUi = {
 };
 
 function showRuntimeWarning(message) {
-  if (!els.runtimeWarning) return;
-  els.runtimeWarning.innerHTML = message;
-  els.runtimeWarning.classList.remove("hidden");
+  runtimeBanner = { message, tone: "", visible: true };
+  renderRuntimeBanner();
 }
 
 function hideRuntimeWarning() {
-  if (!els.runtimeWarning) return;
-  els.runtimeWarning.classList.add("hidden");
-  els.runtimeWarning.textContent = "";
-  delete els.runtimeWarning.dataset.tone;
+  runtimeBanner = { message: "", tone: "", visible: false };
+  renderRuntimeBanner();
 }
 
 function validateRuntime() {
@@ -206,15 +227,57 @@ function validateRuntime() {
 }
 
 function showRuntimeNotice(message, tone = "info") {
-  if (!els.runtimeWarning) return;
-  els.runtimeWarning.innerHTML = message;
-  els.runtimeWarning.dataset.tone = tone;
-  els.runtimeWarning.classList.remove("hidden");
+  runtimeBanner = { message, tone, visible: true };
+  state.settings.dismissedRuntimeNotice = false;
+  renderRuntimeBanner();
 }
 
 function clearRuntimeWarningTone() {
-  if (!els.runtimeWarning) return;
-  delete els.runtimeWarning.dataset.tone;
+  runtimeBanner.tone = "";
+  renderRuntimeBanner();
+}
+
+function renderRuntimeBanner() {
+  if (!els.runtimeWarning || !els.runtimeWarningMessage) return;
+  const hidden = !runtimeBanner.visible || !runtimeBanner.message || state.settings.dismissedRuntimeNotice;
+  els.runtimeWarning.classList.toggle("hidden", hidden);
+  els.runtimeWarningMessage.innerHTML = runtimeBanner.message || "";
+  if (runtimeBanner.tone) {
+    els.runtimeWarning.dataset.tone = runtimeBanner.tone;
+  } else {
+    delete els.runtimeWarning.dataset.tone;
+  }
+  renderRuntimeInfo();
+}
+
+function renderRuntimeInfo() {
+  if (!els.runtimeInfoText || !runtimeState) return;
+  const runtimeLabel = `runtime: ${runtimeState.mode} (${runtimeState.protocol}//${runtimeState.hostname || ""})`;
+  const bannerText = runtimeBanner.message
+    ? runtimeBanner.message.replace(/<br\s*\/?>/gi, " / ").replace(/<[^>]+>/g, "").trim()
+    : "現在バナー表示はありません。";
+  const pwaText = els.pwaPromptMessage?.textContent?.trim() || "現在 PWA テロップ表示はありません。";
+  els.runtimeInfoText.textContent = `${runtimeLabel} / notice: ${bannerText} / pwa: ${pwaText}`;
+}
+
+function applyLayoutSettings() {
+  const widths = state.settings.tableColumnWidths || {};
+  document.documentElement.style.setProperty("--preset-name-col", `${widths.name || 14}rem`);
+  document.documentElement.style.setProperty("--preset-cent-col", `${widths.cent || 7}rem`);
+  document.documentElement.style.setProperty("--preset-short-col", `${widths.short || 7}rem`);
+  document.documentElement.style.setProperty("--preset-tags-col", `${widths.tags || 10}rem`);
+  document.documentElement.style.setProperty("--preset-memo-col", `${widths.memo || 12}rem`);
+  document.documentElement.style.setProperty("--progression-cell-width", `${state.settings.progressionCellWidth || 192}px`);
+}
+
+function buildPresetColGroup(columns) {
+  const colgroup = document.createElement("colgroup");
+  columns.forEach((column) => {
+    const col = document.createElement("col");
+    col.className = `col-${column}`;
+    colgroup.appendChild(col);
+  });
+  return colgroup;
 }
 
 function isLocalhostHost(hostname) {
@@ -274,10 +337,53 @@ function normalizeFilterText(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function compareNamedItems(a, b) {
+  return String(a?.name || a?.id || "").localeCompare(String(b?.name || b?.id || ""), "ja");
+}
+
+function sortedPitchPresets() {
+  return [...state.pitchPresets].sort(compareNamedItems);
+}
+
+function sortedChordPresets() {
+  return [...state.chordPresets].sort(compareNamedItems);
+}
+
+function filteredPitchPresets(filterText) {
+  const normalized = normalizeFilterText(filterText);
+  const presets = sortedPitchPresets();
+  if (!normalized) return presets;
+  return presets.filter((preset) => {
+    const tags = Array.isArray(preset.tags) ? preset.tags.join(" ").toLowerCase() : "";
+    const haystack = `${preset.id} ${preset.name} ${preset.shortName || ""} ${preset.memo || ""} ${tags}`.toLowerCase();
+    return haystack.includes(normalized);
+  });
+}
+
+function filteredActiveNotes(filterText) {
+  const normalized = normalizeFilterText(filterText);
+  const notes = [...state.activeNotes].sort((a, b) => absoluteMicroStep(a) - absoluteMicroStep(b));
+  if (!normalized) return notes;
+  return notes.filter((note, index) => {
+    const preset = findPitchPresetByMicroStep(note.microStepInOctave);
+    const tags = Array.isArray(preset?.tags) ? preset.tags.join(" ").toLowerCase() : "";
+    const haystack = [
+      note.id,
+      describeNoteTitle(note, index),
+      preset?.name || "",
+      preset?.shortName || "",
+      preset?.memo || "",
+      tags
+    ].join(" ").toLowerCase();
+    return haystack.includes(normalized);
+  });
+}
+
 function filteredChordPresets(filterText) {
   const normalized = normalizeFilterText(filterText);
-  if (!normalized) return state.chordPresets;
-  return state.chordPresets.filter((chord) => {
+  const chords = sortedChordPresets();
+  if (!normalized) return chords;
+  return chords.filter((chord) => {
     const tags = Array.isArray(chord.tags) ? chord.tags.join(" ").toLowerCase() : "";
     const haystack = `${chord.id} ${chord.name} ${chord.memo || ""} ${tags}`.toLowerCase();
     return haystack.includes(normalized);
@@ -352,17 +458,9 @@ function formatPresetDisplayName(preset) {
   return preset.shortName || preset.name || preset.id;
 }
 
-function describeNote(note) {
+function describeNoteTitle(note, index = 0) {
   const intervalPreset = findPitchPresetByMicroStep(note.microStepInOctave);
-  const parts = [
-    formatCent(note.cent),
-    `oct ${note.octave}`,
-    formatMicroStep(note.microStepInOctave)
-  ];
-  if (intervalPreset) {
-    parts.push(`named ${formatPresetDisplayName(intervalPreset)}`);
-  }
-  return parts.join(" / ");
+  return intervalPreset ? formatPresetDisplayName(intervalPreset) : `note ${index + 1}`;
 }
 
 function buildChordToneDefaults(note, index, rootNote) {
@@ -592,9 +690,6 @@ function renderProgressionEditorButtons() {
   els.progRootLetterButtons.querySelectorAll("button").forEach((button) => {
     button.classList.toggle("active", button.dataset.note === parts.letter);
   });
-  els.progOctaveButtons.querySelectorAll("button").forEach((button) => {
-    button.classList.toggle("active", button.dataset.octave === parts.octave);
-  });
   els.progFlatBtn.classList.toggle("active", parts.accidental === "b");
   els.progNaturalBtn.classList.toggle("active", parts.accidental === "");
   els.progSharpBtn.classList.toggle("active", parts.accidental === "#");
@@ -613,7 +708,9 @@ function progressionPartLabel(part) {
 }
 
 function resolveProgressionRootInput() {
-  return parseDirectRootNote(state.progressionEditor.rootNoteText);
+  const noteName = String(els.progRootNoteInput?.value || "").trim();
+  const octave = String(els.progRootOctaveInput?.value || "").trim();
+  return parseDirectRootNote(`${noteName}${octave}`);
 }
 
 function stopProgressionPreview(shouldRender = true) {
@@ -809,7 +906,6 @@ function renderLine() {
 
 function renderProgressionGrid() {
   els.progressionGrid.innerHTML = "";
-  els.progressionGrid.style.gridTemplateColumns = `repeat(${state.progression.columns}, minmax(0, 1fr))`;
 
   if (state.progression.parts.length === 0) {
     const empty = document.createElement("div");
@@ -1093,6 +1189,8 @@ function syncProgressionSelectionFromEditor(changeLabel, preview = false) {
 
 function setProgressionEditorRoot({ letter, accidental, octave }) {
   state.progressionEditor.rootNoteText = `${letter}${accidental}${octave}`;
+  if (els.progRootNoteInput) els.progRootNoteInput.value = `${letter}${accidental}`;
+  if (els.progRootOctaveInput) els.progRootOctaveInput.value = octave;
   syncProgressionSelectionFromEditor("進行セルのルート変更", true);
 }
 
@@ -1349,7 +1447,13 @@ function populateComposerRootPresetSelect(select, selectedId = "") {
   empty.textContent = "基音プリセット";
   select.appendChild(empty);
 
-  state.pitchPresets.forEach((preset) => {
+  if (presets.length === 0) {
+    const emptyRow = document.createElement("tr");
+    emptyRow.innerHTML = `<td colspan="5" class="composer-note">条件に合う音高プリセットがありません。</td>`;
+    tbody.appendChild(emptyRow);
+  }
+
+  presets.forEach((preset) => {
     const option = document.createElement("option");
     option.value = preset.id;
     option.textContent = formatPresetDisplayName(preset);
@@ -1485,6 +1589,7 @@ function parseChordTonesInput(value) {
 function renderPitchPresets() {
   const container = els.pitchPresetList;
   container.innerHTML = "";
+  const presets = filteredPitchPresets(els.pitchPresetFilterInput?.value);
   if (state.pitchPresets.length === 0) {
     renderPresetTableEmpty(container, "まだ音高プリセットはありません。");
     return;
@@ -1497,16 +1602,22 @@ function renderPitchPresets() {
       <tr>
         <th>音高</th>
         <th>cent</th>
-        <th>microStep</th>
         <th>短名</th>
         <th>タグ</th>
         <th>メモ</th>
       </tr>
     </thead>
   `;
+  table.prepend(buildPresetColGroup(["name", "cent", "short", "tags", "memo"]));
   const tbody = document.createElement("tbody");
 
-  state.pitchPresets.forEach((preset) => {
+  if (presets.length === 0) {
+    const emptyRow = document.createElement("tr");
+    emptyRow.innerHTML = `<td colspan="5" class="composer-note">条件に合う音高プリセットがありません。</td>`;
+    tbody.appendChild(emptyRow);
+  }
+
+  presets.forEach((preset) => {
     const row = document.createElement("tr");
     row.dataset.pitchPresetId = preset.id;
     const isEditing = presetUi.editingPitchPresetId === preset.id;
@@ -1527,12 +1638,11 @@ function renderPitchPresets() {
       row.appendChild(nameCell);
 
       const centCell = document.createElement("td");
-      centCell.appendChild(buildInlineInput(formatDecimal(preset.cent), "cent"));
+      const centInput = buildInlineInput(formatDecimal(preset.cent), "cent");
+      centInput.type = "number";
+      centInput.step = String(state.settings.snapCent || 1);
+      centCell.appendChild(centInput);
       row.appendChild(centCell);
-
-      const microStepCell = document.createElement("td");
-      microStepCell.textContent = String(preset.microStep);
-      row.appendChild(microStepCell);
 
       const shortCell = document.createElement("td");
       shortCell.appendChild(buildInlineInput(preset.shortName || "", "shortName"));
@@ -1565,9 +1675,6 @@ function renderPitchPresets() {
       centCell.textContent = formatDecimal(preset.cent);
       row.appendChild(centCell);
 
-      const microStepCell = document.createElement("td");
-      microStepCell.textContent = String(preset.microStep);
-      row.appendChild(microStepCell);
 
       const shortCell = document.createElement("td");
       shortCell.textContent = preset.shortName || " ";
@@ -1883,6 +1990,16 @@ function attachEvents() {
     deferredInstallPrompt = null;
     renderPwaPrompt();
   });
+  els.runtimeWarningCloseBtn?.addEventListener("click", () => {
+    state.settings.dismissedRuntimeNotice = true;
+    renderRuntimeBanner();
+    renderRuntimeInfo();
+  });
+  els.pwaPromptCloseBtn?.addEventListener("click", () => {
+    state.settings.dismissedPwaNotice = true;
+    renderPwaPrompt();
+    renderRuntimeInfo();
+  });
 
   document.addEventListener("keydown", (ev) => {
     const meta = ev.ctrlKey || ev.metaKey;
@@ -2054,15 +2171,23 @@ function attachEvents() {
     setStatus(els.progStatus, "進行再生を停止しました。", "success");
   });
   els.progRootNoteInput.addEventListener("change", () => {
-    const parsed = parseDirectRootNote(els.progRootNoteInput.value);
+    const parsed = resolveProgressionRootInput();
     if (!parsed) {
       setStatus(els.progStatus, "ルートは D#3 のように入力してください。", "error");
-      els.progRootNoteInput.value = state.progressionEditor.rootNoteText;
+      const parts = rootEditorParts();
+      els.progRootNoteInput.value = `${parts.letter}${parts.accidental}`;
+      if (els.progRootOctaveInput) els.progRootOctaveInput.value = parts.octave;
       return;
     }
     state.progressionEditor.rootNoteText = parsed.noteText;
     setStatus(els.progStatus, "", "");
     syncProgressionSelectionFromEditor("進行セルのルート変更", true);
+  });
+  els.progRootOctaveInput?.addEventListener("change", () => {
+    const parsed = resolveProgressionRootInput();
+    if (!parsed) return;
+    state.progressionEditor.rootNoteText = parsed.noteText;
+    syncProgressionSelectionFromEditor("騾ｲ陦後そ繝ｫ縺ｮ繧ｪ繧ｯ繧ｿ繝ｼ繝門､画峩", true);
   });
   els.progFlatBtn.addEventListener("click", () => {
     const parts = rootEditorParts();
@@ -2109,6 +2234,8 @@ function attachEvents() {
     syncProgressionSelectionFromEditor("進行セルの拍変更", false);
   });
   els.chordTagFilterInput.addEventListener("input", render);
+  els.activeNotesFilterInput?.addEventListener("input", render);
+  els.pitchPresetFilterInput?.addEventListener("input", render);
   els.progChordTagFilterInput.addEventListener("input", render);
   els.progColumnsSelect.addEventListener("change", () => {
     const before = snapshotState();
@@ -2125,6 +2252,21 @@ function attachEvents() {
     render();
   });
 
+  const bindWidthInput = (input, key, min, max, fallback) => {
+    input?.addEventListener("input", () => {
+      state.settings.tableColumnWidths[key] = clamp(Number(input.value) || fallback, min, max);
+      applyLayoutSettings();
+    });
+  };
+  bindWidthInput(els.presetNameWidthInput, "name", 8, 30, 14);
+  bindWidthInput(els.presetCentWidthInput, "cent", 4, 14, 7);
+  bindWidthInput(els.presetShortWidthInput, "short", 4, 16, 7);
+  bindWidthInput(els.presetTagWidthInput, "tags", 6, 24, 10);
+  bindWidthInput(els.presetMemoWidthInput, "memo", 8, 28, 12);
+  els.progressionCellWidthInput?.addEventListener("input", () => {
+    state.settings.progressionCellWidth = clamp(Number(els.progressionCellWidthInput.value) || 192, 140, 320);
+    applyLayoutSettings();
+  });
   els.activeNotesList.addEventListener("click", (ev) => {
     const target = ev.target;
     if (!(target instanceof HTMLButtonElement)) return;
@@ -2500,12 +2642,14 @@ function renderPwaPrompt() {
     els.pwaPrompt.classList.add("hidden");
     els.pwaPromptMessage.textContent = "";
     els.installPwaBtn.hidden = true;
+    renderRuntimeInfo();
     return;
   }
 
   els.pwaPromptMessage.textContent = message;
   els.installPwaBtn.hidden = !showButton;
-  els.pwaPrompt.classList.remove("hidden");
+  els.pwaPrompt.classList.toggle("hidden", state.settings.dismissedPwaNotice);
+  renderRuntimeInfo();
 }
 
 async function resetDevelopmentCaches() {
@@ -2519,6 +2663,18 @@ async function resetDevelopmentCaches() {
 }
 
 function syncFormFromState() {
+  state.settings.tableColumnWidths = {
+    name: 14,
+    cent: 7,
+    short: 7,
+    tags: 10,
+    memo: 12,
+    ...(state.settings.tableColumnWidths || {})
+  };
+  state.settings.progressionCellWidth = Number(state.settings.progressionCellWidth) || 192;
+  state.settings.dismissedRuntimeNotice = Boolean(state.settings.dismissedRuntimeNotice);
+  state.settings.dismissedPwaNotice = Boolean(state.settings.dismissedPwaNotice);
+  applyLayoutSettings();
   els.octaveInput.value = state.pitchDraft.octave;
   els.snapCentInput.value = formatDecimal(state.settings.snapCent);
   els.centInput.value = formatDecimal(state.pitchDraft.cent);
@@ -2537,9 +2693,18 @@ function syncFormFromState() {
   if (!state.progressionEditor.chordId && state.chordPresets[0]) {
     state.progressionEditor.chordId = state.chordPresets[0].id;
   }
-  els.progRootNoteInput.value = state.progressionEditor.rootNoteText;
+  const rootParts = rootEditorParts();
+  els.progRootNoteInput.value = `${rootParts.letter}${rootParts.accidental}`;
+  if (els.progRootOctaveInput) els.progRootOctaveInput.value = rootParts.octave;
   els.progColumnsSelect.value = String(state.progression.columns);
   els.progLoopInput.checked = state.progression.loop;
+  if (els.runtimeInfoText) renderRuntimeInfo();
+  if (els.presetNameWidthInput) els.presetNameWidthInput.value = state.settings.tableColumnWidths.name;
+  if (els.presetCentWidthInput) els.presetCentWidthInput.value = state.settings.tableColumnWidths.cent;
+  if (els.presetShortWidthInput) els.presetShortWidthInput.value = state.settings.tableColumnWidths.short;
+  if (els.presetTagWidthInput) els.presetTagWidthInput.value = state.settings.tableColumnWidths.tags;
+  if (els.presetMemoWidthInput) els.presetMemoWidthInput.value = state.settings.tableColumnWidths.memo;
+  if (els.progressionCellWidthInput) els.progressionCellWidthInput.value = state.settings.progressionCellWidth;
   renderProgressionChordButtons();
   renderProgressionEditorButtons();
   renderRecallSummary();
@@ -2571,7 +2736,6 @@ function renderActiveNotes() {
         <th></th>
         <th>音高</th>
         <th>cent</th>
-        <th>microStep</th>
         <th>音高ID</th>
         <th>音名</th>
         <th>短名</th>
@@ -2581,13 +2745,20 @@ function renderActiveNotes() {
       </tr>
     </thead>
   `;
+  table.prepend(buildPresetColGroup(["remove", "name", "cent", "id", "name-input", "short", "tags", "memo", "actions"]));
   const tbody = document.createElement("tbody");
 
-  [...state.activeNotes]
-    .sort((a, b) => absoluteMicroStep(a) - absoluteMicroStep(b))
-    .forEach((note) => {
+  const notes = filteredActiveNotes(els.activeNotesFilterInput?.value);
+  if (notes.length === 0) {
+    const emptyRow = document.createElement("tr");
+    emptyRow.innerHTML = `<td colspan="9" class="composer-note">条件に合う activeNotes がありません。</td>`;
+    tbody.appendChild(emptyRow);
+  }
+
+  notes.forEach((note, index) => {
       const row = document.createElement("tr");
       row.dataset.noteId = note.id;
+      const preset = findPitchPresetByMicroStep(note.microStepInOctave);
 
       const removeCell = document.createElement("td");
       removeCell.innerHTML = `<button type="button" class="danger-button active-note-remove" data-note-id="${note.id}" aria-label="削除">×</button>`;
@@ -2595,23 +2766,20 @@ function renderActiveNotes() {
 
       const labelCell = document.createElement("td");
       labelCell.appendChild(buildPresetMainCell(
-        describeNote(note),
+        describeNoteTitle(note, index),
         note.id.toLowerCase()
       ));
       row.appendChild(labelCell);
 
       const centCell = document.createElement("td");
       const centInput = document.createElement("input");
-      centInput.type = "text";
+      centInput.type = "number";
       centInput.className = "preset-inline-input";
+      centInput.step = String(state.settings.snapCent || 1);
       centInput.value = formatDecimal(note.cent);
       centInput.dataset.field = "cent";
       centCell.appendChild(centInput);
       row.appendChild(centCell);
-
-      const microStepCell = document.createElement("td");
-      microStepCell.textContent = String(note.microStepInOctave);
-      row.appendChild(microStepCell);
 
       const fields = [
         ["id", "音高ID"],
@@ -2627,6 +2795,11 @@ function renderActiveNotes() {
         input.className = "preset-inline-input";
         input.placeholder = placeholder;
         input.dataset.field = field;
+        if (field === "id") input.value = preset?.id || "";
+        if (field === "name") input.value = preset?.name || "";
+        if (field === "shortName") input.value = preset?.shortName || "";
+        if (field === "tags") input.value = (preset?.tags || []).join(", ");
+        if (field === "memo") input.value = preset?.memo || "";
         td.appendChild(input);
         row.appendChild(td);
       });
@@ -2661,7 +2834,7 @@ function populateChordBaseRootOptions() {
   sorted.forEach((note, index) => {
     const option = document.createElement("option");
     option.value = note.id;
-    option.textContent = `${index + 1}. ${describeNote(note)}`;
+    option.textContent = `${index + 1}. ${describeNoteTitle(note, index)}`;
     select.appendChild(option);
   });
   select.disabled = false;
@@ -2682,14 +2855,15 @@ function populateRecallChordOptions() {
     return;
   }
 
-  state.chordPresets.forEach((chord) => {
+  sortedChordPresets().forEach((chord) => {
     const option = document.createElement("option");
     option.value = chord.id;
     option.textContent = chord.name;
     select.appendChild(option);
   });
   select.disabled = false;
-  select.value = state.chordPresets.some((chord) => chord.id === previous) ? previous : state.chordPresets[0].id;
+  const sorted = sortedChordPresets();
+  select.value = sorted.some((chord) => chord.id === previous) ? previous : sorted[0].id;
 }
 
 function saveCurrentPitchPreset(source = null) {
@@ -2749,7 +2923,7 @@ function populateRecallRootPresetOptions() {
   empty.textContent = "未選択";
   select.appendChild(empty);
 
-  state.pitchPresets.forEach((preset) => {
+  sortedPitchPresets().forEach((preset) => {
     const option = document.createElement("option");
     option.value = preset.id;
     option.textContent = `${formatPresetDisplayName(preset)} / ${formatDecimal(preset.cent)}c`;

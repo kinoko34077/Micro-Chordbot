@@ -11,10 +11,14 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div id="runtimeWarning" class="runtime-warning hidden" role="alert" aria-live="polite"></div>
+  <div id="runtimeWarning" class="runtime-warning hidden" role="alert" aria-live="polite">
+    <div id="runtimeWarningMessage" class="runtime-warning-message"></div>
+    <button id="runtimeWarningCloseBtn" type="button" class="notice-close" aria-label="close">x</button>
+  </div>
   <div id="pwaPrompt" class="pwa-prompt hidden" aria-live="polite">
     <div id="pwaPromptMessage" class="pwa-prompt-message"></div>
     <div class="pwa-prompt-actions">
+      <button id="pwaPromptCloseBtn" type="button" class="notice-close" aria-label="close">x</button>
       <button id="installPwaBtn" type="button" hidden>アプリを追加</button>
     </div>
   </div>
@@ -55,7 +59,7 @@
               <button id="centUpBtn" type="button">+</button>
             </div>
           </label>
-          <label>microStep
+          <label class="visually-hidden">microStep
             <input id="microStepInput" type="number" readonly>
           </label>
         </div>
@@ -99,6 +103,7 @@
           <section class="library-block">
             <div class="library-block-head">
               <strong>activeNotes</strong>
+              <input id="activeNotesFilterInput" type="text" class="table-filter-input" placeholder="名前 / ID / タグで絞り込み">
             </div>
             <div id="activeNotesList" class="preset-list scroll-list"></div>
           </section>
@@ -107,6 +112,7 @@
               <strong>音高プリセット</strong>
               <span class="panel-note">クリックで追加、ダブルクリックで編集</span>
             </div>
+            <input id="pitchPresetFilterInput" type="text" class="table-filter-input" placeholder="名前 / ID / タグで絞り込み">
             <div class="visually-hidden">
               <input id="pitchPresetIdInput" type="text">
               <input id="pitchPresetNameInput" type="text">
@@ -215,6 +221,11 @@
 
         <div id="progressionEditorBody" class="progression-editor-body">
           <div class="progression-root-row">
+            <label class="progression-root-inline">
+              <span class="progression-root-combo">
+                <input id="progRootOctaveInput" type="number" min="-2" max="9" step="1" value="4" aria-label="octave">
+              </span>
+            </label>
             <label>ルート
               <input id="progRootNoteInput" type="text" inputmode="text" placeholder="D#3">
             </label>
@@ -223,7 +234,7 @@
               <button id="progNaturalBtn" type="button">♮</button>
               <button id="progSharpBtn" type="button">#</button>
             </div>
-            <div id="progOctaveButtons" class="quick-grid octave-grid">
+            <div id="progOctaveButtons" class="quick-grid octave-grid visually-hidden">
               <button type="button" data-octave="2">2</button>
               <button type="button" data-octave="3">3</button>
               <button type="button" data-octave="4">4</button>
@@ -262,6 +273,37 @@
     </section>
 
     <section id="view-settings" class="view">
+      <div class="panel">
+        <div class="panel-heading">
+          <h3>Runtime / PWA</h3>
+        </div>
+        <p id="runtimeInfoText" class="readout"></p>
+      </div>
+      <div class="panel">
+        <div class="panel-heading">
+          <h3>一覧幅</h3>
+        </div>
+        <div class="controls-grid compact-grid">
+          <label>名前列 rem
+            <input id="presetNameWidthInput" type="number" min="8" max="30" step="1" value="14">
+          </label>
+          <label>cent 列 rem
+            <input id="presetCentWidthInput" type="number" min="4" max="14" step="1" value="7">
+          </label>
+          <label>短名列 rem
+            <input id="presetShortWidthInput" type="number" min="4" max="16" step="1" value="7">
+          </label>
+          <label>タグ列 rem
+            <input id="presetTagWidthInput" type="number" min="6" max="24" step="1" value="10">
+          </label>
+          <label>メモ列 rem
+            <input id="presetMemoWidthInput" type="number" min="8" max="28" step="1" value="12">
+          </label>
+          <label>コード箱 px
+            <input id="progressionCellWidthInput" type="number" min="140" max="320" step="4" value="192">
+          </label>
+        </div>
+      </div>
       <div class="panel">
         <div class="controls-grid compact-grid">
           <label>A4 Hz
