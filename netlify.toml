@@ -1,0 +1,7 @@
+[build]
+publish = "code"
+
+[[headers]]
+for = "/*"
+  [headers.values]
+  Cache-Control = "no-cache"
