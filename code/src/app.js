@@ -37,13 +37,13 @@ const state = {
     waveform: "sine",
     dismissedRuntimeNotice: false,
     dismissedPwaNotice: false,
-    progressionCellWidth: 192,
+    progressionCellWidth: 124,
     tableColumnWidths: {
-      name: 14,
-      cent: 7,
-      short: 7,
-      tags: 10,
-      memo: 12
+      name: 11,
+      cent: 5,
+      short: 5,
+      tags: 8,
+      memo: 10
     }
   },
   pitchDraft: {
@@ -262,12 +262,12 @@ function renderRuntimeInfo() {
 
 function applyLayoutSettings() {
   const widths = state.settings.tableColumnWidths || {};
-  document.documentElement.style.setProperty("--preset-name-col", `${widths.name || 14}rem`);
-  document.documentElement.style.setProperty("--preset-cent-col", `${widths.cent || 7}rem`);
-  document.documentElement.style.setProperty("--preset-short-col", `${widths.short || 7}rem`);
-  document.documentElement.style.setProperty("--preset-tags-col", `${widths.tags || 10}rem`);
-  document.documentElement.style.setProperty("--preset-memo-col", `${widths.memo || 12}rem`);
-  document.documentElement.style.setProperty("--progression-cell-width", `${state.settings.progressionCellWidth || 192}px`);
+  document.documentElement.style.setProperty("--preset-name-col", `${widths.name || 11}rem`);
+  document.documentElement.style.setProperty("--preset-cent-col", `${widths.cent || 5}rem`);
+  document.documentElement.style.setProperty("--preset-short-col", `${widths.short || 5}rem`);
+  document.documentElement.style.setProperty("--preset-tags-col", `${widths.tags || 8}rem`);
+  document.documentElement.style.setProperty("--preset-memo-col", `${widths.memo || 10}rem`);
+  document.documentElement.style.setProperty("--progression-cell-width", `${state.settings.progressionCellWidth || 124}px`);
 }
 
 function buildPresetColGroup(columns) {
@@ -2261,13 +2261,13 @@ function attachEvents() {
       render();
     });
   };
-  bindWidthInput(els.presetNameWidthInput, "name", 8, 30, 14);
-  bindWidthInput(els.presetCentWidthInput, "cent", 4, 14, 7);
-  bindWidthInput(els.presetShortWidthInput, "short", 4, 16, 7);
-  bindWidthInput(els.presetTagWidthInput, "tags", 6, 24, 10);
-  bindWidthInput(els.presetMemoWidthInput, "memo", 8, 28, 12);
+  bindWidthInput(els.presetNameWidthInput, "name", 5, 24, 11);
+  bindWidthInput(els.presetCentWidthInput, "cent", 3, 10, 5);
+  bindWidthInput(els.presetShortWidthInput, "short", 3, 12, 5);
+  bindWidthInput(els.presetTagWidthInput, "tags", 4, 18, 8);
+  bindWidthInput(els.presetMemoWidthInput, "memo", 5, 20, 10);
   els.progressionCellWidthInput?.addEventListener("input", () => {
-    state.settings.progressionCellWidth = clamp(Number(els.progressionCellWidthInput.value) || 192, 140, 320);
+    state.settings.progressionCellWidth = clamp(Number(els.progressionCellWidthInput.value) || 124, 88, 220);
     applyLayoutSettings();
     render();
   });
@@ -2668,14 +2668,14 @@ async function resetDevelopmentCaches() {
 
 function syncFormFromState() {
   state.settings.tableColumnWidths = {
-    name: 14,
-    cent: 7,
-    short: 7,
-    tags: 10,
-    memo: 12,
+    name: 11,
+    cent: 5,
+    short: 5,
+    tags: 8,
+    memo: 10,
     ...(state.settings.tableColumnWidths || {})
   };
-  state.settings.progressionCellWidth = Number(state.settings.progressionCellWidth) || 192;
+  state.settings.progressionCellWidth = Number(state.settings.progressionCellWidth) || 124;
   state.settings.dismissedRuntimeNotice = Boolean(state.settings.dismissedRuntimeNotice);
   state.settings.dismissedPwaNotice = Boolean(state.settings.dismissedPwaNotice);
   applyLayoutSettings();

@@ -6,12 +6,12 @@
   --accent: #22d3ee;
   --accent-2: #fb7185;
   --panel: #111827;
-  --preset-name-col: 14rem;
-  --preset-cent-col: 7rem;
-  --preset-short-col: 7rem;
-  --preset-tags-col: 10rem;
-  --preset-memo-col: 12rem;
-  --progression-cell-width: 192px;
+  --preset-name-col: 11rem;
+  --preset-cent-col: 5rem;
+  --preset-short-col: 5rem;
+  --preset-tags-col: 8rem;
+  --preset-memo-col: 10rem;
+  --progression-cell-width: 124px;
 }
 
 * { box-sizing: border-box; }
@@ -26,9 +26,9 @@ body {
 }
 
 .topbar, main {
-  width: min(100vw - 20px, 1760px);
+  width: min(100vw - 16px, 1760px);
   margin: 0 auto;
-  padding: 10px 2px;
+  padding: 8px 2px;
 }
 .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .brand-nav {
@@ -134,9 +134,9 @@ input, select, textarea { width: 100%; }
 .pitch-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
-  gap: 12px 16px;
+  gap: 8px 12px;
   align-items: end;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .controls-grid {
   display: grid;
@@ -151,7 +151,7 @@ input, select, textarea { width: 100%; }
   grid-template-columns: max-content minmax(120px, 170px) minmax(160px, 1fr);
   align-items: end;
 }
-label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); min-width: 0; }
+label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); min-width: 0; }
 .inline-row-compact input { max-width: 112px; }
 #octaveInput { width: 3.5rem; }
 #snapCentInput { width: 5rem; }
@@ -204,8 +204,8 @@ label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); mi
   background: color-mix(in srgb, var(--panel) 85%, black);
   border: 1px solid #334155;
   border-radius: 10px;
-  padding: 10px;
-  margin-top: 10px;
+  padding: 8px;
+  margin-top: 8px;
 }
 .panel-heading {
   display: flex;
@@ -315,16 +315,16 @@ label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); mi
 }
 .progression-grid {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   grid-template-columns: repeat(auto-fit, minmax(var(--progression-cell-width), var(--progression-cell-width)));
   justify-content: flex-start;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 .progression-cell {
   position: relative;
   width: var(--progression-cell-width);
-  min-height: 72px;
-  padding: 12px;
+  min-height: 58px;
+  padding: 8px;
   border: 1px solid #334155;
   border-radius: 0;
   background:
@@ -363,20 +363,20 @@ label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); mi
 }
 .progression-cell.drop-after::after { inset: 8px 0 8px auto; }
 .cell-title {
-  font-size: 0.98rem;
+  font-size: 0.92rem;
   font-weight: 500;
   color: #f8f4e5;
   overflow-wrap: anywhere;
 }
 .cell-meta {
   color: var(--muted);
-  font-size: 0.86rem;
-  line-height: 1.45;
+  font-size: 0.78rem;
+  line-height: 1.25;
   white-space: nowrap;
 }
 .progression-editor {
-  margin-top: 10px;
-  padding: 12px;
+  margin-top: 8px;
+  padding: 10px;
   border: 1px solid #334155;
   border-radius: 14px;
   background: linear-gradient(180deg, rgba(22, 20, 18, 0.98), rgba(31, 28, 24, 0.98));
@@ -393,13 +393,13 @@ label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); mi
   align-items: center;
   gap: 10px;
 }
-.progression-editor-body { margin-top: 12px; }
+.progression-editor-body { margin-top: 8px; }
 .progression-root-row {
   display: grid;
-  grid-template-columns: minmax(200px, 260px) auto;
-  gap: 8px;
+  grid-template-columns: minmax(156px, 208px) auto;
+  gap: 6px;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .progression-root-inline {
   min-width: 0;
@@ -415,19 +415,23 @@ label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); mi
 #progRootNoteInput {
   min-width: 0;
 }
-.quick-row { display: flex; gap: 8px; }
+.quick-row { display: flex; gap: 6px; }
 .quick-grid {
   display: grid;
-  gap: 6px;
-  margin-top: 8px;
+  gap: 4px;
+  margin-top: 6px;
 }
 .root-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .octave-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 0; }
 .chord-grid,
-.beats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.beats-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--progression-cell-width)), var(--progression-cell-width)));
+  justify-content: flex-start;
+}
 .quick-grid button,
 .quick-row button {
-  min-height: 44px;
+  min-height: 36px;
+  padding: 6px 8px;
   background: rgba(250, 247, 230, 0.92);
   color: #564f34;
   border-color: rgba(138, 129, 96, 0.35);
@@ -449,7 +453,7 @@ label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); mi
   overflow-x: auto;
 }
 .scroll-list {
-  max-height: 280px;
+  max-height: 240px;
   overflow: auto;
   border: 1px solid #334155;
   border-radius: 10px;
@@ -458,12 +462,12 @@ label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); mi
 .preset-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   table-layout: fixed;
 }
 .preset-table th,
 .preset-table td {
-  padding: 4px 6px;
+  padding: 3px 5px;
   border: 1px solid #263449;
   vertical-align: top;
   text-align: left;
@@ -486,7 +490,7 @@ label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); mi
 }
 .preset-id {
   color: #7c8ba1;
-  font-size: 0.84rem;
+  font-size: 0.76rem;
   text-transform: lowercase;
   white-space: nowrap;
 }
@@ -508,11 +512,11 @@ label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); mi
 .preset-inline-textarea {
   width: 100%;
   min-width: 0;
-  padding: 4px 6px;
-  font-size: 0.82rem;
+  padding: 3px 5px;
+  font-size: 0.78rem;
 }
 .preset-inline-textarea {
-  min-height: 46px;
+  min-height: 38px;
   resize: vertical;
 }
 .preset-inline-actions {
@@ -576,8 +580,8 @@ label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); mi
 }
 .table-filter-input {
   width: min(320px, 100%);
-  font-size: 0.82rem;
-  padding: 6px 8px;
+  font-size: 0.78rem;
+  padding: 4px 6px;
 }
 .library-controls-grid {
   display: grid;
@@ -619,8 +623,8 @@ label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); mi
 .preset-table col.col-memo { width: var(--preset-memo-col); }
 .preset-table col.col-remove { width: 1.6rem; }
 .preset-table col.col-id { width: 9rem; }
-.preset-table col.col-name-input { width: 10rem; }
-.preset-table col.col-actions { width: 8rem; }
+.preset-table col.col-name-input { width: 8rem; }
+.preset-table col.col-actions { width: 6rem; }
 .preset-table .composer-row {
   cursor: default;
   background: rgba(12, 20, 34, 0.96);
