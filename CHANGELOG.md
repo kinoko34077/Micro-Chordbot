@@ -1,4 +1,4 @@
-﻿# μChordbot Workspace Changelog
+# μChordbot Workspace Changelog
 
 ## Logging Rule (Mandatory)
 

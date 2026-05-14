@@ -15,6 +15,17 @@
 
 ---
 
+# 文字コード方針
+
+- 全テキストファイルは `UTF-8 without BOM` で統一する
+- 対象: `HTML / CSS / JS / JSON / MD / TXT / CSV / webmanifest`
+- `UTF-16`、`Shift_JIS`、`EUC-JP`、`BOM 付き UTF-8` への変換は禁止
+- `code/index.html` では `<meta charset="UTF-8">` を維持する
+- JavaScript / JSON 内の日本語は不要な Unicode エスケープへ変換しない
+- 改行は `LF` に統一する
+
+---
+
 # 特徴
 
 ## 微分音対応

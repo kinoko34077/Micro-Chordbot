@@ -370,9 +370,10 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
 }
 .cell-meta {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   line-height: 1.25;
   white-space: nowrap;
+  text-transform: lowercase;
 }
 .progression-editor {
   margin-top: 8px;
@@ -415,6 +416,61 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
 #progRootNoteInput {
   min-width: 0;
 }
+.progression-voice-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.progression-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: rgba(25, 37, 59, 0.9);
+  color: var(--fg);
+}
+.progression-token-input input {
+  width: 6.2rem;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.progression-token-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.progression-popover {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 8px;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.92);
+}
+.progression-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pitch-choice-grid,
+.inversion-grid {
+  grid-template-columns: repeat(auto-fit, minmax(72px, max-content));
+  justify-content: flex-start;
+}
+.voicing-band-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.voicing-band-grid.hidden {
+  display: none;
+}
 .quick-row { display: flex; gap: 6px; }
 .quick-grid {
   display: grid;
@@ -435,6 +491,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   background: rgba(250, 247, 230, 0.92);
   color: #564f34;
   border-color: rgba(138, 129, 96, 0.35);
+  overflow-wrap: anywhere;
 }
 .quick-grid button.active,
 .quick-row button.active {

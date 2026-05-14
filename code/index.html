@@ -85,7 +85,7 @@
 
       <div class="line-wrap">
         <canvas id="pitchLine" width="1000" height="80" aria-label="pitch line"></canvas>
-        <p id="lineReadout" class="readout">cent 0 / microStep 0</p>
+        <p id="lineReadout" class="readout">cent 0</p>
       </div>
 
       <section class="panel unified-panel">
@@ -241,6 +241,31 @@
             </div>
           </div>
 
+          <div class="progression-voice-row">
+            <label class="progression-token progression-token-input">
+              <span class="progression-token-label">Bass:</span>
+              <input id="progBassInput" type="text" placeholder="P1 / A#2" aria-label="bass pitch">
+            </label>
+            <button id="progBassPopoverBtn" type="button" class="progression-token">Bass選択</button>
+            <button id="progInversionPopoverBtn" type="button" class="progression-token">転回形</button>
+          </div>
+
+          <div id="progBassPopover" class="progression-popover hidden">
+            <div class="progression-popover-head">
+              <strong>Bass</strong>
+              <button id="progBassClearBtn" type="button">root</button>
+            </div>
+            <div id="progBassButtonGrid" class="quick-grid pitch-choice-grid"></div>
+          </div>
+
+          <div id="progInversionPopover" class="progression-popover hidden">
+            <div class="progression-popover-head">
+              <strong>転回形 / octave</strong>
+            </div>
+            <div id="progVoicingBandGrid" class="quick-grid voicing-band-grid"></div>
+            <div id="progInversionButtonGrid" class="quick-grid inversion-grid"></div>
+          </div>
+
           <div id="progRootLetterButtons" class="quick-grid root-grid">
             <button type="button" data-note="C">C</button>
             <button type="button" data-note="D">D</button>
@@ -277,6 +302,9 @@
           <h3>Runtime / PWA</h3>
         </div>
         <p id="runtimeInfoText" class="readout"></p>
+        <div class="inline-row">
+          <button id="runtimeRefreshBtn" type="button">更新を反映</button>
+        </div>
       </div>
       <div class="panel">
         <div class="panel-heading">

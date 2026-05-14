@@ -17,6 +17,7 @@ const MOMENTARY_VOICE_ID = "__preview__";
 const DRAG_PREVIEW_VOICE_ID = "__preview_drag__";
 const PROGRESSION_VOICE_PREFIX = "__prog__:";
 const PROGRESSION_PREVIEW_VOICE_PREFIX = "__prog_preview__:";
+const APP_BUILD = "2026-05-14-sw-refresh-1";
 const ROOT_NOTE_SEMITONES = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 const ROOT_ACCIDENTAL_OPTIONS = [
   { id: "flat", symbol: "b", delta: -1 },
@@ -66,7 +67,11 @@ const state = {
   progressionEditor: {
     chordId: null,
     rootNoteText: "C4",
-    beats: 4
+    beats: 4,
+    bassMode: "relative",
+    bassValue: "__root__",
+    voicingOctave: 4,
+    inversionStep: 0
   }
 };
 
@@ -137,6 +142,15 @@ const els = {
   progressionEditorBody: document.getElementById("progressionEditorBody"),
   progRootNoteInput: document.getElementById("progRootNoteInput"),
   progRootOctaveInput: document.getElementById("progRootOctaveInput"),
+  progBassInput: document.getElementById("progBassInput"),
+  progBassPopoverBtn: document.getElementById("progBassPopoverBtn"),
+  progBassPopover: document.getElementById("progBassPopover"),
+  progBassButtonGrid: document.getElementById("progBassButtonGrid"),
+  progBassClearBtn: document.getElementById("progBassClearBtn"),
+  progInversionPopoverBtn: document.getElementById("progInversionPopoverBtn"),
+  progInversionPopover: document.getElementById("progInversionPopover"),
+  progVoicingBandGrid: document.getElementById("progVoicingBandGrid"),
+  progInversionButtonGrid: document.getElementById("progInversionButtonGrid"),
   progFlatBtn: document.getElementById("progFlatBtn"),
   progNaturalBtn: document.getElementById("progNaturalBtn"),
   progSharpBtn: document.getElementById("progSharpBtn"),
@@ -158,6 +172,7 @@ const els = {
   roundUnitInput: document.getElementById("roundUnitInput"),
   roundingModeSelect: document.getElementById("roundingModeSelect"),
   runtimeInfoText: document.getElementById("runtimeInfoText"),
+  runtimeRefreshBtn: document.getElementById("runtimeRefreshBtn"),
   presetNameWidthInput: document.getElementById("presetNameWidthInput"),
   presetCentWidthInput: document.getElementById("presetCentWidthInput"),
   presetShortWidthInput: document.getElementById("presetShortWidthInput"),
@@ -199,6 +214,14 @@ const presetUi = {
   pitchPresetClickTimerId: null,
   chordPresetClickTimerId: null
 };
+const pitchUi = {
+  lastTouchedNoteId: null
+};
+const popoverUi = {
+  active: "",
+  pointerDown: false
+};
+const ROOT_BASS_TOKEN = "__root__";
 
 function showRuntimeWarning(message) {
   runtimeBanner = { message, tone: "", visible: true };
@@ -252,7 +275,7 @@ function renderRuntimeBanner() {
 
 function renderRuntimeInfo() {
   if (!els.runtimeInfoText || !runtimeState) return;
-  const runtimeLabel = `runtime: ${runtimeState.mode} (${runtimeState.protocol}//${runtimeState.hostname || ""})`;
+  const runtimeLabel = `runtime: ${runtimeState.mode} (${runtimeState.protocol}//${runtimeState.hostname || ""}) / build: ${APP_BUILD}`;
   const bannerText = runtimeBanner.message
     ? runtimeBanner.message.replace(/<br\s*\/?>/gi, " / ").replace(/<[^>]+>/g, "").trim()
     : "現在バナー表示はありません。";
@@ -463,6 +486,164 @@ function describeNoteTitle(note, index = 0) {
   return intervalPreset ? formatPresetDisplayName(intervalPreset) : `note ${index + 1}`;
 }
 
+function findActiveNoteById(noteId) {
+  return state.activeNotes.find((note) => note.id === noteId) || null;
+}
+
+function rememberActiveNote(noteId) {
+  pitchUi.lastTouchedNoteId = noteId;
+}
+
+function syncDraftFromNote(note) {
+  if (!note) return;
+  pitchUi.lastTouchedNoteId = note.id;
+  state.pitchDraft = {
+    octave: note.octave,
+    cent: Number(note.cent),
+    microStepInOctave: note.microStepInOctave
+  };
+}
+
+function roundPitchPosition(octave, microStepInOctave) {
+  const roundUnit = Math.max(0, Number(state.settings.roundUnitCent) || 0);
+  if (roundUnit <= 0) {
+    return normalizePitch(octave, microStepInOctave);
+  }
+  if (state.settings.roundingMode === "beforeRoot") {
+    const absoluteCent = microStepToCent((octave * OCTAVE_MICROSTEP) + microStepInOctave);
+    const roundedCent = Math.round(absoluteCent / roundUnit) * roundUnit;
+    return normalizePitch(0, centToMicroStep(roundedCent));
+  }
+  const roundedLocalCent = Math.round(microStepToCent(microStepInOctave) / roundUnit) * roundUnit;
+  return normalizePitch(octave, centToMicroStep(roundedLocalCent));
+}
+
+function activeNotePlaybackPosition(note) {
+  return roundPitchPosition(note.octave, note.microStepInOctave);
+}
+
+function currentPitchEditTarget() {
+  return findActiveNoteById(pitchUi.lastTouchedNoteId);
+}
+
+function dedupeActiveNotes(preferredNote = null) {
+  const keepNotes = new Set();
+  const buckets = new Map();
+  state.activeNotes.forEach((note) => {
+    if (!buckets.has(note.id)) buckets.set(note.id, []);
+    buckets.get(note.id).push(note);
+  });
+  buckets.forEach((notes) => {
+    keepNotes.add(notes.includes(preferredNote) ? preferredNote : notes[notes.length - 1]);
+  });
+  state.activeNotes = state.activeNotes.filter((note) => keepNotes.has(note));
+}
+
+function currentBassPreset() {
+  if (state.progressionEditor.bassMode !== "relative") return null;
+  if (!state.progressionEditor.bassValue || state.progressionEditor.bassValue === ROOT_BASS_TOKEN) return null;
+  return findPitchPresetById(state.progressionEditor.bassValue);
+}
+
+function bassSpecLabel(mode, value) {
+  if (mode === "absolute") return value || "C3";
+  if (!value || value === ROOT_BASS_TOKEN) return "P1";
+  const preset = findPitchPresetById(value);
+  return preset ? formatPresetDisplayName(preset) : "P1";
+}
+
+function bassTokenLabel() {
+  return bassSpecLabel(state.progressionEditor.bassMode, state.progressionEditor.bassValue);
+}
+
+function ordinalLabel(value) {
+  const n = Math.abs(Number(value) || 0);
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  if (n % 10 === 1) return `${n}st`;
+  if (n % 10 === 2) return `${n}nd`;
+  if (n % 10 === 3) return `${n}rd`;
+  return `${n}th`;
+}
+
+function inversionLabelForChord(chord, step = 0) {
+  if (!chord || !chord.tones?.length) return "root";
+  const normalized = ((Number(step) % chord.tones.length) + chord.tones.length) % chord.tones.length;
+  if (normalized === 0) return "root";
+  return ordinalLabel(normalized);
+}
+
+function currentInversionLabel() {
+  const chord = state.chordPresets.find((item) => item.id === state.progressionEditor.chordId);
+  return inversionLabelForChord(chord, state.progressionEditor.inversionStep);
+}
+
+function voicingBandOffsetOctave(band) {
+  if (band === "low") return -1;
+  if (band === "high") return 1;
+  return 0;
+}
+
+function normalizedInversionRotation(total, step = 0) {
+  const count = Math.max(Number(total) || 0, 1);
+  return ((Number(step) % count) + count) % count;
+}
+
+function inversionOctaveCarry(total, step = 0) {
+  const count = Math.max(Number(total) || 0, 1);
+  const rotation = normalizedInversionRotation(count, step);
+  return Math.floor((Number(step) - rotation) / count);
+}
+
+function progressionVoicingBaseOctave(part) {
+  const explicit = Number(part?.voicing?.octave);
+  if (Number.isFinite(explicit)) return explicit;
+  return Number(part?.root?.octave || 4) + voicingBandOffsetOctave(part?.voicing?.band || "mid");
+}
+
+function currentVoicingOctave() {
+  const chord = state.chordPresets.find((item) => item.id === state.progressionEditor.chordId);
+  const total = chord?.tones?.length || 1;
+  return Number(state.progressionEditor.voicingOctave || 4) + inversionOctaveCarry(total, state.progressionEditor.inversionStep);
+}
+
+function formatRootPitchClass(root) {
+  const text = formatDirectRootFromPart(root);
+  return text.replace(/-?\d+$/, "");
+}
+
+function bassSpecForPart(part) {
+  const mode = part?.bass?.mode === "absolute" ? "absolute" : "relative";
+  if (mode === "absolute") {
+    const parsed = parseDirectRootNote(part?.bass?.noteText || "");
+    return parsed ? { mode, value: parsed.noteText } : { mode: "relative", value: ROOT_BASS_TOKEN };
+  }
+  const value = part?.bass?.pitchPresetId || ROOT_BASS_TOKEN;
+  return { mode, value };
+}
+
+function fineDragStepCent() {
+  const snap = Math.max(0, Number(state.settings.snapCent) || 0);
+  return Math.max(1 / 3, snap > 0 ? snap / 10 : 1 / 3);
+}
+
+function openProgressionPopover(name) {
+  popoverUi.active = popoverUi.active === name ? "" : name;
+  renderProgressionPopovers();
+}
+
+function closeProgressionPopovers() {
+  popoverUi.active = "";
+  renderProgressionPopovers();
+}
+
+function renderProgressionPopovers() {
+  els.progBassPopover?.classList.toggle("hidden", popoverUi.active !== "bass");
+  els.progInversionPopover?.classList.toggle("hidden", popoverUi.active !== "inversion");
+  els.progBassPopoverBtn?.classList.toggle("active", popoverUi.active === "bass");
+  els.progInversionPopoverBtn?.classList.toggle("active", popoverUi.active === "inversion");
+}
+
 function buildChordToneDefaults(note, index, rootNote) {
   if (note.id === rootNote.id) return "Root";
   const relative = normalizePitch(0, absoluteMicroStep(note) - absoluteMicroStep(rootNote));
@@ -480,10 +661,11 @@ function deriveChordName(labels, tones) {
 }
 
 function currentDraftFrequency() {
+  const rounded = roundPitchPosition(state.pitchDraft.octave, state.pitchDraft.microStepInOctave);
   return frequencyFromPitch(
     state.settings.a4Hz,
-    state.pitchDraft.octave,
-    state.pitchDraft.microStepInOctave
+    rounded.octave,
+    rounded.microStepInOctave
   );
 }
 
@@ -493,9 +675,10 @@ async function syncAudioToActiveNotes() {
 
   const activeIds = new Set(state.activeNotes.map((note) => note.id));
   for (const note of state.activeNotes) {
+    const playback = activeNotePlaybackPosition(note);
     await audio.startVoice(
       note.id,
-      frequencyFromPitch(state.settings.a4Hz, note.octave, note.microStepInOctave),
+      frequencyFromPitch(state.settings.a4Hz, playback.octave, playback.microStepInOctave),
       state.settings.waveform,
       state.settings.activeNotesVolume
     );
@@ -519,6 +702,7 @@ function applySnapshot(snap) {
   state.chordPresets = snap.chordPresets ?? [];
   state.progression = snap.progression ?? state.progression;
   state.progressionEditor = snap.progressionEditor ?? state.progressionEditor;
+  pitchUi.lastTouchedNoteId = state.activeNotes[0]?.id || null;
   syncFormFromState();
   render();
   void syncAudioToActiveNotes();
@@ -587,6 +771,11 @@ function loadProgressionEditorFromPart(part) {
   state.progressionEditor.chordId = part.chordId;
   state.progressionEditor.rootNoteText = formatDirectRootFromPart(part.root);
   state.progressionEditor.beats = part.beats;
+  const bass = bassSpecForPart(part);
+  state.progressionEditor.bassMode = bass.mode;
+  state.progressionEditor.bassValue = bass.value;
+  state.progressionEditor.voicingOctave = progressionVoicingBaseOctave(part);
+  state.progressionEditor.inversionStep = Number(part.voicing?.step) || 0;
 }
 
 function resetProgressionInteractionState() {
@@ -663,6 +852,85 @@ function currentProgressionSelectionIndex() {
   return state.progression.parts.findIndex((part) => part.id === state.progression.selectedPartId);
 }
 
+function progressionToneSpecs(chord) {
+  return (chord?.tones || []).map((tone, toneIndex) => {
+    let intervalMicroStep = 0;
+    if (tone.pitchPresetId) {
+      const preset = findPitchPresetById(tone.pitchPresetId);
+      if (!preset) return null;
+      intervalMicroStep = preset.microStep;
+    } else {
+      intervalMicroStep = centToMicroStep(Number(tone.localCent) || 0);
+    }
+    return {
+      toneIndex,
+      label: tone.label || `Tone${toneIndex + 1}`,
+      intervalAbsoluteMicroStep: (tone.octaveShift * OCTAVE_MICROSTEP) + intervalMicroStep
+    };
+  }).filter(Boolean).sort((a, b) => a.intervalAbsoluteMicroStep - b.intervalAbsoluteMicroStep);
+}
+
+function applyInversionToToneSpecs(toneSpecs, step = 0, octaveOffset = 0) {
+  if (!toneSpecs.length) return [];
+  const total = toneSpecs.length;
+  const normalizedStep = Number(step) || 0;
+  const rotation = normalizedInversionRotation(total, normalizedStep);
+  const octaveCarry = inversionOctaveCarry(total, normalizedStep);
+  const rotated = toneSpecs.slice(rotation).concat(
+    toneSpecs.slice(0, rotation).map((tone) => ({
+      ...tone,
+      intervalAbsoluteMicroStep: tone.intervalAbsoluteMicroStep + OCTAVE_MICROSTEP
+    }))
+  );
+  return rotated.map((tone) => ({
+    ...tone,
+    intervalAbsoluteMicroStep: tone.intervalAbsoluteMicroStep + (octaveCarry * OCTAVE_MICROSTEP) + octaveOffset
+  }));
+}
+
+function progressionBassPosition(part) {
+  const spec = bassSpecForPart(part);
+  if (spec.mode === "absolute") {
+    const parsed = parseDirectRootNote(spec.value);
+    return parsed ? { octave: parsed.octave, microStepInOctave: parsed.microStepInOctave } : null;
+  }
+  const intervalMicroStep = spec.value === ROOT_BASS_TOKEN
+    ? 0
+    : findPitchPresetById(spec.value)?.microStep;
+  if (!Number.isFinite(intervalMicroStep)) return normalizePitch(part.root.octave - 1, part.root.microStepInOctave);
+  const absolute = (part.root.octave * OCTAVE_MICROSTEP) + part.root.microStepInOctave + intervalMicroStep - OCTAVE_MICROSTEP;
+  return normalizePitch(0, absolute);
+}
+
+function selectBassPreset(presetId, changeLabel = "進行セルの bass 変更") {
+  state.progressionEditor.bassMode = "relative";
+  state.progressionEditor.bassValue = presetId || ROOT_BASS_TOKEN;
+  syncProgressionSelectionFromEditor(changeLabel, true);
+}
+
+function selectBassAbsoluteNote(noteText, changeLabel = "進行セルの bass 固定音変更") {
+  const parsed = parseDirectRootNote(noteText);
+  if (!parsed) return false;
+  state.progressionEditor.bassMode = "absolute";
+  state.progressionEditor.bassValue = parsed.noteText;
+  syncProgressionSelectionFromEditor(changeLabel, true);
+  return true;
+}
+
+function selectInversionStep(step, changeLabel = "進行セルの転回形変更") {
+  if (!Number.isFinite(Number(step))) return;
+  state.progressionEditor.inversionStep = Number(step);
+  syncProgressionSelectionFromEditor(changeLabel, true);
+}
+
+function buttonAtClientPoint(container, clientX, clientY) {
+  if (!(container instanceof HTMLElement)) return null;
+  const target = document.elementFromPoint(clientX, clientY);
+  if (!(target instanceof HTMLElement) || !container.contains(target)) return null;
+  const button = target.closest("button");
+  return button instanceof HTMLButtonElement && container.contains(button) ? button : null;
+}
+
 function renderProgressionChordButtons() {
   els.progChordButtonGrid.innerHTML = "";
   const chords = filteredChordPresets(els.progChordTagFilterInput?.value);
@@ -685,6 +953,55 @@ function renderProgressionChordButtons() {
   });
 }
 
+function renderBassChoiceButtons() {
+  if (!els.progBassButtonGrid) return;
+  els.progBassButtonGrid.innerHTML = "";
+  const rootButton = document.createElement("button");
+  rootButton.type = "button";
+  rootButton.dataset.bassPresetId = ROOT_BASS_TOKEN;
+  rootButton.textContent = "P1";
+  rootButton.title = "root";
+  rootButton.classList.toggle(
+    "active",
+    state.progressionEditor.bassMode === "relative" &&
+    (!state.progressionEditor.bassValue || state.progressionEditor.bassValue === ROOT_BASS_TOKEN)
+  );
+  els.progBassButtonGrid.appendChild(rootButton);
+  sortedPitchPresets().forEach((preset) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.bassPresetId = preset.id;
+    button.textContent = formatPresetDisplayName(preset);
+    button.title = `${preset.name || preset.id} / ${preset.id}`;
+    button.classList.toggle(
+      "active",
+      state.progressionEditor.bassMode === "relative" && state.progressionEditor.bassValue === preset.id
+    );
+    els.progBassButtonGrid.appendChild(button);
+  });
+}
+
+function renderVoicingControls() {
+  if (!els.progInversionButtonGrid) return;
+  if (els.progVoicingBandGrid) {
+    els.progVoicingBandGrid.innerHTML = "";
+    els.progVoicingBandGrid.classList.add("hidden");
+  }
+  els.progInversionButtonGrid.innerHTML = "";
+  const chord = state.chordPresets.find((item) => item.id === state.progressionEditor.chordId);
+  const tones = progressionToneSpecs(chord);
+  const normalizedStep = normalizedInversionRotation(tones.length, state.progressionEditor.inversionStep);
+  tones.slice(1).forEach((tone, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.inversionStep = String(index + 1);
+    button.textContent = ordinalLabel(index + 1);
+    button.title = tone.label || ordinalLabel(index + 1);
+    button.classList.toggle("active", normalizedStep === index + 1);
+    els.progInversionButtonGrid.appendChild(button);
+  });
+}
+
 function renderProgressionEditorButtons() {
   const parts = rootEditorParts();
   els.progRootLetterButtons.querySelectorAll("button").forEach((button) => {
@@ -696,14 +1013,25 @@ function renderProgressionEditorButtons() {
   els.progBeatsButtonGrid.querySelectorAll("button").forEach((button) => {
     button.classList.toggle("active", Number(button.dataset.beats) === state.progressionEditor.beats);
   });
+  if (els.progBassInput) els.progBassInput.value = bassTokenLabel();
+  if (els.progInversionPopoverBtn) {
+    els.progInversionPopoverBtn.textContent = `転回形: ${currentInversionLabel()} / oct ${currentVoicingOctave()}`;
+  }
+  renderProgressionPopovers();
+  renderBassChoiceButtons();
+  renderVoicingControls();
 }
 
 function progressionPartLabel(part) {
   const chord = state.chordPresets.find((item) => item.id === part.chordId);
-  const rootLabel = formatDirectRootFromPart(part.root);
+  const rootLabel = formatRootPitchClass(part.root);
+  const bass = bassSpecForPart(part);
+  const bassLabel = ` / ${bassSpecLabel(bass.mode, bass.value)}`;
+  const octave = progressionVoicingBaseOctave(part) + inversionOctaveCarry(chord?.tones?.length || 1, part.voicing?.step || 0);
   return {
-    chordName: chord?.name || `(deleted: ${part.chordId})`,
-    rootLabel
+    chordName: `${chord?.name || `(deleted: ${part.chordId})`}${bassLabel}`,
+    rootLabel,
+    meta: `(${part.beats}/4 oct:${octave})`
   };
 }
 
@@ -736,32 +1064,30 @@ function progressionPartVoiceSpecs(part, voicePrefix) {
   if (!chord) return [];
 
   const rootAbsolute = (part.root.octave * OCTAVE_MICROSTEP) + part.root.microStepInOctave;
+  const voicingOffset = (progressionVoicingBaseOctave(part) - part.root.octave) * OCTAVE_MICROSTEP;
+  const voicedTones = applyInversionToToneSpecs(
+    progressionToneSpecs(chord),
+    part.voicing?.step || 0,
+    voicingOffset
+  );
   const specs = [];
 
-  chord.tones.forEach((tone, toneIndex) => {
-    let intervalMicroStep = 0;
-    if (tone.pitchPresetId) {
-      const preset = findPitchPresetById(tone.pitchPresetId);
-      if (!preset) return;
-      intervalMicroStep = preset.microStep;
-    } else {
-      intervalMicroStep = centToMicroStep(Number(tone.localCent) || 0);
-    }
-
-    const absolute = rootAbsolute + (tone.octaveShift * OCTAVE_MICROSTEP) + intervalMicroStep;
+  voicedTones.forEach((tone) => {
+    const absolute = rootAbsolute + tone.intervalAbsoluteMicroStep;
     const normalized = normalizePitch(0, absolute);
+    const rounded = roundPitchPosition(normalized.octave, normalized.microStepInOctave);
     specs.push({
-      id: `${voicePrefix}${part.id}:${toneIndex}`,
-      freq: frequencyFromPitch(state.settings.a4Hz, normalized.octave, normalized.microStepInOctave)
+      id: `${voicePrefix}${part.id}:${tone.toneIndex}`,
+      freq: frequencyFromPitch(state.settings.a4Hz, rounded.octave, rounded.microStepInOctave)
     });
   });
 
-  if (part.bass?.enabled) {
-    const bassAbsolute = (part.bass.octave * OCTAVE_MICROSTEP) + part.bass.microStepInOctave - OCTAVE_MICROSTEP;
-    const normalizedBass = normalizePitch(0, bassAbsolute);
+  const bassPosition = progressionBassPosition(part);
+  if (bassPosition) {
+    const roundedBass = roundPitchPosition(bassPosition.octave, bassPosition.microStepInOctave);
     specs.push({
       id: `${voicePrefix}${part.id}:bass`,
-      freq: frequencyFromPitch(state.settings.a4Hz, normalizedBass.octave, normalizedBass.microStepInOctave)
+      freq: frequencyFromPitch(state.settings.a4Hz, roundedBass.octave, roundedBass.microStepInOctave)
     });
   }
 
@@ -839,6 +1165,9 @@ function removeActiveNote(noteId) {
   if (index < 0) return;
   const before = snapshotState();
   state.activeNotes.splice(index, 1);
+  if (pitchUi.lastTouchedNoteId === noteId) {
+    pitchUi.lastTouchedNoteId = state.activeNotes[0]?.id || null;
+  }
   audio.stopVoice(noteId);
   const after = snapshotState();
   trackStateChange("remove_active_note", "activeNotesから削除", before, after);
@@ -846,20 +1175,69 @@ function removeActiveNote(noteId) {
   render();
 }
 
+function syncLineCanvasSize(canvas) {
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(1, Math.round(rect.width || canvas.clientWidth || 1));
+  const height = Math.max(1, Math.round(rect.height || canvas.clientHeight || 1));
+  const ratio = Math.max(1, window.devicePixelRatio || 1);
+  const renderWidth = Math.round(width * ratio);
+  const renderHeight = Math.round(height * ratio);
+  if (canvas.width !== renderWidth || canvas.height !== renderHeight) {
+    canvas.width = renderWidth;
+    canvas.height = renderHeight;
+  }
+  return { width, height, ratio };
+}
+
+function lineMarkerPosition(metrics, note) {
+  const centerOctave = 3;
+  const octaveStepY = 10;
+  const markerBaseY = metrics.height / 2;
+  const x = (note.microStepInOctave / OCTAVE_MICROSTEP) * metrics.width;
+  const octaveOffset = note.octave - centerOctave;
+  const y = clamp(markerBaseY - (octaveOffset * octaveStepY), 24, metrics.height - 14);
+  return { x, y };
+}
+
+function hitActiveNoteOnLine(canvas, clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const metrics = syncLineCanvasSize(canvas);
+  const localX = clientX - rect.left;
+  const localY = clientY - rect.top;
+  let best = null;
+  let bestDistance = 16;
+  state.activeNotes.forEach((note) => {
+    const candidates = [lineMarkerPosition(metrics, note)];
+    if (state.settings.roundUnitCent > 0) {
+      candidates.push(lineMarkerPosition(metrics, activeNotePlaybackPosition(note)));
+    }
+    candidates.forEach((marker) => {
+      const distance = Math.hypot(marker.x - localX, marker.y - localY);
+      if (distance <= bestDistance) {
+        best = note;
+        bestDistance = distance;
+      }
+    });
+  });
+  return best;
+}
+
 function renderLine() {
   const canvas = els.lineCanvas;
+  const metrics = syncLineCanvasSize(canvas);
   const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.setTransform(metrics.ratio, 0, 0, metrics.ratio, 0, 0);
+  ctx.clearRect(0, 0, metrics.width, metrics.height);
   ctx.fillStyle = "#0b1220";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, metrics.width, metrics.height);
 
   ctx.strokeStyle = "#334155";
   ctx.lineWidth = 1;
   for (let i = 0; i <= 12; i += 1) {
-    const x = (canvas.width * i) / 12;
+    const x = (metrics.width * i) / 12;
     ctx.beginPath();
     ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
+    ctx.lineTo(x, metrics.height);
     ctx.stroke();
   }
 
@@ -868,35 +1246,60 @@ function renderLine() {
   ctx.font = "10px sans-serif";
   ctx.textAlign = "center";
   labels.forEach((label, index) => {
-    const rawX = (canvas.width * index) / 12;
-    const x = clamp(rawX + (index === 0 ? 12 : index === 12 ? -12 : 0), 12, canvas.width - 12);
+    const rawX = (metrics.width * index) / 12;
+    const x = clamp(rawX + (index === 0 ? 12 : index === 12 ? -12 : 0), 12, metrics.width - 12);
     ctx.fillText(label, x, 12);
   });
   ctx.textAlign = "start";
 
-  const draftX = (state.pitchDraft.microStepInOctave / OCTAVE_MICROSTEP) * canvas.width;
+  const markerPad = 8;
+  const draftX = (state.pitchDraft.microStepInOctave / OCTAVE_MICROSTEP) * metrics.width;
   ctx.strokeStyle = "#22d3ee";
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(draftX, 16);
-  ctx.lineTo(draftX, canvas.height - 8);
+  ctx.lineTo(draftX, metrics.height - 8);
   ctx.stroke();
 
   const sortedActiveNotes = [...state.activeNotes].sort((a, b) => absoluteMicroStep(a) - absoluteMicroStep(b));
-  const centerOctave = 3;
-  const octaveStepY = 10;
-  const markerBaseY = canvas.height / 2;
   sortedActiveNotes.forEach((note, index) => {
-    const x = (note.microStepInOctave / OCTAVE_MICROSTEP) * canvas.width;
-    const octaveOffset = note.octave - centerOctave;
-    const markerY = clamp(markerBaseY - (octaveOffset * octaveStepY), 24, canvas.height - 14);
-    ctx.fillStyle = "#fb7185";
+    const original = lineMarkerPosition(metrics, note);
+    const roundedNote = activeNotePlaybackPosition(note);
+    const rounded = lineMarkerPosition(metrics, roundedNote);
+    let originalX = original.x;
+    let roundedX = rounded.x;
+    if (Math.abs(originalX - roundedX) > metrics.width / 2) {
+      if (originalX < roundedX) originalX += metrics.width;
+      else roundedX += metrics.width;
+    }
+    const drawOriginalX = clamp(originalX, markerPad, metrics.width - markerPad);
+    const drawRoundedX = clamp(roundedX, markerPad, metrics.width - markerPad);
+    if (state.settings.roundUnitCent > 0) {
+      ctx.strokeStyle = "#64748b";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(drawOriginalX, original.y);
+      ctx.lineTo(drawRoundedX, rounded.y);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(148, 163, 184, 0.65)";
+      ctx.beginPath();
+      ctx.arc(drawOriginalX, original.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#38bdf8";
     ctx.beginPath();
-    ctx.arc(x, markerY, 6, 0, Math.PI * 2);
+    ctx.arc(drawRoundedX, rounded.y, 6, 0, Math.PI * 2);
     ctx.fill();
+    if (pitchUi.lastTouchedNoteId === note.id) {
+      ctx.strokeStyle = "#f8fafc";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(drawRoundedX, rounded.y, 8, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.fillStyle = "#f8fafc";
     ctx.font = "10px sans-serif";
-    ctx.fillText(String(index + 1), x - 3, markerY + 4);
+    ctx.fillText(String(index + 1), drawRoundedX - 3, rounded.y + 4);
   });
 
   if (audio.hasVoice(MOMENTARY_VOICE_ID) || audio.hasVoice(DRAG_PREVIEW_VOICE_ID)) {
@@ -938,7 +1341,7 @@ function renderProgressionGrid() {
     button.dataset.partId = part.id;
     button.dataset.index = String(index);
 
-    const { chordName, rootLabel } = progressionPartLabel(part);
+    const { chordName, rootLabel, meta: metaLabel } = progressionPartLabel(part);
 
     const title = document.createElement("div");
     title.className = "cell-title";
@@ -947,7 +1350,7 @@ function renderProgressionGrid() {
 
     const meta = document.createElement("div");
     meta.className = "cell-meta";
-    meta.textContent = `${part.beats}/4`;
+    meta.textContent = metaLabel;
     button.appendChild(meta);
 
     els.progressionGrid.appendChild(button);
@@ -1063,6 +1466,32 @@ function savePitchPresetFromActiveNote(noteId) {
   saveCurrentPitchPreset({ note, values });
 }
 
+function buildProgressionBassState() {
+  if (state.progressionEditor.bassMode === "absolute") {
+    const parsed = parseDirectRootNote(state.progressionEditor.bassValue);
+    if (parsed) {
+      return {
+        mode: "absolute",
+        noteText: parsed.noteText
+      };
+    }
+  }
+  return {
+    mode: "relative",
+    pitchPresetId:
+      state.progressionEditor.bassValue && state.progressionEditor.bassValue !== ROOT_BASS_TOKEN
+        ? state.progressionEditor.bassValue
+        : null
+  };
+}
+
+function buildProgressionVoicingState() {
+  return {
+    octave: clamp(Number(state.progressionEditor.voicingOctave) || 4, -2, 9),
+    step: Number(state.progressionEditor.inversionStep) || 0
+  };
+}
+
 function addProgressionPart() {
   const chordId = state.progressionEditor.chordId;
   if (!chordId) {
@@ -1083,12 +1512,8 @@ function addProgressionPart() {
     id: partId,
     chordId,
     root,
-    bass: {
-      enabled: false,
-      octave: root.octave,
-      microStepInOctave: root.microStepInOctave,
-      pitchPresetId: root.pitchPresetId
-    },
+    bass: buildProgressionBassState(),
+    voicing: buildProgressionVoicingState(),
     beats
   };
   const selectedIndex = state.progression.parts.findIndex((part) => part.id === state.progression.selectedPartId);
@@ -1172,12 +1597,8 @@ function syncProgressionSelectionFromEditor(changeLabel, preview = false) {
     ...state.progression.parts[index],
     chordId: state.progressionEditor.chordId,
     root,
-    bass: {
-      enabled: false,
-      octave: root.octave,
-      microStepInOctave: root.microStepInOctave,
-      pitchPresetId: root.pitchPresetId
-    },
+    bass: buildProgressionBassState(),
+    voicing: buildProgressionVoicingState(),
     beats: clamp(Number(state.progressionEditor.beats) || 4, 1, 16)
   };
   const after = snapshotState();
@@ -1191,7 +1612,15 @@ function syncProgressionSelectionFromEditor(changeLabel, preview = false) {
 }
 
 function setProgressionEditorRoot({ letter, accidental, octave }) {
+  const previous = resolveProgressionRootInput();
   state.progressionEditor.rootNoteText = `${letter}${accidental}${octave}`;
+  const nextOctave = Number(octave);
+  if (previous && Number.isFinite(nextOctave)) {
+    const offset = Number(state.progressionEditor.voicingOctave || previous.octave) - previous.octave;
+    state.progressionEditor.voicingOctave = clamp(nextOctave + offset, -2, 9);
+  } else if (Number.isFinite(nextOctave)) {
+    state.progressionEditor.voicingOctave = clamp(nextOctave, -2, 9);
+  }
   if (els.progRootNoteInput) els.progRootNoteInput.value = `${letter}${accidental}`;
   if (els.progRootOctaveInput) els.progRootOctaveInput.value = octave;
   syncProgressionSelectionFromEditor("進行セルのルート変更", true);
@@ -1299,13 +1728,35 @@ function canvasXFromPointerEvent(canvas, ev) {
 
 async function applyDragPitch(finalize = false) {
   const canvas = els.lineCanvas;
+  if (!dragContext) return;
   const rect = canvas.getBoundingClientRect();
   const width = rect.width || 1;
-  const virtualX = dragContext ? dragContext.virtualX : 0;
+  if (dragContext.mode === "active-note") {
+    const note = findActiveNoteById(dragContext.noteId);
+    if (!note) return;
+    const deltaX = dragContext.virtualX - dragContext.pointerStartX;
+    const speedFactor = dragContext.fine ? 8 : 1;
+    const rawDeltaCent = (deltaX / width) * 1200 / speedFactor;
+    const deltaCent = dragContext.fine
+      ? Math.round(rawDeltaCent / fineDragStepCent()) * fineDragStepCent()
+      : rawDeltaCent;
+    const normalized = normalizePitch(0, dragContext.baseAbsoluteMicroStep + centToMicroStep(deltaCent));
+    note.octave = normalized.octave;
+    note.microStepInOctave = normalized.microStepInOctave;
+    note.cent = Number(microStepToCent(normalized.microStepInOctave));
+    note.id = buildNoteId(note.octave, note.microStepInOctave);
+    dedupeActiveNotes(note);
+    syncDraftFromNote(note);
+    syncFormFromState();
+    render();
+    await syncAudioToActiveNotes();
+    return;
+  }
+  const virtualX = dragContext.virtualX;
   const octaveDelta = Math.floor(virtualX / width);
   const normalizedX = ((virtualX % width) + width) % width;
   const cent = (normalizedX / width) * 1200;
-  const targetOctave = (dragContext ? dragContext.baseOctave : state.pitchDraft.octave) + octaveDelta;
+  const targetOctave = dragContext.baseOctave + octaveDelta;
 
   syncDraftFromCent(cent, targetOctave);
   syncFormFromState();
@@ -1342,6 +1793,9 @@ async function toggleCurrentNote() {
   if (index >= 0) {
     state.activeNotes.splice(index, 1);
     audio.stopVoice(noteId);
+    if (pitchUi.lastTouchedNoteId === noteId) {
+      pitchUi.lastTouchedNoteId = state.activeNotes[0]?.id || null;
+    }
   } else {
     state.activeNotes.push({
       id: noteId,
@@ -1349,6 +1803,7 @@ async function toggleCurrentNote() {
       microStepInOctave: state.pitchDraft.microStepInOctave,
       cent: Number(state.pitchDraft.cent)
     });
+    rememberActiveNote(noteId);
     await audio.startVoice(
       noteId,
       currentDraftFrequency(),
@@ -1367,6 +1822,7 @@ async function clearAllActiveNotes() {
   if (state.activeNotes.length === 0) return;
   const before = snapshotState();
   state.activeNotes = [];
+  pitchUi.lastTouchedNoteId = null;
   const after = snapshotState();
   trackStateChange("clear_active_notes", "activeNotes 一括削除", before, after);
   render();
@@ -1386,6 +1842,7 @@ async function addPitchPresetToActiveNotes(presetId) {
     microStepInOctave: preset.microStep,
     cent: Number(microStepToCent(preset.microStep))
   });
+  rememberActiveNote(noteId);
   syncDraftFromCent(microStepToCent(preset.microStep), state.pitchDraft.octave);
   const after = snapshotState();
   trackStateChange("add_pitch_preset_note", "音高プリセットから追加", before, after);
@@ -1953,6 +2410,9 @@ function updateActiveNoteFromRow(noteId) {
     note.microStepInOctave = normalized.microStepInOctave;
     note.cent = Number(microStepToCent(normalized.microStepInOctave));
     note.id = buildNoteId(note.octave, note.microStepInOctave);
+    dedupeActiveNotes(note);
+    rememberActiveNote(note.id);
+    syncDraftFromNote(note);
   }
 
   const after = snapshotState();
@@ -2014,6 +2474,15 @@ function attachEvents() {
       updateHistoryButtons();
     }
   });
+  document.addEventListener("pointerdown", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.closest(".progression-popover") || target.closest(".progression-token")) return;
+    closeProgressionPopovers();
+  });
+  document.addEventListener("pointerup", () => {
+    popoverUi.pointerDown = false;
+  });
 
   els.octaveInput.addEventListener("change", () => {
     const before = snapshotState();
@@ -2037,11 +2506,24 @@ function attachEvents() {
   const centCommit = () => {
     const before = snapshotState();
     const parsedCent = Number(String(els.centInput.value).replace(",", "."));
-    syncDraftFromCent(Number.isFinite(parsedCent) ? parsedCent : state.pitchDraft.cent, state.pitchDraft.octave);
+    const nextCent = Number.isFinite(parsedCent) ? parsedCent : state.pitchDraft.cent;
+    const currentNote = currentPitchEditTarget();
+    if (currentNote) {
+      const normalized = normalizePitch(currentNote.octave, centToMicroStep(nextCent));
+      currentNote.octave = normalized.octave;
+      currentNote.microStepInOctave = normalized.microStepInOctave;
+      currentNote.cent = Number(microStepToCent(normalized.microStepInOctave));
+      currentNote.id = buildNoteId(currentNote.octave, currentNote.microStepInOctave);
+      dedupeActiveNotes(currentNote);
+      syncDraftFromNote(currentNote);
+    } else {
+      syncDraftFromCent(nextCent, state.pitchDraft.octave);
+    }
     const after = snapshotState();
     trackStateChange("update_cent", "cent入力変更", before, after);
     syncFormFromState();
     render();
+    void syncAudioToActiveNotes();
   };
   els.centInput.addEventListener("change", centCommit);
 
@@ -2175,7 +2657,14 @@ function attachEvents() {
       if (els.progRootOctaveInput) els.progRootOctaveInput.value = parts.octave;
       return;
     }
+    const previous = parseDirectRootNote(state.progressionEditor.rootNoteText);
     state.progressionEditor.rootNoteText = parsed.noteText;
+    if (previous) {
+      const offset = Number(state.progressionEditor.voicingOctave || previous.octave) - previous.octave;
+      state.progressionEditor.voicingOctave = clamp(parsed.octave + offset, -2, 9);
+    } else {
+      state.progressionEditor.voicingOctave = parsed.octave;
+    }
     setStatus(els.progStatus, "", "");
     syncProgressionSelectionFromEditor("進行セルのルート変更", true);
   });
@@ -2191,6 +2680,95 @@ function attachEvents() {
   };
   els.progRootOctaveInput?.addEventListener("input", syncProgressionRootOctave);
   els.progRootOctaveInput?.addEventListener("change", syncProgressionRootOctave);
+  els.progBassInput?.addEventListener("focus", () => openProgressionPopover("bass"));
+  els.progBassInput?.addEventListener("pointerdown", () => openProgressionPopover("bass"));
+  els.progBassInput?.addEventListener("change", () => {
+    const raw = String(els.progBassInput.value || "").trim();
+    if (!raw || /^(root|p1)$/i.test(raw)) {
+      selectBassPreset(ROOT_BASS_TOKEN, "進行セルの bass root 変更");
+      els.progBassInput.value = bassTokenLabel();
+      return;
+    }
+    if (selectBassAbsoluteNote(raw, "進行セルの bass 固定音変更")) {
+      els.progBassInput.value = bassTokenLabel();
+      return;
+    }
+    const preset = state.pitchPresets.find((item) =>
+      item.id === raw ||
+      item.name === raw ||
+      item.shortName === raw ||
+      formatPresetDisplayName(item) === raw
+    ) || null;
+    if (preset) {
+      selectBassPreset(preset.id, "進行セルの bass 変更");
+    }
+    els.progBassInput.value = bassTokenLabel();
+  });
+  els.progBassPopoverBtn?.addEventListener("click", () => openProgressionPopover("bass"));
+  els.progBassClearBtn?.addEventListener("click", () => selectBassPreset(ROOT_BASS_TOKEN, "進行セルの bass root 変更"));
+  els.progBassButtonGrid?.addEventListener("click", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLButtonElement)) return;
+    selectBassPreset(target.dataset.bassPresetId || "", "進行セルの bass 変更");
+  });
+  els.progBassButtonGrid?.addEventListener("pointerdown", (ev) => {
+    popoverUi.pointerDown = true;
+    const button = buttonAtClientPoint(els.progBassButtonGrid, ev.clientX, ev.clientY);
+    if (!(button instanceof HTMLButtonElement)) return;
+    selectBassPreset(button.dataset.bassPresetId || "", "進行セルの bass スワイプ変更");
+  });
+  els.progBassButtonGrid?.addEventListener("pointermove", (ev) => {
+    if (!popoverUi.pointerDown) return;
+    const button = buttonAtClientPoint(els.progBassButtonGrid, ev.clientX, ev.clientY);
+    if (!(button instanceof HTMLButtonElement)) return;
+    const presetId = button.dataset.bassPresetId || ROOT_BASS_TOKEN;
+    if (
+      state.progressionEditor.bassMode === "relative" &&
+      presetId === (state.progressionEditor.bassValue || ROOT_BASS_TOKEN)
+    ) return;
+    selectBassPreset(presetId, "進行セルの bass スワイプ変更");
+  });
+  els.progInversionPopoverBtn?.addEventListener("click", () => openProgressionPopover("inversion"));
+  els.progInversionButtonGrid?.addEventListener("click", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLButtonElement)) return;
+    selectInversionStep(Number(target.dataset.inversionStep), "進行セルの転回形変更");
+  });
+  els.progInversionButtonGrid?.addEventListener("pointerdown", (ev) => {
+    popoverUi.pointerDown = true;
+    const button = buttonAtClientPoint(els.progInversionButtonGrid, ev.clientX, ev.clientY);
+    if (!(button instanceof HTMLButtonElement)) return;
+    selectInversionStep(Number(button.dataset.inversionStep), "進行セルの転回形スワイプ変更");
+  });
+  els.progInversionButtonGrid?.addEventListener("pointermove", (ev) => {
+    if (!popoverUi.pointerDown) return;
+    const button = buttonAtClientPoint(els.progInversionButtonGrid, ev.clientX, ev.clientY);
+    if (!(button instanceof HTMLButtonElement)) return;
+    const step = Number(button.dataset.inversionStep);
+    if (!Number.isFinite(step) || step === state.progressionEditor.inversionStep) return;
+    selectInversionStep(step, "進行セルの転回形スワイプ変更");
+  });
+  els.progInversionPopoverBtn?.addEventListener("pointerdown", (ev) => {
+    if (!(ev.target instanceof HTMLElement)) return;
+    openProgressionPopover("inversion");
+    const startX = ev.clientX;
+    const startStep = Number(state.progressionEditor.inversionStep) || 0;
+    let appliedOffset = 0;
+    const move = (moveEv) => {
+      const offset = Math.trunc((moveEv.clientX - startX) / 24);
+      if (offset === appliedOffset) return;
+      appliedOffset = offset;
+      selectInversionStep(startStep + offset, "進行セルの転回形スワイプ変更");
+    };
+    const cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", cleanup);
+      window.removeEventListener("pointercancel", cleanup);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", cleanup);
+    window.addEventListener("pointercancel", cleanup);
+  });
   els.progFlatBtn.addEventListener("click", () => {
     const parts = rootEditorParts();
     setProgressionEditorRoot({ ...parts, accidental: "b" });
@@ -2273,7 +2851,16 @@ function attachEvents() {
   });
   els.activeNotesList.addEventListener("click", (ev) => {
     const target = ev.target;
-    if (!(target instanceof HTMLButtonElement)) return;
+    if (!(target instanceof HTMLElement)) return;
+    if (!(target instanceof HTMLButtonElement)) {
+      const row = target.closest("[data-note-id]");
+      if (!(row instanceof HTMLElement)) return;
+      const note = findActiveNoteById(row.dataset.noteId || "");
+      if (!note) return;
+      syncDraftFromNote(note);
+      render();
+      return;
+    }
     if (target.dataset.action === "update-active-note") {
       const noteId = target.dataset.noteId;
       if (!noteId) return;
@@ -2515,12 +3102,29 @@ function attachEvents() {
   const canvas = els.lineCanvas;
   canvas.addEventListener("pointerdown", async (ev) => {
     const x = canvasXFromPointerEvent(canvas, ev);
-    dragContext = {
-      before: snapshotState(),
-      baseOctave: state.pitchDraft.octave,
-      lastCanvasX: x,
-      virtualX: x
-    };
+    const hitNote = hitActiveNoteOnLine(canvas, ev.clientX, ev.clientY);
+    if (hitNote) {
+      syncDraftFromNote(hitNote);
+      rememberActiveNote(hitNote.id);
+      dragContext = {
+        mode: "active-note",
+        before: snapshotState(),
+        noteId: hitNote.id,
+        baseAbsoluteMicroStep: absoluteMicroStep(hitNote),
+        pointerStartX: x,
+        virtualX: x,
+        lastCanvasX: x,
+        fine: ev.ctrlKey || ev.metaKey
+      };
+    } else {
+      dragContext = {
+        mode: "draft",
+        before: snapshotState(),
+        baseOctave: state.pitchDraft.octave,
+        lastCanvasX: x,
+        virtualX: x
+      };
+    }
     canvas.setPointerCapture(ev.pointerId);
     await applyDragPitch(false);
   });
@@ -2528,18 +3132,34 @@ function attachEvents() {
   canvas.addEventListener("pointermove", async (ev) => {
     if (!dragContext) return;
     const x = canvasXFromPointerEvent(canvas, ev);
-    dragContext.virtualX += x - dragContext.lastCanvasX;
-    dragContext.lastCanvasX = x;
+    if (dragContext.mode === "active-note") {
+      dragContext.virtualX += x - dragContext.lastCanvasX;
+      dragContext.lastCanvasX = x;
+      dragContext.fine = ev.ctrlKey || ev.metaKey;
+    } else {
+      dragContext.virtualX += x - dragContext.lastCanvasX;
+      dragContext.lastCanvasX = x;
+    }
     await applyDragPitch(false);
   });
 
   canvas.addEventListener("pointerup", async (ev) => {
     if (!dragContext) return;
     const x = canvasXFromPointerEvent(canvas, ev);
-    dragContext.virtualX += x - dragContext.lastCanvasX;
-    dragContext.lastCanvasX = x;
+    if (dragContext.mode === "active-note") {
+      dragContext.virtualX += x - dragContext.lastCanvasX;
+      dragContext.lastCanvasX = x;
+      dragContext.fine = ev.ctrlKey || ev.metaKey;
+    } else {
+      dragContext.virtualX += x - dragContext.lastCanvasX;
+      dragContext.lastCanvasX = x;
+    }
     await applyDragPitch(true);
-    if (state.settings.playMode === "momentary") {
+    if (dragContext.mode === "active-note") {
+      const after = snapshotState();
+      trackStateChange("active_note_drag", "activeNotes ドラッグ調整", dragContext.before, after);
+      await syncAudioToActiveNotes();
+    } else if (state.settings.playMode === "momentary") {
       audio.stopVoice(MOMENTARY_VOICE_ID);
       const after = snapshotState();
       trackStateChange("pitch_drag_commit", "数直線ドラッグ確定", dragContext.before, after);
@@ -2555,10 +3175,23 @@ function attachEvents() {
     render();
   });
 
-  window.addEventListener("resize", syncProgressionLayoutState);
+  canvas.addEventListener("dblclick", (ev) => {
+    const hitNote = hitActiveNoteOnLine(canvas, ev.clientX, ev.clientY);
+    if (!hitNote) return;
+    removeActiveNote(hitNote.id);
+  });
+
+  window.addEventListener("resize", () => {
+    syncProgressionLayoutState();
+    render();
+  });
 
   els.exportBtn.addEventListener("click", exportProject);
   els.exportLibraryBtn.addEventListener("click", exportLibrary);
+  els.runtimeRefreshBtn?.addEventListener("click", () => {
+    showRuntimeNotice("キャッシュを破棄して再読込します。", "info");
+    void forceRefreshApplication();
+  });
   els.importFileInput.addEventListener("change", async () => {
     const file = els.importFileInput.files?.[0];
     if (!file) return;
@@ -2664,6 +3297,22 @@ async function resetDevelopmentCaches() {
     const keys = await caches.keys().catch(() => []);
     await Promise.all(keys.map((key) => caches.delete(key).catch(() => false)));
   }
+}
+
+async function forceRefreshApplication() {
+  if ("serviceWorker" in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations().catch(() => []);
+    await Promise.all(
+      registrations.map(async (registration) => {
+        await registration.update().catch(() => {});
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: "SKIP_WAITING" });
+        }
+      })
+    );
+  }
+  await resetDevelopmentCaches().catch(() => {});
+  window.location.reload();
 }
 
 function syncFormFromState() {
@@ -2996,9 +3645,11 @@ function renderProgressionSummary() {
   const selected = selectedIndex >= 0 ? state.progression.parts[selectedIndex] : null;
   const chord = selected ? state.chordPresets.find((item) => item.id === selected.chordId) : null;
   const editorRoot = state.progressionEditor.rootNoteText;
+  const bassLabel = bassTokenLabel();
+  const inversionLabel = `${currentInversionLabel()} / oct ${currentVoicingOctave()}`;
   els.progSummary.textContent = selected
-    ? `${chord?.name || selected.chordId} / ${formatDirectRootFromPart(selected.root)} / ${selected.beats}/4`
-    : `編集中: ${state.progressionEditor.chordId || "未選択"} / ${editorRoot} / ${state.progressionEditor.beats}/4`;
+    ? `${chord?.name || selected.chordId} / ${formatDirectRootFromPart(selected.root)} / bass ${bassLabel} / ${inversionLabel} / ${selected.beats}/4`
+    : `編集中: ${state.progressionEditor.chordId || "未選択"} / ${editorRoot} / bass ${bassLabel} / ${inversionLabel} / ${state.progressionEditor.beats}/4`;
 }
 
 function saveChordFromActiveNotes() {
@@ -3118,6 +3769,7 @@ async function loadChordIntoActiveNotes(chordId = els.recallChordSelect.value) {
   });
 
   state.activeNotes = [...notesById.values()].sort((a, b) => absoluteMicroStep(a) - absoluteMicroStep(b));
+  pitchUi.lastTouchedNoteId = state.activeNotes[0]?.id || null;
   syncDraftFromCent(microStepToCent(root.microStepInOctave), root.octave);
   const after = snapshotState();
   trackStateChange("load_chord_preset", "コード呼び出し", before, after);
@@ -3130,8 +3782,7 @@ async function loadChordIntoActiveNotes(chordId = els.recallChordSelect.value) {
 function render() {
   const currentPreset = findPitchPresetByMicroStep(state.pitchDraft.microStepInOctave);
   const parts = [
-    `cent ${formatDecimal(state.pitchDraft.cent)}`,
-    `microStep ${state.pitchDraft.microStepInOctave}`
+    `cent ${formatDecimal(state.pitchDraft.cent)}`
   ];
   if (currentPreset) {
     parts.push(`named ${formatPresetDisplayName(currentPreset)}`);
@@ -3207,7 +3858,29 @@ async function init() {
   });
 
   if ("serviceWorker" in navigator && runtimeState.swAllowed && runtimeState.mode === "https") {
-    navigator.serviceWorker.register("./service-worker.js").catch((err) => {
+    navigator.serviceWorker.register(`./service-worker.js?build=${encodeURIComponent(APP_BUILD)}`, {
+      updateViaCache: "none"
+    }).then(async (registration) => {
+      let reloading = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (reloading) return;
+        reloading = true;
+        window.location.reload();
+      });
+      registration.addEventListener("updatefound", () => {
+        const worker = registration.installing;
+        if (!worker) return;
+        worker.addEventListener("statechange", () => {
+          if (worker.state === "installed" && navigator.serviceWorker.controller) {
+            worker.postMessage({ type: "SKIP_WAITING" });
+          }
+        });
+      });
+      await registration.update().catch(() => {});
+      if (registration.waiting) {
+        registration.waiting.postMessage({ type: "SKIP_WAITING" });
+      }
+    }).catch((err) => {
       console.warn("service worker register failed:", err);
       showRuntimeWarning(
         "PWA機能の初期化に失敗しました（通常利用は継続可能）。<br>" +

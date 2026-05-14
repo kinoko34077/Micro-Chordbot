@@ -1,4 +1,4 @@
-const CACHE_NAME = "mu-chordbot-v2";
+const CACHE_NAME = "mu-chordbot-v4";
 const ASSETS = [
   "./",
   "./index.html",
@@ -27,22 +27,48 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const requestUrl = new URL(event.request.url);
   if (requestUrl.origin !== self.location.origin) return;
+  const isShellAsset =
+    requestUrl.pathname.endsWith("/") ||
+    requestUrl.pathname.endsWith("/index.html") ||
+    requestUrl.pathname.endsWith(".js") ||
+    requestUrl.pathname.endsWith(".css") ||
+    requestUrl.pathname.endsWith(".webmanifest");
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
-        if (!response || response.status !== 200 || response.type !== "basic") {
-          return response;
+    (async () => {
+      if (isShellAsset) {
+        try {
+          const fresh = await fetch(event.request, { cache: "no-store" });
+          if (fresh && fresh.status === 200 && fresh.type === "basic") {
+            const cloned = fresh.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
+          }
+          return fresh;
+        } catch {
+          const cached = await caches.match(event.request);
+          if (cached) return cached;
+          throw new Error(`offline and no cache: ${event.request.url}`);
         }
+      }
+
+      const cached = await caches.match(event.request);
+      if (cached) return cached;
+      const response = await fetch(event.request);
+      if (response && response.status === 200 && response.type === "basic") {
         const cloned = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
-        return response;
-      });
-    })
+      }
+      return response;
+    })()
   );
 });

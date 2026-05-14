@@ -9,6 +9,14 @@
 - `code/index.html`, `code/styles.css`: UI
 - `code/manifest.webmanifest`, `code/service-worker.js`: PWA 基盤
 
+## 文字コード規約
+- 全テキストファイルは `UTF-8 without BOM`
+- 対象: `HTML / CSS / JS / JSON / MD / TXT / CSV / webmanifest`
+- 改行は `LF`
+- `UTF-16`、`Shift_JIS`、`EUC-JP`、`BOM 付き UTF-8` への変換は禁止
+- HTML は `<head>` の先頭付近に `<meta charset="UTF-8">` を置く
+- JS / JSON 内の日本語は不要な Unicode エスケープへ変換しない
+
 ## 実装済みフェーズ
 1. 音高入力、発音、toggle / momentary
 2. 音高プリセット追加、コード保存
