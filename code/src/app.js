@@ -89,6 +89,7 @@ const state = {
     chordId: null,
     rootNoteText: "C4",
     beats: 4,
+    beatUnit: 4,
     sectionName: "",
     bassMode: "relative",
     bassValue: "__root__",
@@ -156,6 +157,7 @@ const els = {
   progPrevBtn: document.getElementById("progPrevBtn"),
   progNextBtn: document.getElementById("progNextBtn"),
   progCounter: document.getElementById("progCounter"),
+  progChunkSelect: document.getElementById("progChunkSelect"),
   progMenuToggleBtn: document.getElementById("progMenuToggleBtn"),
   progToolbarActions: document.getElementById("progToolbarActions"),
   progColumnsSelect: document.getElementById("progColumnsSelect"),
@@ -181,6 +183,8 @@ const els = {
   progChordTagFilterInput: document.getElementById("progChordTagFilterInput"),
   progChordButtonGrid: document.getElementById("progChordButtonGrid"),
   progBeatsButtonGrid: document.getElementById("progBeatsButtonGrid"),
+  progBeatsNumeratorInput: document.getElementById("progBeatsNumeratorInput"),
+  progBeatsDenominatorInput: document.getElementById("progBeatsDenominatorInput"),
   addProgPartBtn: document.getElementById("addProgPartBtn"),
   deleteProgPartBtn: document.getElementById("deleteProgPartBtn"),
   playProgBtn: document.getElementById("playProgBtn"),
@@ -705,7 +709,7 @@ function fineDragStepCent() {
 }
 
 function openProgressionPopover(name) {
-  popoverUi.active = popoverUi.active === name ? "" : name;
+  popoverUi.active = name;
   renderProgressionPopovers();
 }
 
@@ -715,9 +719,10 @@ function closeProgressionPopovers() {
 }
 
 function renderProgressionPopovers() {
-  els.progBassPopover?.classList.toggle("hidden", popoverUi.active !== "bass");
-  els.progInversionPopover?.classList.toggle("hidden", popoverUi.active !== "inversion");
-  els.progBassPopoverBtn?.classList.toggle("active", popoverUi.active === "bass");
+  els.progBassPopover?.classList.remove("hidden");
+  els.progInversionPopover?.classList.remove("hidden");
+  els.progBassPopover?.classList.toggle("active", popoverUi.active === "bass");
+  els.progInversionPopover?.classList.toggle("active", popoverUi.active === "inversion");
   els.progInversionPopoverBtn?.classList.toggle("active", popoverUi.active === "inversion");
 }
 
@@ -856,6 +861,7 @@ function loadProgressionEditorFromPart(part) {
   state.progressionEditor.chordId = part.chordId;
   state.progressionEditor.rootNoteText = formatDirectRootFromPart(part.root);
   state.progressionEditor.beats = part.beats;
+  state.progressionEditor.beatUnit = part.beatUnit || 4;
   state.progressionEditor.sectionName = String(part.sectionName || "");
   const bass = bassSpecForPart(part);
   state.progressionEditor.bassMode = bass.mode;
@@ -912,11 +918,20 @@ function parseDirectRootNote(text) {
   const octave = Number(octaveRaw);
   const semitoneBase = ROOT_NOTE_SEMITONES[letter];
   const accidentalShift = ROOT_ACCIDENTAL_OPTIONS.find((option) => option.symbol === accidental)?.delta ?? 0;
-  const normalized = normalizePitch(octave, (semitoneBase + accidentalShift) * 300);
+  let resolvedOctave = octave;
+  let microStepInOctave = (semitoneBase * 300) + (accidentalShift * 300);
+  if (microStepInOctave >= OCTAVE_MICROSTEP) {
+    resolvedOctave += Math.floor(microStepInOctave / OCTAVE_MICROSTEP);
+    microStepInOctave %= OCTAVE_MICROSTEP;
+  } else if (microStepInOctave < 0) {
+    const octaveDelta = Math.floor(microStepInOctave / OCTAVE_MICROSTEP);
+    resolvedOctave += octaveDelta;
+    microStepInOctave -= octaveDelta * OCTAVE_MICROSTEP;
+  }
   return {
     noteText: `${letter}${accidental}${octave}`,
-    octave: normalized.octave,
-    microStepInOctave: normalized.microStepInOctave,
+    octave: resolvedOctave,
+    microStepInOctave,
     pitchPresetId: null
   };
 }
@@ -1141,9 +1156,8 @@ function renderProgressionEditorButtons() {
   els.progFlatBtn.classList.toggle("active", parts.accidental === "b");
   els.progNaturalBtn.classList.toggle("active", parts.accidental === "");
   els.progSharpBtn.classList.toggle("active", parts.accidental === "#");
-  els.progBeatsButtonGrid.querySelectorAll("button").forEach((button) => {
-    button.classList.toggle("active", Number(button.dataset.beats) === state.progressionEditor.beats);
-  });
+  if (els.progBeatsNumeratorInput) els.progBeatsNumeratorInput.value = String(state.progressionEditor.beats || 4);
+  if (els.progBeatsDenominatorInput) els.progBeatsDenominatorInput.value = String(state.progressionEditor.beatUnit || 4);
   if (els.progBassInput) els.progBassInput.value = bassTokenLabel();
   if (els.progInversionPopoverBtn) {
     els.progInversionPopoverBtn.textContent = `転回形: ${currentInversionLabel()} / oct ${currentVoicingOctave()}`;
@@ -1163,9 +1177,10 @@ function progressionPartLabel(part) {
   const octave = progressionVoicingBaseOctave(part);
   return {
     sectionName: String(part.sectionName || ""),
+    chunkName: String(part.chunkName || ""),
     chordName: `${chord?.name || `(deleted: ${part.chordId})`}${bassDisplay}`,
     rootLabel,
-    meta: `(${part.beats}/4 oct:${octave})`
+    meta: `(${part.beats}/${part.beatUnit || 4} oct:${octave})`
   };
 }
 
@@ -1206,6 +1221,7 @@ function progressionChunks() {
       currentChunk = {
         id: chunkId,
         startIndex: index,
+        name: String(part.chunkName || "").trim() || `chunk ${chunks.length + 1}`,
         partIds: []
       };
       chunks.push(currentChunk);
@@ -1229,6 +1245,11 @@ function currentChunkId() {
   const selected = state.progression.parts.find((part) => part.id === state.progression.selectedPartId);
   if (selected?.chunkId) return selected.chunkId;
   return progressionChunks()[0]?.id || "chunk-1";
+}
+
+function currentChunkName() {
+  const current = chunkContextForPartId(state.progression.selectedPartId || state.progression.parts[0]?.id || "");
+  return current.chunk?.name || "chunk 1";
 }
 
 function resolveProgressionRootInput() {
@@ -1341,7 +1362,7 @@ async function playProgressionPart(part, partIndex) {
   );
   render();
 
-  const beatMs = (60_000 / clamp(state.settings.bpm, 5, 300)) * part.beats;
+  const beatMs = (60_000 / clamp(state.settings.bpm, 5, 300)) * part.beats * (4 / clamp(Number(part.beatUnit) || 4, 1, 32));
   progressionPlayback.timerId = setTimeout(() => {
     const chunkInfo = chunkContextForPartId(part.id);
     const chunkParts = chunkInfo.chunk
@@ -1537,7 +1558,10 @@ function renderProgressionGrid() {
 
   const chunkHead = document.createElement("div");
   chunkHead.className = "progression-chunk-head";
-  chunkHead.textContent = `chunk ${String((current.index >= 0 ? current.index : 0) + 1).padStart(2, "0")}`;
+  chunkHead.textContent = chunk.name;
+  chunkHead.dataset.chunkId = chunk.id;
+  chunkHead.dataset.chunkName = chunk.name;
+  chunkHead.title = "ダブルクリックでチャンク名を編集";
   chunkWrap.appendChild(chunkHead);
 
   const chunkGrid = document.createElement("div");
@@ -1549,12 +1573,15 @@ function renderProgressionGrid() {
     if (!part) return;
     const { chordName, rootLabel, meta: metaLabel, sectionName } = progressionPartLabel(part);
 
-    if (sectionName) {
-      const sectionBreak = document.createElement("div");
-      sectionBreak.className = "progression-section-break";
-      sectionBreak.textContent = sectionName;
-      chunkGrid.appendChild(sectionBreak);
-    }
+      if (sectionName) {
+        const sectionBreak = document.createElement("div");
+        sectionBreak.className = "progression-section-break";
+        sectionBreak.textContent = sectionName;
+        sectionBreak.dataset.partId = part.id;
+        sectionBreak.dataset.sectionName = sectionName;
+        sectionBreak.title = "ダブルクリックでセクション名を編集";
+        chunkGrid.appendChild(sectionBreak);
+      }
 
     const button = document.createElement("button");
     button.type = "button";
@@ -1786,10 +1813,12 @@ function buildProgressionPartFromEditor(partId, root, chunkId, sectionName) {
     chordId: state.progressionEditor.chordId,
     root,
     chunkId,
+    chunkName: currentChunkName(),
     sectionName,
     bass: buildProgressionBassState(),
     voicing: buildProgressionVoicingState(),
-    beats: clamp(Number(state.progressionEditor.beats) || 4, 1, 16)
+    beats: clamp(Number(state.progressionEditor.beats) || 4, 1, 32),
+    beatUnit: clamp(Number(state.progressionEditor.beatUnit) || 4, 1, 32)
   };
 }
 
@@ -1860,7 +1889,10 @@ function addProgressionChunk() {
   const insertIndex = insertAfterChunk ? insertAfterChunk.startIndex + insertAfterChunk.partIds.length : state.progression.parts.length;
   const chunkId = `CHUNK_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const partId = `PART_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-  const newPart = buildProgressionPartFromEditor(partId, root, chunkId, buildProgressionSectionName());
+  const newPart = {
+    ...buildProgressionPartFromEditor(partId, root, chunkId, buildProgressionSectionName()),
+    chunkName: `chunk ${chunks.length + 1}`
+  };
   state.progression.parts.splice(insertIndex, 0, newPart);
   state.progression.selectedPartId = partId;
   const after = snapshotState();
@@ -1868,6 +1900,35 @@ function addProgressionChunk() {
   syncFormFromState();
   render();
   setStatus(els.progStatus, "チャンクを追加しました。", "success");
+}
+
+function renameChunk(chunkId, nextName) {
+  const name = String(nextName || "").trim();
+  if (!chunkId || !name) return;
+  const before = snapshotState();
+  state.progression.parts = state.progression.parts.map((part) =>
+    part.chunkId === chunkId ? { ...part, chunkName: name } : part
+  );
+  const after = snapshotState();
+  trackStateChange("rename_progression_chunk", "チャンク名変更", before, after);
+  syncFormFromState();
+  render();
+}
+
+function renameSection(partId, nextName) {
+  const name = String(nextName || "").trim();
+  if (!partId || !name) return;
+  const before = snapshotState();
+  state.progression.parts = state.progression.parts.map((part) =>
+    part.id === partId ? { ...part, sectionName: name } : part
+  );
+  if (state.progression.selectedPartId === partId) {
+    state.progressionEditor.sectionName = name;
+  }
+  const after = snapshotState();
+  trackStateChange("rename_progression_section", "セクション名変更", before, after);
+  syncFormFromState();
+  render();
 }
 
 function selectProgressionPart(partId) {
@@ -1897,7 +1958,7 @@ function deleteSelectedProgressionPart() {
 
   const before = snapshotState();
   state.progression.parts.splice(index, 1);
-  state.progression.selectedPartId = state.progression.parts[index]?.id || state.progression.parts[index - 1]?.id || null;
+  state.progression.selectedPartId = state.progression.parts[index - 1]?.id || state.progression.parts[index]?.id || null;
   const nextSelected = state.progression.parts.find((part) => part.id === state.progression.selectedPartId) || null;
   if (nextSelected) {
     loadProgressionEditorFromPart(nextSelected);
@@ -1937,7 +1998,8 @@ function syncProgressionSelectionFromEditor(changeLabel, preview = false) {
     sectionName: buildProgressionSectionName(),
     bass: buildProgressionBassState(),
     voicing: buildProgressionVoicingState(),
-    beats: clamp(Number(state.progressionEditor.beats) || 4, 1, 16)
+    beats: clamp(Number(state.progressionEditor.beats) || 4, 1, 32),
+    beatUnit: clamp(Number(state.progressionEditor.beatUnit) || 4, 1, 32)
   };
   const after = snapshotState();
   trackStateChange("update_progression_part", changeLabel, before, after);
@@ -2982,9 +3044,8 @@ function attachEvents() {
       setStatus(els.progStatus, "再生するセルがありません。", "error");
       return;
     }
-    const chunkInfo = chunkContextForPartId(state.progression.selectedPartId || state.progression.parts[0]?.id || "");
-    const firstPartId = chunkInfo.chunk?.partIds[0] || state.progression.parts[0]?.id;
-    const startIndex = Math.max(0, state.progression.parts.findIndex((part) => part.id === firstPartId));
+    const selectedId = state.progression.selectedPartId || state.progression.parts[0]?.id;
+    const startIndex = Math.max(0, state.progression.parts.findIndex((part) => part.id === selectedId));
     void playProgressionPart(state.progression.parts[startIndex] || state.progression.parts[0], startIndex);
     setStatus(els.progStatus, "進行再生を開始しました。", "success");
   });
@@ -3029,6 +3090,15 @@ function attachEvents() {
     state.progressionEditor.sectionName = String(els.progSectionNameInput.value || "");
     syncProgressionSelectionFromEditor("進行セルのセクション変更", false);
   });
+  const syncProgressionBeatInputs = () => {
+    state.progressionEditor.beats = clamp(Number(els.progBeatsNumeratorInput?.value) || 4, 1, 32);
+    state.progressionEditor.beatUnit = clamp(Number(els.progBeatsDenominatorInput?.value) || 4, 1, 32);
+    syncProgressionSelectionFromEditor("進行セルの拍変更", false);
+  };
+  els.progBeatsNumeratorInput?.addEventListener("input", syncProgressionBeatInputs);
+  els.progBeatsNumeratorInput?.addEventListener("change", syncProgressionBeatInputs);
+  els.progBeatsDenominatorInput?.addEventListener("input", syncProgressionBeatInputs);
+  els.progBeatsDenominatorInput?.addEventListener("change", syncProgressionBeatInputs);
   els.progBassInput?.addEventListener("focus", () => openProgressionPopover("bass"));
   els.progBassInput?.addEventListener("pointerdown", () => openProgressionPopover("bass"));
   els.progBassInput?.addEventListener("change", () => {
@@ -3152,14 +3222,6 @@ function attachEvents() {
     state.progressionEditor.chordId = chordId;
     syncProgressionSelectionFromEditor("進行セルのコード変更", true);
   });
-  els.progBeatsButtonGrid.addEventListener("click", (ev) => {
-    const target = ev.target;
-    if (!(target instanceof HTMLButtonElement)) return;
-    const beats = Number(target.dataset.beats);
-    if (!beats) return;
-    state.progressionEditor.beats = beats;
-    syncProgressionSelectionFromEditor("進行セルの拍変更", false);
-  });
   els.chordTagFilterInput.addEventListener("input", render);
   els.activeNotesFilterInput?.addEventListener("input", render);
   els.pitchPresetFilterInput?.addEventListener("input", render);
@@ -3174,6 +3236,12 @@ function attachEvents() {
   };
   els.progColumnsSelect.addEventListener("input", syncProgressionColumns);
   els.progColumnsSelect.addEventListener("change", syncProgressionColumns);
+  els.progChunkSelect?.addEventListener("change", () => {
+    const chunkId = String(els.progChunkSelect.value || "");
+    const chunk = progressionChunks().find((item) => item.id === chunkId);
+    if (!chunk) return;
+    selectProgressionPart(chunk.partIds[0]);
+  });
   els.progLoopInput.addEventListener("change", () => {
     const before = snapshotState();
     state.progression.loop = els.progLoopInput.checked;
@@ -3360,6 +3428,51 @@ function attachEvents() {
       return;
     }
     selectProgressionPart(partId);
+  });
+  els.progressionGrid.addEventListener("dblclick", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLElement)) return;
+    const chunkHead = target.closest(".progression-chunk-head");
+    if (chunkHead instanceof HTMLElement && chunkHead.dataset.chunkId) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const chunkId = chunkHead.dataset.chunkId;
+      const currentText = chunkHead.dataset.chunkName || chunkHead.textContent || "";
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "preset-inline-input";
+      input.value = currentText;
+      chunkHead.replaceChildren(input);
+      input.focus();
+      input.select();
+      const commit = () => renameChunk(chunkId, input.value || currentText);
+      input.addEventListener("blur", commit, { once: true });
+      input.addEventListener("keydown", (keyEv) => {
+        if (keyEv.key === "Enter") input.blur();
+        if (keyEv.key === "Escape") render();
+      });
+      return;
+    }
+    const sectionBreak = target.closest(".progression-section-break");
+    if (sectionBreak instanceof HTMLElement && sectionBreak.dataset.partId) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const partId = sectionBreak.dataset.partId;
+      const currentText = sectionBreak.dataset.sectionName || sectionBreak.textContent || "";
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "preset-inline-input";
+      input.value = currentText;
+      sectionBreak.replaceChildren(input);
+      input.focus();
+      input.select();
+      const commit = () => renameSection(partId, input.value || currentText);
+      input.addEventListener("blur", commit, { once: true });
+      input.addEventListener("keydown", (keyEv) => {
+        if (keyEv.key === "Enter") input.blur();
+        if (keyEv.key === "Escape") render();
+      });
+    }
   });
   els.progressionGrid.addEventListener("dragstart", (ev) => {
     const target = ev.target;
@@ -3714,6 +3827,18 @@ function syncFormFromState() {
   els.progRootNoteInput.value = `${rootParts.letter}${rootParts.accidental}`;
   if (els.progRootOctaveInput) els.progRootOctaveInput.value = rootParts.octave;
   els.progColumnsSelect.value = String(state.progression.columns);
+  if (els.progChunkSelect) {
+    const current = chunkContextForPartId(state.progression.selectedPartId || state.progression.parts[0]?.id || "");
+    els.progChunkSelect.innerHTML = "";
+    progressionChunks().forEach((chunk, index) => {
+      const option = document.createElement("option");
+      option.value = chunk.id;
+      option.textContent = `${String(index + 1).padStart(2, "0")} ${chunk.name}`;
+      els.progChunkSelect.appendChild(option);
+    });
+    els.progChunkSelect.value = current.chunk?.id || progressionChunks()[0]?.id || "";
+    els.progChunkSelect.disabled = progressionChunks().length === 0;
+  }
   els.progLoopInput.checked = state.progression.loop;
   if (els.progSectionNameInput) els.progSectionNameInput.value = state.progressionEditor.sectionName;
   if (els.runtimeInfoText) renderRuntimeInfo();
@@ -4020,8 +4145,8 @@ function renderProgressionSummary() {
     ? String(selected.sectionName || "").trim()
     : String(state.progressionEditor.sectionName || "").trim();
   els.progSummary.textContent = selected
-    ? `${sectionLabel ? `${sectionLabel} / ` : ""}${chord?.name || selected.chordId} / ${formatDirectRootFromPart(selected.root)} / bass ${bassLabel} / ${inversionLabel} / ${selected.beats}/4`
-    : `編集中: ${sectionLabel ? `${sectionLabel} / ` : ""}${state.progressionEditor.chordId || "未選択"} / ${editorRoot} / bass ${bassLabel} / ${inversionLabel} / ${state.progressionEditor.beats}/4`;
+    ? `${sectionLabel ? `${sectionLabel} / ` : ""}${chord?.name || selected.chordId} / ${formatDirectRootFromPart(selected.root)} / bass ${bassLabel} / ${inversionLabel} / ${selected.beats}/${selected.beatUnit || 4}`
+    : `編集中: ${sectionLabel ? `${sectionLabel} / ` : ""}${state.progressionEditor.chordId || "未選択"} / ${editorRoot} / bass ${bassLabel} / ${inversionLabel} / ${state.progressionEditor.beats}/${state.progressionEditor.beatUnit || 4}`;
 }
 
 function saveChordFromActiveNotes() {

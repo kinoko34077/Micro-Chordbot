@@ -181,14 +181,17 @@
 
     <section id="view-progression" class="view">
       <div class="progression-toolbar">
-        <button id="progPrevBtn" type="button" aria-label="前のチャンク">前へ</button>
+        <button id="progPrevBtn" type="button" aria-label="前のチャンク">◀</button>
         <div id="progCounter" class="progression-counter">00/00</div>
-        <button id="progNextBtn" type="button" aria-label="次のチャンク">次へ</button>
-        <button id="playProgBtn" type="button">再生</button>
-        <button id="stopProgBtn" type="button">停止</button>
+        <button id="progNextBtn" type="button" aria-label="次のチャンク">▶</button>
+        <button id="playProgBtn" type="button" aria-label="再生">▶</button>
+        <button id="stopProgBtn" type="button" aria-label="停止">■</button>
+        <label class="progression-columns">チャンク
+          <select id="progChunkSelect"></select>
+        </label>
         <button id="progMenuToggleBtn" class="progression-menu-toggle" type="button" aria-expanded="false" aria-controls="progToolbarActions">メニュー</button>
         <div id="progToolbarActions" class="progression-toolbar-actions">
-          <label class="inline-check">
+          <label class="inline-check loop-inline">
             <input id="progLoopInput" type="checkbox">
             <span>ループ</span>
           </label>
@@ -253,11 +256,11 @@
               <span class="progression-token-label">Bass:</span>
               <input id="progBassInput" type="text" placeholder="P1 / A#2" aria-label="bass pitch">
             </label>
-            <button id="progBassPopoverBtn" type="button" class="progression-token">Bass選択</button>
             <button id="progInversionPopoverBtn" type="button" class="progression-token">転回形</button>
           </div>
 
-          <div id="progBassPopover" class="progression-popover hidden">
+          <div class="progression-popover-row">
+          <div id="progBassPopover" class="progression-popover">
             <div class="progression-popover-head">
               <strong>Bass</strong>
               <button id="progBassClearBtn" type="button">root</button>
@@ -265,12 +268,13 @@
             <div id="progBassButtonGrid" class="quick-grid pitch-choice-grid"></div>
           </div>
 
-          <div id="progInversionPopover" class="progression-popover hidden">
+          <div id="progInversionPopover" class="progression-popover">
             <div class="progression-popover-head">
               <strong>転回形 / octave</strong>
             </div>
             <div id="progVoicingBandGrid" class="quick-grid voicing-band-grid"></div>
             <div id="progInversionButtonGrid" class="quick-grid inversion-grid"></div>
+          </div>
           </div>
 
           <div id="progRootLetterButtons" class="quick-grid root-grid">
@@ -283,21 +287,19 @@
             <button type="button" data-note="B">B</button>
           </div>
 
-          <label>コード一覧フィルタ
+          <label class="progression-filter-label">🔎
             <input id="progChordTagFilterInput" type="text" placeholder="tag: core / min / sus">
           </label>
           <div id="progChordButtonGrid" class="quick-grid chord-grid"></div>
 
-          <div class="panel-heading">
-            <h4>拍</h4>
-            <p class="panel-note">拍以外は変更時にプレビュー発音します。</p>
-          </div>
-          <div id="progBeatsButtonGrid" class="quick-grid beats-grid">
-            <button type="button" data-beats="4">4/4</button>
-            <button type="button" data-beats="8">8/4</button>
-            <button type="button" data-beats="12">12/4</button>
-            <button type="button" data-beats="16">16/4</button>
-          </div>
+          <label class="progression-token progression-token-input beat-token">
+            <span class="progression-token-label">拍:</span>
+            <span class="beat-inline">
+              <input id="progBeatsNumeratorInput" type="number" min="1" max="32" step="1" value="4" aria-label="beats numerator">
+              <span>/</span>
+              <input id="progBeatsDenominatorInput" type="number" min="1" max="32" step="1" value="4" aria-label="beats denominator">
+            </span>
+          </label>
           <p id="progStatus" class="status-text" aria-live="polite"></p>
         </div>
       </section>

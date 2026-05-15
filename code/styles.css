@@ -175,7 +175,8 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   border: 1px solid #334155;
   border-radius: 10px;
   background: var(--panel);
-  overflow: hidden;
+  overflow: auto;
+  resize: both;
   margin-bottom: 12px;
 }
 #pitchLine {
@@ -206,6 +207,8 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   border-radius: 10px;
   padding: 8px;
   margin-top: 8px;
+  overflow: auto;
+  resize: both;
 }
 .panel-heading {
   display: flex;
@@ -298,6 +301,13 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   align-items: center;
   gap: 8px;
   margin-left: auto;
+  flex-wrap: wrap;
+}
+.view#view-progression {
+  display: grid;
+  grid-template-columns: minmax(440px, 1.2fr) minmax(320px, 0.95fr);
+  gap: 12px;
+  align-items: start;
 }
 .progression-menu-toggle,
 .progression-editor-toggle { display: none; }
@@ -313,11 +323,18 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   gap: 8px;
   color: var(--muted);
 }
+.loop-inline {
+  white-space: nowrap;
+}
 .progression-grid {
   display: grid;
   gap: 12px;
   margin-top: 8px;
+  grid-column: 2;
+  overflow: auto;
+  resize: both;
 }
+.progression-toolbar { grid-column: 2; }
 .progression-chunk {
   display: grid;
   gap: 8px;
@@ -333,6 +350,19 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   color: #8ce4da;
   font-size: 0.76rem;
   letter-spacing: 0.06em;
+}
+.progression-chunk-head {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 8px;
+  border: 1px solid rgba(140, 228, 218, 0.3);
+  border-radius: 999px;
+  background: rgba(20, 48, 57, 0.46);
+  cursor: text;
+}
+.progression-section-break {
+  cursor: text;
 }
 .progression-section-break,
 .progression-chunk-head {
@@ -400,11 +430,15 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   text-transform: lowercase;
 }
 .progression-editor {
-  margin-top: 8px;
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  margin-top: 0;
   padding: 10px;
   border: 1px solid #334155;
   border-radius: 14px;
   background: linear-gradient(180deg, rgba(22, 20, 18, 0.98), rgba(31, 28, 24, 0.98));
+  overflow: auto;
+  resize: both;
 }
 .progression-editor-header {
   display: flex;
@@ -421,7 +455,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
 .progression-editor-body { margin-top: 8px; }
 .progression-root-row {
   display: grid;
-  grid-template-columns: minmax(132px, 180px) minmax(156px, 208px) auto;
+  grid-template-columns: minmax(110px, 148px) minmax(132px, 172px) auto;
   gap: 6px;
   align-items: center;
   margin-bottom: 8px;
@@ -441,9 +475,9 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   min-width: 0;
 }
 .progression-voice-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, max-content));
   gap: 6px;
-  flex-wrap: wrap;
   align-items: center;
   margin-bottom: 8px;
 }
@@ -459,11 +493,29 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   color: var(--fg);
 }
 .progression-token-input input {
-  width: 6.2rem;
+  width: 4rem;
   min-width: 0;
   padding: 0;
   border: 0;
   background: transparent;
+}
+.progression-popover-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-items: start;
+}
+.beat-token {
+  max-width: 136px;
+}
+.beat-inline {
+  display: inline-grid;
+  grid-template-columns: 3rem auto 3rem;
+  gap: 4px;
+  align-items: center;
+}
+.beat-inline input {
+  width: 100%;
 }
 .progression-token-label {
   color: var(--muted);
@@ -477,6 +529,10 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   border: 1px solid #334155;
   border-radius: 12px;
   background: rgba(15, 23, 42, 0.92);
+}
+.progression-popover.active {
+  border-color: rgba(140, 228, 218, 0.62);
+  box-shadow: 0 0 0 1px rgba(140, 228, 218, 0.16);
 }
 .progression-popover-head {
   display: flex;
@@ -503,8 +559,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
 }
 .root-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .octave-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 0; }
-.chord-grid,
-.beats-grid {
+.chord-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--progression-cell-width)), var(--progression-cell-width)));
   justify-content: flex-start;
 }
@@ -528,6 +583,15 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   gap: 10px;
   justify-content: flex-end;
 }
+.progression-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.progression-filter-label input {
+  min-width: min(100%, 22rem);
+}
 
 .preset-list {
   margin-top: 8px;
@@ -539,6 +603,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   border: 1px solid #334155;
   border-radius: 10px;
   background: rgba(8, 13, 24, 0.6);
+  resize: both;
 }
 .preset-table {
   width: 100%;
@@ -775,6 +840,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   .compact-grid { grid-template-columns: 1fr; }
   .library-controls-grid { grid-template-columns: 1fr; }
   .sustain-toggle { min-height: 40px; }
+  .view#view-progression { display: block; }
   .progression-chunk-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
   .progression-toolbar { flex-wrap: wrap; align-items: flex-start; }
   .progression-toolbar-actions {
@@ -796,7 +862,9 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   .progression-actions { flex: 1 1 auto; justify-content: flex-end; }
   .progression-editor-body { display: none; }
   #view-progression.progression-editor-expanded .progression-editor-body { display: block; }
-  .root-grid, .chord-grid, .beats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .progression-voice-row,
+  .progression-popover-row { grid-template-columns: 1fr; }
+  .root-grid, .chord-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .progression-cell.drop-before::before,
   .progression-cell.drop-after::after {
     inset: 0 8px auto 8px;
