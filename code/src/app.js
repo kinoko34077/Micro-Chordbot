@@ -18,6 +18,7 @@ const DRAG_PREVIEW_VOICE_ID = "__preview_drag__";
 const PROGRESSION_VOICE_PREFIX = "__prog__:";
 const PROGRESSION_PREVIEW_VOICE_PREFIX = "__prog_preview__:";
 const APP_BUILD = "2026-05-14-sw-refresh-1";
+const SEMITONE_MICROSTEP = centToMicroStep(100);
 const ROOT_NOTE_SEMITONES = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 const ROOT_ACCIDENTAL_OPTIONS = [
   { id: "flat", symbol: "b", delta: -1 },
@@ -62,6 +63,7 @@ const state = {
     progressionCellWidth: 124,
     tableColumnWidths: {
       name: 11,
+      id: 7,
       cent: 5,
       short: 5,
       tags: 8,
@@ -106,6 +108,7 @@ const els = {
   pwaPromptMessage: document.getElementById("pwaPromptMessage"),
   installPwaBtn: document.getElementById("installPwaBtn"),
   pwaPromptCloseBtn: document.getElementById("pwaPromptCloseBtn"),
+  workspaceMain: document.querySelector("main"),
   views: [...document.querySelectorAll(".view")],
   navButtons: [...document.querySelectorAll(".view-nav button")],
   undoBtn: document.getElementById("undoBtn"),
@@ -145,6 +148,7 @@ const els = {
   saveChordBtn: document.getElementById("saveChordBtn"),
   chordStatus: document.getElementById("chordStatus"),
   chordPresetList: document.getElementById("chordPresetList"),
+  chordLibraryPanel: document.querySelector(".chord-library-panel"),
   recallChordSelect: document.getElementById("recallChordSelect"),
   recallRootModeSelect: document.getElementById("recallRootModeSelect"),
   recallRootTextInput: document.getElementById("recallRootTextInput"),
@@ -253,6 +257,148 @@ const popoverUi = {
   pointerDown: false
 };
 const ROOT_BASS_TOKEN = "__root__";
+const WORKSPACE_COLUMNS_STORAGE_KEY = "uchordbot.workspaceColumns.v1";
+
+function ensureWorkspaceDom() {
+  const brandTitle = document.querySelector(".brand-title");
+  if (brandTitle) {
+    brandTitle.setAttribute("aria-label", "μChordbot");
+    brandTitle.textContent = "μ";
+  }
+  if (!document.getElementById("settingsMenuBtn")) {
+    const menuBtn = document.createElement("button");
+    menuBtn.id = "settingsMenuBtn";
+    menuBtn.type = "button";
+    menuBtn.className = "icon-button settings-menu-button";
+    menuBtn.textContent = "☰";
+    menuBtn.ariaLabel = "settings menu";
+    document.querySelector(".history-buttons")?.appendChild(menuBtn);
+  }
+  els.undoBtn.textContent = "↶";
+  els.redoBtn.textContent = "↷";
+  els.undoBtn.classList.add("icon-button");
+  els.redoBtn.classList.add("icon-button");
+  const masterIcon = document.querySelector(".master-volume-icon");
+  if (masterIcon) masterIcon.textContent = "◉";
+  document.querySelector(".master-volume-inline")?.classList.add("hover-volume");
+  els.activeNotesVolumeInput?.closest("label")?.classList.add("hover-volume", "active-notes-volume-inline");
+  const waveformLabel = els.waveformSelect?.closest("label");
+  if (els.waveformSelect && waveformLabel && !document.getElementById("waveformButtonGroup")) {
+    const group = document.createElement("div");
+    group.id = "waveformButtonGroup";
+    group.className = "waveform-button-group";
+    [
+      ["sine", "∿"],
+      ["square", "▣"],
+      ["sawtooth", "◢"]
+    ].forEach(([value, label]) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.waveform = value;
+      button.textContent = label;
+      button.ariaLabel = value;
+      group.appendChild(button);
+    });
+    waveformLabel.classList.add("waveform-native-label");
+    waveformLabel.after(group);
+  }
+  if (els.chordLibraryPanel && els.progressionView && els.chordLibraryPanel.parentElement !== els.progressionView) {
+    els.progressionView.appendChild(els.chordLibraryPanel);
+  }
+  if (els.pitchPresetFilterInput) {
+    const pitchPresetBlock = els.pitchPresetFilterInput.closest(".library-block");
+    const head = pitchPresetBlock?.querySelector(".library-block-head");
+    if (head && els.pitchPresetFilterInput.parentElement !== head) {
+      head.querySelector(".panel-note")?.remove();
+      head.appendChild(els.pitchPresetFilterInput);
+    }
+  }
+  if (!els.workspaceMain) return;
+  ["left", "right"].forEach((side) => {
+    if (els.workspaceMain.querySelector(`[data-workspace-resizer="${side}"]`)) return;
+    const resizer = document.createElement("div");
+    resizer.className = `workspace-resizer workspace-resizer-${side}`;
+    resizer.dataset.workspaceResizer = side;
+    resizer.role = "separator";
+    resizer.ariaOrientation = "vertical";
+    resizer.ariaLabel = `${side} workspace width`;
+    els.workspaceMain.appendChild(resizer);
+  });
+}
+
+function restoreWorkspaceColumns() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(WORKSPACE_COLUMNS_STORAGE_KEY) || "null");
+    if (!saved || typeof saved !== "object") return;
+    if (Number.isFinite(saved.left)) {
+      document.documentElement.style.setProperty("--workspace-left-col", `${saved.left}px`);
+    }
+    if (Number.isFinite(saved.mid)) {
+      document.documentElement.style.setProperty("--workspace-mid-col", `${saved.mid}px`);
+    }
+  } catch {
+    // keep CSS defaults
+  }
+}
+
+function saveWorkspaceColumns(left, mid) {
+  localStorage.setItem(WORKSPACE_COLUMNS_STORAGE_KEY, JSON.stringify({ left, mid }));
+}
+
+function parseCssPixel(value, fallback) {
+  const parsed = Number(String(value || "").replace("px", ""));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function readWorkspaceColumns(totalWidth) {
+  const style = getComputedStyle(document.documentElement);
+  const left = parseCssPixel(style.getPropertyValue("--workspace-left-col"), totalWidth * 0.31);
+  const mid = parseCssPixel(style.getPropertyValue("--workspace-mid-col"), totalWidth * 0.27);
+  return { left, mid };
+}
+
+function attachWorkspaceResizers() {
+  if (!els.workspaceMain) return;
+  els.workspaceMain.addEventListener("pointerdown", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLElement)) return;
+    const resizer = target.closest("[data-workspace-resizer]");
+    if (!(resizer instanceof HTMLElement)) return;
+    const side = resizer.dataset.workspaceResizer;
+    const rect = els.workspaceMain.getBoundingClientRect();
+    const start = readWorkspaceColumns(rect.width);
+    const minLeft = 240;
+    const minMid = 220;
+    const minRight = 300;
+    const gutters = 16;
+    document.body.classList.add("workspace-resizing");
+    resizer.setPointerCapture?.(ev.pointerId);
+    const move = (moveEv) => {
+      const x = clamp(moveEv.clientX - rect.left, minLeft, rect.width - minRight - gutters);
+      let nextLeft = start.left;
+      let nextMid = start.mid;
+      if (side === "left") {
+        nextLeft = clamp(x, minLeft, rect.width - minMid - minRight - gutters);
+      } else {
+        nextMid = clamp(x - start.left - gutters, minMid, rect.width - start.left - minRight - gutters);
+      }
+      document.documentElement.style.setProperty("--workspace-left-col", `${Math.round(nextLeft)}px`);
+      document.documentElement.style.setProperty("--workspace-mid-col", `${Math.round(nextMid)}px`);
+    };
+    const cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", cleanup);
+      window.removeEventListener("pointercancel", cleanup);
+      document.body.classList.remove("workspace-resizing");
+      const current = readWorkspaceColumns(rect.width);
+      saveWorkspaceColumns(Math.round(current.left), Math.round(current.mid));
+      render();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", cleanup);
+    window.addEventListener("pointercancel", cleanup);
+  });
+}
 
 function showRuntimeWarning(message) {
   runtimeBanner = { message, tone: "", visible: true };
@@ -317,6 +463,7 @@ function renderRuntimeInfo() {
 function applyLayoutSettings() {
   const widths = state.settings.tableColumnWidths || {};
   document.documentElement.style.setProperty("--preset-name-col", `${widths.name || 11}rem`);
+  document.documentElement.style.setProperty("--preset-id-col", `${widths.id || 7}rem`);
   document.documentElement.style.setProperty("--preset-cent-col", `${widths.cent || 5}rem`);
   document.documentElement.style.setProperty("--preset-short-col", `${widths.short || 5}rem`);
   document.documentElement.style.setProperty("--preset-tags-col", `${widths.tags || 8}rem`);
@@ -527,8 +674,36 @@ function findPitchPresetByMicroStep(microStep) {
   return state.pitchPresets.find((preset) => preset.microStep === microStep) || null;
 }
 
-function formatDecimal(value, maxFractionDigits = 3) {
-  const num = Number(value);
+function migratePitchScale() {
+  state.pitchPresets.forEach((preset) => {
+    if (Number.isFinite(Number(preset.cent))) {
+      preset.cent = Number(microStepToCent(centToMicroStep(preset.cent)));
+      preset.microStep = centToMicroStep(preset.cent);
+    }
+  });
+  state.activeNotes.forEach((note) => {
+    const cent = Number.isFinite(Number(note.cent)) ? Number(note.cent) : microStepToCent(note.microStepInOctave || 0);
+    const normalized = normalizePitch(note.octave || 0, centToMicroStep(cent));
+    note.octave = normalized.octave;
+    note.microStepInOctave = normalized.microStepInOctave;
+    note.cent = Number(microStepToCent(normalized.microStepInOctave));
+    note.id = buildNoteId(note.octave, note.microStepInOctave);
+  });
+  const migratePitchObject = (pitch) => {
+    if (!pitch || !Number.isFinite(Number(pitch.microStepInOctave))) return;
+    const legacyLikely = Math.abs(Number(pitch.microStepInOctave)) <= 3600 && OCTAVE_MICROSTEP > 3600;
+    if (!legacyLikely) return;
+    const normalized = normalizePitch(pitch.octave || 0, Math.round(Number(pitch.microStepInOctave) / 3 * 100));
+    pitch.octave = normalized.octave;
+    pitch.microStepInOctave = normalized.microStepInOctave;
+  };
+  state.chordPresets.forEach((chord) => migratePitchObject(chord.baseRoot));
+  state.progression.parts.forEach((part) => migratePitchObject(part.root));
+  migratePitchObject(state.pitchDraft);
+}
+
+function formatDecimal(value, maxFractionDigits = 2) {
+  const num = Math.round(Number(value) * 100) / 100;
   if (!Number.isFinite(num)) return "";
   return num.toFixed(maxFractionDigits).replace(/\.?0+$/, "");
 }
@@ -819,6 +994,10 @@ function isCompactProgressionLayout() {
   return window.matchMedia("(max-width: 640px)").matches;
 }
 
+function isDesktopWorkspaceLayout() {
+  return window.matchMedia("(min-width: 720px)").matches;
+}
+
 function clearProgressionLongPressTimer() {
   if (progressionUi.longPressTimerId) {
     clearTimeout(progressionUi.longPressTimerId);
@@ -879,18 +1058,35 @@ function resetProgressionInteractionState() {
   progressionUi.isMenuOpen = false;
 }
 
-function setView(view) {
+function syncWorkspaceViewState(view) {
+  const nextView = view || document.body.dataset.currentView || "pitch";
+  const desktopWorkspace = isDesktopWorkspaceLayout() && nextView !== "settings";
+  document.body.dataset.currentView = nextView;
+  document.body.classList.toggle("workspace-combined", desktopWorkspace);
+  if (desktopWorkspace) {
+    document.body.dataset.workspaceFocus = nextView === "progression" ? "progression" : "pitch";
+  } else {
+    delete document.body.dataset.workspaceFocus;
+  }
   for (const btn of els.navButtons) {
-    btn.classList.toggle("active", btn.dataset.view === view);
+    btn.classList.toggle("active", btn.dataset.view === nextView);
   }
   for (const sec of els.views) {
-    sec.classList.toggle("active", sec.id === `view-${view}`);
+    const shouldShow = desktopWorkspace
+      ? sec.id === "view-pitch" || sec.id === "view-progression"
+      : sec.id === `view-${nextView}`;
+    sec.classList.toggle("active", shouldShow);
   }
-  if (view !== "progression") {
+}
+
+function setView(view) {
+  const desktopWorkspace = isDesktopWorkspaceLayout() && view !== "settings";
+  if (!desktopWorkspace && view !== "progression") {
     resetProgressionInteractionState();
   } else {
     progressionUi.isEditorExpanded = true;
   }
+  syncWorkspaceViewState(view);
   syncProgressionLayoutState();
 }
 
@@ -919,7 +1115,7 @@ function parseDirectRootNote(text) {
   const semitoneBase = ROOT_NOTE_SEMITONES[letter];
   const accidentalShift = ROOT_ACCIDENTAL_OPTIONS.find((option) => option.symbol === accidental)?.delta ?? 0;
   let resolvedOctave = octave;
-  let microStepInOctave = (semitoneBase * 300) + (accidentalShift * 300);
+  let microStepInOctave = (semitoneBase * SEMITONE_MICROSTEP) + (accidentalShift * SEMITONE_MICROSTEP);
   if (microStepInOctave >= OCTAVE_MICROSTEP) {
     resolvedOctave += Math.floor(microStepInOctave / OCTAVE_MICROSTEP);
     microStepInOctave %= OCTAVE_MICROSTEP;
@@ -968,7 +1164,7 @@ function applyRootAccidentalChange(nextAccidental) {
   const current = resolveProgressionRootInput();
   if (!current) return;
   const currentAbsolute = (current.octave * OCTAVE_MICROSTEP) + current.microStepInOctave;
-  const semitoneDelta = (accidentalDelta(nextAccidental) - accidentalDelta(parts.accidental)) * 300;
+    const semitoneDelta = (accidentalDelta(nextAccidental) - accidentalDelta(parts.accidental)) * SEMITONE_MICROSTEP;
   const targetAbsolute = currentAbsolute + semitoneDelta;
   const nextOctave = resolveSpelledOctave(parts.letter, nextAccidental, targetAbsolute, Number(parts.octave));
   setProgressionEditorRoot({ ...parts, accidental: nextAccidental, octave: String(nextOctave) });
@@ -976,7 +1172,7 @@ function applyRootAccidentalChange(nextAccidental) {
 
 function formatDirectRootFromPart(root) {
   if (root.noteText) return root.noteText;
-  const semitone = Math.round(root.microStepInOctave / 300);
+  const semitone = Math.round(root.microStepInOctave / SEMITONE_MICROSTEP);
   const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   return `${names[((semitone % 12) + 12) % 12]}${root.octave}`;
 }
@@ -1746,6 +1942,7 @@ async function importDataFile(file) {
       }
       setStatus(els.manageStatus, "project を読込しました。", "success");
     }
+    migratePitchScale();
     const after = snapshotState();
     trackStateChange("json_import", "JSON読み込みを元に戻す", before, after);
   } finally {
@@ -2554,6 +2751,43 @@ function renderPitchPresets() {
   container.appendChild(table);
 }
 
+function normalizePitchPresetTableColumns() {
+  const table = els.pitchPresetList?.querySelector("table");
+  if (!table || table.dataset.idColumnReady === "true") return;
+  table.dataset.idColumnReady = "true";
+  const headerRow = table.querySelector("thead tr");
+  const firstHeader = headerRow?.querySelector("th");
+  if (firstHeader && !headerRow.querySelector('[data-column="id"]')) {
+    const idHeader = document.createElement("th");
+    idHeader.dataset.column = "id";
+    idHeader.textContent = "ID";
+    firstHeader.after(idHeader);
+  }
+  const colgroup = table.querySelector("colgroup");
+  const firstCol = colgroup?.querySelector("col");
+  if (firstCol && !colgroup.querySelector(".col-id")) {
+    const idCol = document.createElement("col");
+    idCol.className = "col-id";
+    firstCol.after(idCol);
+  }
+  table.querySelectorAll("tbody tr").forEach((row) => {
+    const cells = row.querySelectorAll("td");
+    if (cells.length === 1) {
+      cells[0].setAttribute("colspan", "6");
+      return;
+    }
+    if (row.querySelector('[data-column-cell="id"]')) return;
+    const nameCell = cells[0];
+    const idText = nameCell.querySelector(".preset-id")?.textContent?.trim() || row.dataset.pitchPresetId || "";
+    nameCell.querySelector(".preset-id")?.remove();
+    const idCell = document.createElement("td");
+    idCell.dataset.columnCell = "id";
+    idCell.className = "preset-id";
+    idCell.textContent = idText.toLowerCase();
+    nameCell.after(idCell);
+  });
+}
+
 function renderChordPresets() {
   const container = els.chordPresetList;
   container.innerHTML = "";
@@ -2828,6 +3062,21 @@ function updateActiveNoteFromRow(noteId) {
 }
 
 function attachEvents() {
+  attachWorkspaceResizers();
+  document.getElementById("settingsMenuBtn")?.addEventListener("click", () => setView("settings"));
+  document.getElementById("waveformButtonGroup")?.addEventListener("click", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLButtonElement)) return;
+    const waveform = target.dataset.waveform;
+    if (!waveform) return;
+    const before = snapshotState();
+    state.settings.waveform = waveform;
+    els.waveformSelect.value = waveform;
+    const after = snapshotState();
+    trackStateChange("update_waveform", "波形変更", before, after);
+    render();
+    void syncAudioToActiveNotes();
+  });
   els.navButtons.forEach((btn) => {
     btn.addEventListener("click", () => setView(btn.dataset.view));
   });
@@ -3040,6 +3289,12 @@ function attachEvents() {
     syncProgressionLayoutState();
   });
   els.playProgBtn.addEventListener("click", () => {
+    if (state.progression.playingPartId) {
+      stopProgressionPlayback();
+      setStatus(els.progStatus, "一時停止しました。", "success");
+      render();
+      return;
+    }
     if (state.progression.parts.length === 0) {
       setStatus(els.progStatus, "再生するセルがありません。", "error");
       return;
@@ -3645,6 +3900,7 @@ function attachEvents() {
   });
 
   window.addEventListener("resize", () => {
+    syncWorkspaceViewState();
     syncProgressionLayoutState();
     render();
   });
@@ -3858,8 +4114,15 @@ function syncFormFromState() {
   els.progPrevBtn.disabled = state.progression.parts.length === 0;
   els.progNextBtn.disabled = state.progression.parts.length === 0;
   els.playProgBtn.disabled = state.progression.parts.length === 0;
+  els.playProgBtn.textContent = state.progression.playingPartId ? "⏸" : "▶";
   els.stopProgBtn.disabled = !state.progression.playingPartId;
+  els.stopProgBtn.textContent = "■";
   els.saveChordBtn.disabled = state.activeNotes.length === 0;
+  document.querySelectorAll("#waveformButtonGroup button").forEach((button) => {
+    if (button instanceof HTMLButtonElement) {
+      button.classList.toggle("active", button.dataset.waveform === state.settings.waveform);
+    }
+  });
   syncProgressionLayoutState();
 }
 
@@ -4290,6 +4553,7 @@ function render() {
   renderLine();
   renderActiveNotes();
   renderPitchPresets();
+  normalizePitchPresetTableColumns();
   renderChordPresets();
   renderProgressionGrid();
   renderProgressionSummary();
@@ -4330,16 +4594,22 @@ async function persistLoop() {
 
 async function init() {
   runtimeState = classifyRuntime();
+  ensureWorkspaceDom();
+  restoreWorkspaceColumns();
+  syncWorkspaceViewState("pitch");
   if (runtimeState.mode !== "https") {
     await resetDevelopmentCaches();
   }
   await restoreFromStorage();
+  migratePitchScale();
   ensureDefaultLibrary();
+  migratePitchScale();
   state.activeNotes = [];
   syncDraftFromCent(0, state.pitchDraft.octave);
   syncFormFromState();
   render();
   attachEvents();
+  setView("pitch");
   updateHistoryButtons();
   audio.setMasterVolume(state.settings.masterVolume);
   renderPwaPrompt();

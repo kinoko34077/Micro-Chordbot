@@ -38,7 +38,20 @@ body {
   min-width: 0;
   flex-wrap: wrap;
 }
-.brand-title { margin: 0; letter-spacing: 0.04em; white-space: nowrap; }
+.brand-title {
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  border: 1px solid rgba(34, 211, 238, 0.75);
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: var(--fg);
+  font-size: 1.45rem;
+  font-weight: 800;
+  line-height: 1;
+  overflow: hidden;
+}
 .runtime-warning,
 .pwa-prompt {
   width: min(1380px, calc(100vw - 24px));
@@ -91,6 +104,15 @@ body {
 
 .history-buttons, .inline-row { display: flex; gap: 8px; align-items: center; }
 .history-buttons { flex-wrap: wrap; justify-content: flex-end; }
+.icon-button {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+}
 .master-volume-inline {
   display: inline-flex;
   align-items: center;
@@ -99,6 +121,26 @@ body {
 }
 .master-volume-inline input { width: 112px; padding: 0; border: 0; background: transparent; }
 .master-volume-icon { font-size: 1rem; line-height: 1; }
+.hover-volume {
+  position: relative;
+}
+.hover-volume input[type="range"] {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.hover-volume:hover input[type="range"],
+.hover-volume:focus-within input[type="range"] {
+  position: absolute;
+  right: 50%;
+  bottom: calc(100% + 8px);
+  width: 112px;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(50%) rotate(-90deg);
+  transform-origin: center;
+  z-index: 10;
+}
 .inline-check {
   display: inline-flex;
   align-items: center;
@@ -121,6 +163,7 @@ button.active, .view-nav button.active {
 button:disabled { opacity: 0.4; cursor: default; }
 input[type="range"] { padding: 0; }
 input, select, textarea { width: 100%; }
+input[type="checkbox"] { width: auto; }
 
 .view-nav { display: flex; gap: 8px; flex-wrap: wrap; }
 .view-nav button {
@@ -130,6 +173,307 @@ input, select, textarea { width: 100%; }
 }
 .view { display: none; }
 .view.active { display: block; animation: fade 180ms ease-out; }
+
+body.workspace-combined main {
+  display: grid;
+  grid-template-columns:
+    minmax(260px, var(--workspace-left-col, calc((100% - 16px) * 0.31)))
+    8px
+    minmax(230px, var(--workspace-mid-col, calc((100% - 16px) * 0.27)))
+    8px
+    minmax(320px, 1fr);
+  grid-template-rows: auto auto auto;
+  gap: 8px 0;
+  align-items: start;
+}
+body.workspace-combined #view-pitch.active {
+  display: grid;
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  grid-template-rows: auto auto auto;
+  gap: 8px;
+  min-width: 0;
+}
+body.workspace-combined #view-progression.active {
+  display: contents;
+}
+body.workspace-combined .pitch-toolbar {
+  grid-row: 1;
+  margin-bottom: 0;
+  align-self: start;
+}
+body.workspace-combined .line-wrap {
+  grid-row: 2;
+  align-self: start;
+  height: clamp(64px, 8vh, 86px);
+  margin-bottom: 0;
+}
+body.workspace-combined .active-notes-panel {
+  grid-row: 3;
+  margin-top: 0;
+  max-height: none;
+}
+body.workspace-combined .progression-editor {
+  grid-column: 3;
+  grid-row: 1 / span 3;
+  align-self: start;
+  width: 100%;
+  max-width: 100%;
+  max-height: none;
+  overflow: visible;
+  margin-top: 0;
+  min-width: 0;
+}
+body.workspace-combined .progression-toolbar {
+  grid-column: 5;
+  grid-row: 1;
+  align-self: start;
+  display: grid;
+  grid-template-columns: 42px max-content 42px 42px 1fr;
+  gap: 6px;
+  justify-items: start;
+}
+body.workspace-combined .progression-toolbar > button,
+body.workspace-combined .progression-counter {
+  min-width: 42px;
+  width: 42px;
+  justify-self: start;
+}
+body.workspace-combined .progression-toolbar-actions {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: 100%;
+}
+body.workspace-combined #stopProgBtn {
+  display: none;
+}
+body.workspace-combined .progression-counter {
+  padding-inline: 4px;
+  letter-spacing: 0;
+}
+body.workspace-combined .progression-grid {
+  grid-column: 5;
+  grid-row: 2;
+  align-self: start;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+  margin-top: 0;
+}
+body.workspace-combined .chord-library-panel {
+  grid-column: 5;
+  grid-row: 3;
+  margin-top: 0;
+  max-height: none;
+}
+body.workspace-combined .panel,
+body.workspace-combined .line-wrap,
+body.workspace-combined .progression-grid,
+body.workspace-combined .progression-editor,
+body.workspace-combined .scroll-list {
+  resize: none;
+}
+body.workspace-combined .pitch-toolbar,
+body.workspace-combined .progression-toolbar,
+body.workspace-combined .panel,
+body.workspace-combined .progression-editor {
+  min-width: 0;
+}
+.workspace-resizer {
+  display: none;
+}
+body.workspace-combined .workspace-resizer {
+  display: block;
+  grid-row: 1 / span 3;
+  align-self: stretch;
+  min-height: 100%;
+  border-inline: 1px solid rgba(148, 163, 184, 0.18);
+  cursor: col-resize;
+  background:
+    linear-gradient(180deg, transparent, rgba(34, 211, 238, 0.28), transparent);
+}
+body.workspace-combined .workspace-resizer-left { grid-column: 2; }
+body.workspace-combined .workspace-resizer-right { grid-column: 4; }
+body.workspace-resizing {
+  user-select: none;
+  cursor: col-resize;
+}
+body.workspace-combined .scroll-list {
+  max-height: min(70vh, 720px);
+  overflow: auto;
+}
+body.workspace-combined .pitch-toolbar {
+  grid-template-columns: 1fr;
+}
+body.workspace-combined .pitch-controls {
+  grid-template-columns: 3.4rem 4.8rem minmax(110px, 1fr);
+  gap: 6px;
+}
+body.workspace-combined .pitch-options {
+  grid-template-columns: max-content max-content max-content;
+  gap: 6px;
+}
+.waveform-native-label {
+  display: none;
+}
+.waveform-button-group {
+  display: inline-flex;
+  align-items: end;
+  gap: 4px;
+}
+.waveform-button-group button {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+}
+.active-notes-volume-inline {
+  width: 36px;
+  min-width: 36px;
+  height: 32px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  color: transparent;
+}
+.active-notes-volume-inline::before {
+  content: "◉";
+  color: var(--muted);
+}
+body.workspace-combined .progression-editor {
+  font-size: 0.88rem;
+}
+body.workspace-combined .progression-editor-header {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: 6px;
+}
+body.workspace-combined .progression-editor-header-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+body.workspace-combined .progression-actions {
+  display: contents;
+}
+body.workspace-combined .progression-editor-header-actions button {
+  min-height: 32px;
+  padding: 4px 6px;
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
+body.workspace-combined .progression-editor-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(42px, 3.8rem);
+  gap: 6px;
+}
+body.workspace-combined .progression-root-row {
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(84px, 32%) minmax(116px, 42%) auto;
+  margin-bottom: 0;
+}
+body.workspace-combined .progression-voice-row,
+body.workspace-combined .progression-popover-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: 6px;
+  margin-bottom: 0;
+}
+body.workspace-combined .progression-voice-row {
+  grid-column: 1;
+  grid-template-columns: minmax(72px, 0.72fr) minmax(0, 1fr);
+  align-items: start;
+}
+body.workspace-combined .progression-popover-row {
+  grid-column: 1;
+  grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
+}
+body.workspace-combined .progression-token {
+  min-height: 30px;
+  padding: 4px 6px;
+}
+body.workspace-combined .progression-token-label {
+  display: none;
+}
+body.workspace-combined .progression-token-input input {
+  width: 100%;
+  text-align: center;
+}
+body.workspace-combined .progression-popover {
+  gap: 5px;
+  margin-bottom: 0;
+  padding: 6px;
+}
+body.workspace-combined .progression-popover-head {
+  gap: 6px;
+}
+body.workspace-combined #progBassClearBtn {
+  display: none;
+}
+body.workspace-combined .pitch-choice-grid,
+body.workspace-combined .inversion-grid {
+  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+}
+body.workspace-combined .inversion-grid,
+body.workspace-combined .voicing-band-grid,
+body.workspace-combined .root-grid {
+  grid-template-columns: 1fr;
+}
+body.workspace-combined .root-grid {
+  grid-column: 2;
+  grid-row: 2 / span 5;
+  align-self: start;
+  justify-self: end;
+  width: min(4.8rem, 100%);
+}
+body.workspace-combined .chord-grid {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+}
+body.workspace-combined .progression-filter-label,
+body.workspace-combined .beat-token,
+body.workspace-combined #progStatus {
+  grid-column: 1 / -1;
+}
+body.workspace-combined .quick-grid button,
+body.workspace-combined .quick-row button {
+  min-height: 28px;
+  padding: 4px 6px;
+}
+body.workspace-combined .beat-token {
+  max-width: 98px;
+}
+body.workspace-combined .beat-inline {
+  grid-template-columns: 2.2rem auto 2.2rem;
+}
+body.workspace-combined .progression-toolbar-actions {
+  display: grid;
+  grid-template-columns: auto auto minmax(120px, 1fr) auto;
+  gap: 6px;
+  margin-left: 0;
+}
+body.workspace-combined .progression-toolbar-actions button,
+body.workspace-combined .progression-toolbar-actions input,
+body.workspace-combined .progression-toolbar-actions select {
+  min-height: 30px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+body.workspace-combined .progression-columns {
+  gap: 5px;
+  white-space: nowrap;
+}
+body.workspace-combined .progression-counter {
+  min-width: 56px;
+}
+body.workspace-combined[data-workspace-focus="pitch"] .active-notes-panel,
+body.workspace-combined[data-workspace-focus="pitch"] .line-wrap {
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.18);
+}
+body.workspace-combined[data-workspace-focus="progression"] .progression-editor,
+body.workspace-combined[data-workspace-focus="progression"] .progression-grid {
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.18);
+}
 
 .pitch-toolbar {
   display: grid;
@@ -175,7 +519,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   border: 1px solid #334155;
   border-radius: 10px;
   background: var(--panel);
-  overflow: auto;
+  overflow: hidden;
   resize: both;
   margin-bottom: 12px;
 }
@@ -227,7 +571,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
 .panel-note, .status-text {
   margin: 0;
   color: var(--muted);
-  font-size: 0.92rem;
+  font-size: 0.76rem;
 }
 .pitch-lower-grid { display: block; }
 .status-text[data-tone="error"] { color: #fda4af; }
@@ -295,6 +639,8 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   border: 1px solid #334155;
   border-radius: 12px;
   background: rgba(23, 41, 58, 0.85);
+  min-width: 0;
+  overflow: hidden;
 }
 .progression-toolbar-actions {
   display: flex;
@@ -302,6 +648,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   gap: 8px;
   margin-left: auto;
   flex-wrap: wrap;
+  min-width: 0;
 }
 .view#view-progression {
   display: grid;
@@ -312,10 +659,10 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
 .progression-menu-toggle,
 .progression-editor-toggle { display: none; }
 .progression-counter {
-  min-width: 72px;
+  min-width: 48px;
   text-align: center;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.02em;
 }
 .progression-columns {
   display: inline-flex;
@@ -437,8 +784,8 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   border: 1px solid #334155;
   border-radius: 14px;
   background: linear-gradient(180deg, rgba(22, 20, 18, 0.98), rgba(31, 28, 24, 0.98));
-  overflow: auto;
-  resize: both;
+  overflow: visible;
+  resize: none;
 }
 .progression-editor-header {
   display: flex;
@@ -447,6 +794,17 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   align-items: center;
 }
 .progression-editor-heading { display: grid; gap: 4px; }
+body.workspace-combined .progression-editor-heading,
+body.workspace-combined .chord-library-panel .panel-heading-block {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+}
+body.workspace-combined .progression-editor-heading .panel-note,
+body.workspace-combined .chord-library-panel .panel-note {
+  justify-self: end;
+  text-align: right;
+}
 .progression-editor-header-actions {
   display: flex;
   align-items: center;
@@ -585,6 +943,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
 }
 .progression-filter-label {
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
   gap: 8px;
   color: var(--muted);
@@ -598,12 +957,12 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   overflow-x: auto;
 }
 .scroll-list {
-  max-height: 240px;
+  max-height: min(70vh, 720px);
   overflow: auto;
   border: 1px solid #334155;
   border-radius: 10px;
   background: rgba(8, 13, 24, 0.6);
-  resize: both;
+  resize: none;
 }
 .preset-table {
   width: 100%;
@@ -613,10 +972,13 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
 }
 .preset-table th,
 .preset-table td {
-  padding: 3px 5px;
+  padding: 2px 5px;
   border: 1px solid #263449;
-  vertical-align: top;
+  vertical-align: middle;
   text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .preset-table th {
   color: var(--muted);
@@ -676,7 +1038,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
 }
 .tag-chip-list {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
 }
 .tag-chip {
@@ -688,6 +1050,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   font-size: 0.78rem;
   line-height: 1.25;
   color: #e5eefc;
+  white-space: nowrap;
 }
 .tone-chip-list {
   display: flex;
@@ -715,7 +1078,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   gap: 6px;
 }
 .library-stack {
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto auto;
 }
 .library-block-head {
   display: flex;
@@ -725,7 +1088,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   flex-wrap: wrap;
 }
 .table-filter-input {
-  width: min(320px, 100%);
+  width: min(10ch, 100%);
   font-size: 0.78rem;
   padding: 4px 6px;
 }
@@ -768,7 +1131,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
 .preset-table col.col-tags { width: var(--preset-tags-col); }
 .preset-table col.col-memo { width: var(--preset-memo-col); }
 .preset-table col.col-remove { width: 1.6rem; }
-.preset-table col.col-id { width: 9rem; }
+.preset-table col.col-id { width: var(--preset-id-col); }
 .preset-table col.col-name-input { width: 8rem; }
 .preset-table col.col-actions { width: 6rem; }
 .preset-table .composer-row {

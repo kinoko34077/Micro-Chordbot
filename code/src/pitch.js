@@ -1,20 +1,20 @@
-export const OCTAVE_MICROSTEP = 3600;
+export const OCTAVE_MICROSTEP = 120000;
 
 export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
 export function centToMicroStep(cent) {
-  return Math.round(cent * 3);
+  return Math.round(Number(cent) * 100);
 }
 
 export function microStepToCent(microStep) {
-  return microStep / 3;
+  return Math.round((Number(microStep) / 100) * 100) / 100;
 }
 
 export function normalizePitch(octave, microStepRaw) {
   let o = Math.trunc(octave);
-  let ms = Math.trunc(microStepRaw);
+  let ms = Math.round(microStepRaw);
   while (ms >= OCTAVE_MICROSTEP) {
     ms -= OCTAVE_MICROSTEP;
     o += 1;
