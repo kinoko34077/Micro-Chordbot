@@ -181,9 +181,9 @@
 
     <section id="view-progression" class="view">
       <div class="progression-toolbar">
-        <button id="progPrevBtn" type="button" aria-label="前のセル">前へ</button>
+        <button id="progPrevBtn" type="button" aria-label="前のチャンク">前へ</button>
         <div id="progCounter" class="progression-counter">00/00</div>
-        <button id="progNextBtn" type="button" aria-label="次のセル">次へ</button>
+        <button id="progNextBtn" type="button" aria-label="次のチャンク">次へ</button>
         <button id="playProgBtn" type="button">再生</button>
         <button id="stopProgBtn" type="button">停止</button>
         <button id="progMenuToggleBtn" class="progression-menu-toggle" type="button" aria-expanded="false" aria-controls="progToolbarActions">メニュー</button>
@@ -192,12 +192,13 @@
             <input id="progLoopInput" type="checkbox">
             <span>ループ</span>
           </label>
+          <button id="progExportBtn" type="button">進行保存</button>
+          <label class="file-pick">
+            <span>進行読込</span>
+            <input id="progImportFileInput" type="file" accept=".mcbp,.json,application/json,text/plain,application/octet-stream,*/*">
+          </label>
           <label class="progression-columns">列数
-            <select id="progColumnsSelect">
-              <option value="2">2</option>
-              <option value="4" selected>4</option>
-              <option value="8">8</option>
-            </select>
+            <input id="progColumnsSelect" type="number" min="1" max="12" step="1" value="4">
           </label>
         </div>
       </div>
@@ -213,6 +214,8 @@
           <div class="progression-editor-header-actions">
             <button id="progEditorToggleBtn" class="progression-editor-toggle" type="button" aria-expanded="true" aria-controls="progressionEditorBody">編集</button>
             <div class="progression-actions">
+              <button id="addProgChunkBtn" type="button">チャンク追加</button>
+              <button id="addProgSectionBtn" type="button">Section追加</button>
               <button id="addProgPartBtn" type="button">挿入</button>
               <button id="deleteProgPartBtn" type="button">削除</button>
             </div>
@@ -221,6 +224,10 @@
 
         <div id="progressionEditorBody" class="progression-editor-body">
           <div class="progression-root-row">
+            <label class="progression-root-inline">
+              <span>Section</span>
+              <input id="progSectionNameInput" type="text" placeholder="Aメロ / B / サビ">
+            </label>
             <label class="progression-root-inline">
               <span>ルート</span>
               <span class="progression-root-combo">

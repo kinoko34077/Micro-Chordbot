@@ -315,10 +315,28 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
 }
 .progression-grid {
   display: grid;
-  gap: 6px;
-  grid-template-columns: repeat(auto-fit, minmax(var(--progression-cell-width), var(--progression-cell-width)));
-  justify-content: flex-start;
+  gap: 12px;
   margin-top: 8px;
+}
+.progression-chunk {
+  display: grid;
+  gap: 8px;
+}
+.progression-chunk-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(var(--progression-columns), minmax(0, var(--progression-cell-width)));
+  justify-content: flex-start;
+}
+.progression-chunk-head,
+.progression-section-break {
+  color: #8ce4da;
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+}
+.progression-section-break,
+.progression-chunk-head {
+  grid-column: 1 / -1;
 }
 .progression-cell {
   position: relative;
@@ -362,6 +380,12 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   background: #8ce4da;
 }
 .progression-cell.drop-after::after { inset: 8px 0 8px auto; }
+.cell-section {
+  color: #8ce4da;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
 .cell-title {
   font-size: 0.92rem;
   font-weight: 500;
@@ -397,7 +421,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
 .progression-editor-body { margin-top: 8px; }
 .progression-root-row {
   display: grid;
-  grid-template-columns: minmax(156px, 208px) auto;
+  grid-template-columns: minmax(132px, 180px) minmax(156px, 208px) auto;
   gap: 6px;
   align-items: center;
   margin-bottom: 8px;
@@ -751,7 +775,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   .compact-grid { grid-template-columns: 1fr; }
   .library-controls-grid { grid-template-columns: 1fr; }
   .sustain-toggle { min-height: 40px; }
-  .progression-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--progression-cell-width)), var(--progression-cell-width))); }
+  .progression-chunk-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
   .progression-toolbar { flex-wrap: wrap; align-items: flex-start; }
   .progression-toolbar-actions {
     display: none;

@@ -24,6 +24,27 @@ const ROOT_ACCIDENTAL_OPTIONS = [
   { id: "natural", symbol: "", delta: 0 },
   { id: "sharp", symbol: "#", delta: 1 }
 ];
+const DEFAULT_PITCH_PRESETS = [
+  { id: "PITCH_P1_0", name: "完全1度", shortName: "P1", cent: 0, microStep: 0, symbolRuleKey: "default", symbolMap: {}, tags: ["core", "degree"], memo: "default root" },
+  { id: "PITCH_M2_600", name: "長2度", shortName: "M2", cent: 200, microStep: 600, symbolRuleKey: "default", symbolMap: {}, tags: ["core", "degree"], memo: "" },
+  { id: "PITCH_M3_1200", name: "長3度", shortName: "M3", cent: 400, microStep: 1200, symbolRuleKey: "default", symbolMap: {}, tags: ["core", "degree"], memo: "" },
+  { id: "PITCH_P4_1500", name: "完全4度", shortName: "P4", cent: 500, microStep: 1500, symbolRuleKey: "default", symbolMap: {}, tags: ["core", "degree"], memo: "" },
+  { id: "PITCH_B5_1800", name: "減5度", shortName: "b5", cent: 600, microStep: 1800, symbolRuleKey: "default", symbolMap: {}, tags: ["altered", "degree"], memo: "" },
+  { id: "PITCH_P5_2100", name: "完全5度", shortName: "P5", cent: 700, microStep: 2100, symbolRuleKey: "default", symbolMap: {}, tags: ["core", "degree"], memo: "" },
+  { id: "PITCH_M6_2700", name: "長6度", shortName: "M6", cent: 900, microStep: 2700, symbolRuleKey: "default", symbolMap: {}, tags: ["degree"], memo: "" },
+  { id: "PITCH_M7_3300", name: "長7度", shortName: "M7", cent: 1100, microStep: 3300, symbolRuleKey: "default", symbolMap: {}, tags: ["degree"], memo: "" },
+  { id: "PITCH_m3_900", name: "短3度", shortName: "m3", cent: 300, microStep: 900, symbolRuleKey: "default", symbolMap: {}, tags: ["minor", "degree"], memo: "" },
+  { id: "PITCH_m7_3000", name: "短7度", shortName: "m7", cent: 1000, microStep: 3000, symbolRuleKey: "default", symbolMap: {}, tags: ["minor", "degree"], memo: "" }
+];
+const DEFAULT_CHORD_PRESETS = [
+  { id: "CHORD_MAJ", name: "maj", baseRoot: { octave: 4, microStepInOctave: 0, pitchPresetId: "PITCH_P1_0", noteText: "C4" }, tones: [{ pitchPresetId: "PITCH_P1_0", localAnonymousId: null, localCent: null, octaveShift: 0, label: "Root" }, { pitchPresetId: "PITCH_M3_1200", localAnonymousId: null, localCent: null, octaveShift: 0, label: "M3" }, { pitchPresetId: "PITCH_P5_2100", localAnonymousId: null, localCent: null, octaveShift: 0, label: "P5" }], tags: ["basic", "major"], memo: "" },
+  { id: "CHORD_MIN", name: "min", baseRoot: { octave: 4, microStepInOctave: 0, pitchPresetId: "PITCH_P1_0", noteText: "C4" }, tones: [{ pitchPresetId: "PITCH_P1_0", localAnonymousId: null, localCent: null, octaveShift: 0, label: "Root" }, { pitchPresetId: "PITCH_m3_900", localAnonymousId: null, localCent: null, octaveShift: 0, label: "m3" }, { pitchPresetId: "PITCH_P5_2100", localAnonymousId: null, localCent: null, octaveShift: 0, label: "P5" }], tags: ["basic", "minor"], memo: "" },
+  { id: "CHORD_7", name: "7", baseRoot: { octave: 4, microStepInOctave: 0, pitchPresetId: "PITCH_P1_0", noteText: "C4" }, tones: [{ pitchPresetId: "PITCH_P1_0", localAnonymousId: null, localCent: null, octaveShift: 0, label: "Root" }, { pitchPresetId: "PITCH_M3_1200", localAnonymousId: null, localCent: null, octaveShift: 0, label: "M3" }, { pitchPresetId: "PITCH_P5_2100", localAnonymousId: null, localCent: null, octaveShift: 0, label: "P5" }, { pitchPresetId: "PITCH_m7_3000", localAnonymousId: null, localCent: null, octaveShift: 0, label: "m7" }], tags: ["basic", "dominant"], memo: "" },
+  { id: "CHORD_M7", name: "M7", baseRoot: { octave: 4, microStepInOctave: 0, pitchPresetId: "PITCH_P1_0", noteText: "C4" }, tones: [{ pitchPresetId: "PITCH_P1_0", localAnonymousId: null, localCent: null, octaveShift: 0, label: "Root" }, { pitchPresetId: "PITCH_M3_1200", localAnonymousId: null, localCent: null, octaveShift: 0, label: "M3" }, { pitchPresetId: "PITCH_P5_2100", localAnonymousId: null, localCent: null, octaveShift: 0, label: "P5" }, { pitchPresetId: "PITCH_M7_3300", localAnonymousId: null, localCent: null, octaveShift: 0, label: "M7" }], tags: ["basic", "major"], memo: "" },
+  { id: "CHORD_m7", name: "m7", baseRoot: { octave: 4, microStepInOctave: 0, pitchPresetId: "PITCH_P1_0", noteText: "C4" }, tones: [{ pitchPresetId: "PITCH_P1_0", localAnonymousId: null, localCent: null, octaveShift: 0, label: "Root" }, { pitchPresetId: "PITCH_m3_900", localAnonymousId: null, localCent: null, octaveShift: 0, label: "m3" }, { pitchPresetId: "PITCH_P5_2100", localAnonymousId: null, localCent: null, octaveShift: 0, label: "P5" }, { pitchPresetId: "PITCH_m7_3000", localAnonymousId: null, localCent: null, octaveShift: 0, label: "m7" }], tags: ["basic", "minor"], memo: "" },
+  { id: "CHORD_SUS4", name: "sus4", baseRoot: { octave: 4, microStepInOctave: 0, pitchPresetId: "PITCH_P1_0", noteText: "C4" }, tones: [{ pitchPresetId: "PITCH_P1_0", localAnonymousId: null, localCent: null, octaveShift: 0, label: "Root" }, { pitchPresetId: "PITCH_P4_1500", localAnonymousId: null, localCent: null, octaveShift: 0, label: "P4" }, { pitchPresetId: "PITCH_P5_2100", localAnonymousId: null, localCent: null, octaveShift: 0, label: "P5" }], tags: ["basic", "sus"], memo: "" },
+  { id: "CHORD_DIM", name: "dim", baseRoot: { octave: 4, microStepInOctave: 0, pitchPresetId: "PITCH_P1_0", noteText: "C4" }, tones: [{ pitchPresetId: "PITCH_P1_0", localAnonymousId: null, localCent: null, octaveShift: 0, label: "Root" }, { pitchPresetId: "PITCH_m3_900", localAnonymousId: null, localCent: null, octaveShift: 0, label: "m3" }, { pitchPresetId: "PITCH_B5_1800", localAnonymousId: null, localCent: null, octaveShift: 0, label: "b5" }], tags: ["basic", "dim"], memo: "" }
+];
 
 const state = {
   settings: {
@@ -68,6 +89,7 @@ const state = {
     chordId: null,
     rootNoteText: "C4",
     beats: 4,
+    sectionName: "",
     bassMode: "relative",
     bassValue: "__root__",
     voicingOctave: 4,
@@ -164,9 +186,14 @@ const els = {
   playProgBtn: document.getElementById("playProgBtn"),
   stopProgBtn: document.getElementById("stopProgBtn"),
   progLoopInput: document.getElementById("progLoopInput"),
+  progExportBtn: document.getElementById("progExportBtn"),
+  progImportFileInput: document.getElementById("progImportFileInput"),
+  addProgChunkBtn: document.getElementById("addProgChunkBtn"),
+  addProgSectionBtn: document.getElementById("addProgSectionBtn"),
   progStatus: document.getElementById("progStatus"),
   progSummary: document.getElementById("progSummary"),
   progressionGrid: document.getElementById("progressionGrid"),
+  progSectionNameInput: document.getElementById("progSectionNameInput"),
   a4HzInput: document.getElementById("a4HzInput"),
   bpmInput: document.getElementById("bpmInput"),
   roundUnitInput: document.getElementById("roundUnitInput"),
@@ -291,6 +318,7 @@ function applyLayoutSettings() {
   document.documentElement.style.setProperty("--preset-tags-col", `${widths.tags || 8}rem`);
   document.documentElement.style.setProperty("--preset-memo-col", `${widths.memo || 10}rem`);
   document.documentElement.style.setProperty("--progression-cell-width", `${state.settings.progressionCellWidth || 124}px`);
+  document.documentElement.style.setProperty("--progression-columns", `${clamp(Number(state.progression.columns) || 4, 1, 12)}`);
 }
 
 function buildPresetColGroup(columns) {
@@ -364,6 +392,24 @@ function compareNamedItems(a, b) {
   return String(a?.name || a?.id || "").localeCompare(String(b?.name || b?.id || ""), "ja");
 }
 
+function isRootLikePreset(preset) {
+  if (!preset) return false;
+  const tokens = [
+    String(preset.shortName || "").toUpperCase(),
+    String(preset.name || "").toUpperCase(),
+    String(preset.id || "").toUpperCase()
+  ];
+  return tokens.includes("P1") || Number(preset.microStep) === 0;
+}
+
+function defaultRootPreset() {
+  return sortedPitchPresets().find(isRootLikePreset) || sortedPitchPresets()[0] || null;
+}
+
+function defaultRootPresetId() {
+  return defaultRootPreset()?.id || "";
+}
+
 function sortedPitchPresets() {
   return [...state.pitchPresets].sort(compareNamedItems);
 }
@@ -433,6 +479,21 @@ function buildProjectPayload() {
     exportType: "project",
     payload: {
       settings: state.settings,
+      pitchPresets: state.pitchPresets,
+      chordPresets: state.chordPresets,
+      progression: state.progression,
+      progressionEditor: state.progressionEditor
+    }
+  };
+}
+
+function buildProgressionPayload() {
+  return {
+    app: "muChordbot",
+    specVersion: "1.2.0",
+    extensionType: "mcbp",
+    exportType: "progression",
+    payload: {
       pitchPresets: state.pitchPresets,
       chordPresets: state.chordPresets,
       progression: state.progression,
@@ -595,16 +656,32 @@ function inversionOctaveCarry(total, step = 0) {
   return Math.floor((Number(step) - rotation) / count);
 }
 
+function normalizeVoicingState(total, octave, step = 0) {
+  const count = Math.max(Number(total) || 0, 1);
+  const normalizedStep = normalizedInversionRotation(count, step);
+  const octaveCarry = inversionOctaveCarry(count, step);
+  return {
+    octave: clamp((Number(octave) || 4) + octaveCarry, -2, 9),
+    step: normalizedStep
+  };
+}
+
 function progressionVoicingBaseOctave(part) {
+  const chord = state.chordPresets.find((item) => item.id === part?.chordId);
+  const total = chord?.tones?.length || 1;
   const explicit = Number(part?.voicing?.octave);
-  if (Number.isFinite(explicit)) return explicit;
-  return Number(part?.root?.octave || 4) + voicingBandOffsetOctave(part?.voicing?.band || "mid");
+  if (Number.isFinite(explicit)) {
+    return normalizeVoicingState(total, explicit, part?.voicing?.step || 0).octave;
+  }
+  return normalizeVoicingState(
+    total,
+    Number(part?.root?.octave || 4) + voicingBandOffsetOctave(part?.voicing?.band || "mid"),
+    part?.voicing?.step || 0
+  ).octave;
 }
 
 function currentVoicingOctave() {
-  const chord = state.chordPresets.find((item) => item.id === state.progressionEditor.chordId);
-  const total = chord?.tones?.length || 1;
-  return Number(state.progressionEditor.voicingOctave || 4) + inversionOctaveCarry(total, state.progressionEditor.inversionStep);
+  return clamp(Number(state.progressionEditor.voicingOctave || 4), -2, 9);
 }
 
 function formatRootPitchClass(root) {
@@ -647,6 +724,14 @@ function renderProgressionPopovers() {
 function buildChordToneDefaults(note, index, rootNote) {
   if (note.id === rootNote.id) return "Root";
   const relative = normalizePitch(0, absoluteMicroStep(note) - absoluteMicroStep(rootNote));
+  const preset = findPitchPresetByMicroStep(relative.microStepInOctave);
+  if (preset) return formatPresetDisplayName(preset);
+  return `tone${index + 1}`;
+}
+
+function buildChordToneDefaultsFromAbsolute(note, index, rootAbsolute) {
+  const relative = normalizePitch(0, absoluteMicroStep(note) - rootAbsolute);
+  if (relative.octave === 0 && relative.microStepInOctave === 0) return "Root";
   const preset = findPitchPresetByMicroStep(relative.microStepInOctave);
   if (preset) return formatPresetDisplayName(preset);
   return `tone${index + 1}`;
@@ -771,11 +856,15 @@ function loadProgressionEditorFromPart(part) {
   state.progressionEditor.chordId = part.chordId;
   state.progressionEditor.rootNoteText = formatDirectRootFromPart(part.root);
   state.progressionEditor.beats = part.beats;
+  state.progressionEditor.sectionName = String(part.sectionName || "");
   const bass = bassSpecForPart(part);
   state.progressionEditor.bassMode = bass.mode;
   state.progressionEditor.bassValue = bass.value;
-  state.progressionEditor.voicingOctave = progressionVoicingBaseOctave(part);
-  state.progressionEditor.inversionStep = Number(part.voicing?.step) || 0;
+  const chord = state.chordPresets.find((item) => item.id === part.chordId);
+  const total = chord?.tones?.length || 1;
+  const normalizedVoicing = normalizeVoicingState(total, progressionVoicingBaseOctave(part), part.voicing?.step || 0);
+  state.progressionEditor.voicingOctave = normalizedVoicing.octave;
+  state.progressionEditor.inversionStep = normalizedVoicing.step;
 }
 
 function resetProgressionInteractionState() {
@@ -832,6 +921,44 @@ function parseDirectRootNote(text) {
   };
 }
 
+function parseRootEditorTextRaw(text) {
+  const match = String(text || "").trim().match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
+  if (!match) return null;
+  return {
+    letter: match[1].toUpperCase(),
+    accidental: match[2] || "",
+    octave: match[3]
+  };
+}
+
+function accidentalDelta(symbol) {
+  return ROOT_ACCIDENTAL_OPTIONS.find((option) => option.symbol === symbol)?.delta ?? 0;
+}
+
+function resolveSpelledOctave(letter, accidental, targetAbsolute, preferredOctave) {
+  const base = Number(preferredOctave) || 4;
+  for (let offset = -2; offset <= 2; offset += 1) {
+    const candidate = base + offset;
+    const parsed = parseDirectRootNote(`${letter}${accidental}${candidate}`);
+    if (!parsed) continue;
+    if (((parsed.octave * OCTAVE_MICROSTEP) + parsed.microStepInOctave) === targetAbsolute) {
+      return candidate;
+    }
+  }
+  return base;
+}
+
+function applyRootAccidentalChange(nextAccidental) {
+  const parts = rootEditorParts();
+  const current = resolveProgressionRootInput();
+  if (!current) return;
+  const currentAbsolute = (current.octave * OCTAVE_MICROSTEP) + current.microStepInOctave;
+  const semitoneDelta = (accidentalDelta(nextAccidental) - accidentalDelta(parts.accidental)) * 300;
+  const targetAbsolute = currentAbsolute + semitoneDelta;
+  const nextOctave = resolveSpelledOctave(parts.letter, nextAccidental, targetAbsolute, Number(parts.octave));
+  setProgressionEditorRoot({ ...parts, accidental: nextAccidental, octave: String(nextOctave) });
+}
+
 function formatDirectRootFromPart(root) {
   if (root.noteText) return root.noteText;
   const semitone = Math.round(root.microStepInOctave / 300);
@@ -840,11 +967,8 @@ function formatDirectRootFromPart(root) {
 }
 
 function rootEditorParts() {
-  const parsed = parseDirectRootNote(state.progressionEditor.rootNoteText);
-  if (parsed) {
-    const match = parsed.noteText.match(/^([A-G])([#b]?)(-?\d+)$/);
-    return { letter: match[1], accidental: match[2], octave: match[3] };
-  }
+  const parsed = parseRootEditorTextRaw(state.progressionEditor.rootNoteText);
+  if (parsed) return parsed;
   return { letter: "C", accidental: "", octave: "4" };
 }
 
@@ -917,9 +1041,13 @@ function selectBassAbsoluteNote(noteText, changeLabel = "進行セルの bass �
   return true;
 }
 
-function selectInversionStep(step, changeLabel = "進行セルの転回形変更") {
+function selectInversionStep(step, changeLabel = "進行セルの転回形変更", baseOctave = state.progressionEditor.voicingOctave) {
   if (!Number.isFinite(Number(step))) return;
-  state.progressionEditor.inversionStep = Number(step);
+  const chord = state.chordPresets.find((item) => item.id === state.progressionEditor.chordId);
+  const total = chord?.tones?.length || 1;
+  const normalizedVoicing = normalizeVoicingState(total, baseOctave, step);
+  state.progressionEditor.voicingOctave = normalizedVoicing.octave;
+  state.progressionEditor.inversionStep = normalizedVoicing.step;
   syncProgressionSelectionFromEditor(changeLabel, true);
 }
 
@@ -1004,6 +1132,9 @@ function renderVoicingControls() {
 
 function renderProgressionEditorButtons() {
   const parts = rootEditorParts();
+  if (els.progSectionNameInput) {
+    els.progSectionNameInput.value = state.progressionEditor.sectionName || "";
+  }
   els.progRootLetterButtons.querySelectorAll("button").forEach((button) => {
     button.classList.toggle("active", button.dataset.note === parts.letter);
   });
@@ -1026,13 +1157,78 @@ function progressionPartLabel(part) {
   const chord = state.chordPresets.find((item) => item.id === part.chordId);
   const rootLabel = formatRootPitchClass(part.root);
   const bass = bassSpecForPart(part);
-  const bassLabel = ` / ${bassSpecLabel(bass.mode, bass.value)}`;
-  const octave = progressionVoicingBaseOctave(part) + inversionOctaveCarry(chord?.tones?.length || 1, part.voicing?.step || 0);
+  const bassDisplay = bass.mode === "relative" && (!bass.value || bass.value === ROOT_BASS_TOKEN)
+    ? ""
+    : ` / ${bassSpecLabel(bass.mode, bass.value)}`;
+  const octave = progressionVoicingBaseOctave(part);
   return {
-    chordName: `${chord?.name || `(deleted: ${part.chordId})`}${bassLabel}`,
+    sectionName: String(part.sectionName || ""),
+    chordName: `${chord?.name || `(deleted: ${part.chordId})`}${bassDisplay}`,
     rootLabel,
     meta: `(${part.beats}/4 oct:${octave})`
   };
+}
+
+function progressionSections() {
+  const groups = [];
+  let currentGroup = null;
+  state.progression.parts.forEach((part, index) => {
+    const explicitName = String(part.sectionName || "").trim();
+    if (!currentGroup || explicitName) {
+      currentGroup = {
+        startIndex: index,
+        name: explicitName || `section ${groups.length + 1}`,
+        partIds: []
+      };
+      groups.push(currentGroup);
+    }
+    currentGroup.partIds.push(part.id);
+  });
+  return groups;
+}
+
+function progressionSectionAtIndex(index) {
+  const sections = progressionSections();
+  const sectionIndex = sections.findIndex((section) => index >= section.startIndex && index < section.startIndex + section.partIds.length);
+  return {
+    sections,
+    index: sectionIndex >= 0 ? sectionIndex : (sections.length ? 0 : -1),
+    section: sectionIndex >= 0 ? sections[sectionIndex] : null
+  };
+}
+
+function progressionChunks() {
+  const chunks = [];
+  let currentChunk = null;
+  state.progression.parts.forEach((part, index) => {
+    const chunkId = part.chunkId || "chunk-1";
+    if (!currentChunk || currentChunk.id !== chunkId) {
+      currentChunk = {
+        id: chunkId,
+        startIndex: index,
+        partIds: []
+      };
+      chunks.push(currentChunk);
+    }
+    currentChunk.partIds.push(part.id);
+  });
+  return chunks;
+}
+
+function chunkContextForPartId(partId) {
+  const chunks = progressionChunks();
+  const chunkIndex = chunks.findIndex((chunk) => chunk.partIds.includes(partId));
+  return {
+    chunks,
+    index: chunkIndex >= 0 ? chunkIndex : (chunks.length ? 0 : -1),
+    chunk: chunkIndex >= 0 ? chunks[chunkIndex] : null
+  };
+}
+
+function currentChunkId() {
+  const selected = state.progression.parts.find((part) => part.id === state.progression.selectedPartId);
+  if (selected?.chunkId) return selected.chunkId;
+  return progressionChunks()[0]?.id || "chunk-1";
 }
 
 function resolveProgressionRootInput() {
@@ -1147,13 +1343,24 @@ async function playProgressionPart(part, partIndex) {
 
   const beatMs = (60_000 / clamp(state.settings.bpm, 5, 300)) * part.beats;
   progressionPlayback.timerId = setTimeout(() => {
-    const nextIndex = partIndex + 1;
-    if (nextIndex < state.progression.parts.length) {
-      void playProgressionPart(state.progression.parts[nextIndex], nextIndex);
+    const chunkInfo = chunkContextForPartId(part.id);
+    const chunkParts = chunkInfo.chunk
+      ? chunkInfo.chunk.partIds
+          .map((id) => state.progression.parts.find((item) => item.id === id))
+          .filter(Boolean)
+      : [];
+    const currentChunkIndex = chunkParts.findIndex((item) => item.id === part.id);
+    const nextIndex = currentChunkIndex + 1;
+    if (nextIndex < chunkParts.length) {
+      const nextPart = chunkParts[nextIndex];
+      const globalIndex = state.progression.parts.findIndex((item) => item.id === nextPart.id);
+      void playProgressionPart(nextPart, globalIndex);
       return;
     }
-    if (state.progression.loop && state.progression.parts.length > 0) {
-      void playProgressionPart(state.progression.parts[0], 0);
+    if (state.progression.loop && chunkParts.length > 0) {
+      const firstPart = chunkParts[0];
+      const globalIndex = state.progression.parts.findIndex((item) => item.id === firstPart.id);
+      void playProgressionPart(firstPart, globalIndex);
       return;
     }
     stopProgressionPlayback();
@@ -1321,7 +1528,34 @@ function renderProgressionGrid() {
     return;
   }
 
-  state.progression.parts.forEach((part, index) => {
+  const current = chunkContextForPartId(state.progression.selectedPartId || state.progression.parts[0]?.id || "");
+  const chunk = current.chunk || progressionChunks()[0];
+  if (!chunk) return;
+
+  const chunkWrap = document.createElement("section");
+  chunkWrap.className = "progression-chunk";
+
+  const chunkHead = document.createElement("div");
+  chunkHead.className = "progression-chunk-head";
+  chunkHead.textContent = `chunk ${String((current.index >= 0 ? current.index : 0) + 1).padStart(2, "0")}`;
+  chunkWrap.appendChild(chunkHead);
+
+  const chunkGrid = document.createElement("div");
+  chunkGrid.className = "progression-chunk-grid";
+
+  chunk.partIds.forEach((partId) => {
+    const index = state.progression.parts.findIndex((item) => item.id === partId);
+    const part = state.progression.parts[index];
+    if (!part) return;
+    const { chordName, rootLabel, meta: metaLabel, sectionName } = progressionPartLabel(part);
+
+    if (sectionName) {
+      const sectionBreak = document.createElement("div");
+      sectionBreak.className = "progression-section-break";
+      sectionBreak.textContent = sectionName;
+      chunkGrid.appendChild(sectionBreak);
+    }
+
     const button = document.createElement("button");
     button.type = "button";
     button.className = "progression-cell";
@@ -1340,8 +1574,7 @@ function renderProgressionGrid() {
     }
     button.dataset.partId = part.id;
     button.dataset.index = String(index);
-
-    const { chordName, rootLabel, meta: metaLabel } = progressionPartLabel(part);
+    button.dataset.chunkId = chunk.id;
 
     const title = document.createElement("div");
     title.className = "cell-title";
@@ -1353,8 +1586,11 @@ function renderProgressionGrid() {
     meta.textContent = metaLabel;
     button.appendChild(meta);
 
-    els.progressionGrid.appendChild(button);
+    chunkGrid.appendChild(button);
   });
+
+  chunkWrap.appendChild(chunkGrid);
+  els.progressionGrid.appendChild(chunkWrap);
 }
 
 function paintProgressionGridReorderState() {
@@ -1387,6 +1623,16 @@ function exportLibrary() {
   URL.revokeObjectURL(a.href);
 }
 
+function exportProgressionProject() {
+  const payload = buildProgressionPayload();
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "progression.mcbp";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function mergeById(existingItems, incomingItems) {
   const merged = [...existingItems];
   const existingIds = new Set(existingItems.map((item) => item.id));
@@ -1398,6 +1644,15 @@ function mergeById(existingItems, incomingItems) {
     added += 1;
   }
   return { merged, added };
+}
+
+function ensureDefaultLibrary() {
+  if (!Array.isArray(state.pitchPresets) || state.pitchPresets.length === 0) {
+    state.pitchPresets = JSON.parse(JSON.stringify(DEFAULT_PITCH_PRESETS));
+  }
+  if (!Array.isArray(state.chordPresets) || state.chordPresets.length === 0) {
+    state.chordPresets = JSON.parse(JSON.stringify(DEFAULT_CHORD_PRESETS));
+  }
 }
 
 async function importDataFile(file) {
@@ -1417,6 +1672,28 @@ async function importDataFile(file) {
       setStatus(
         els.manageStatus,
         `library を読込: pitch +${pitchMerge.added}, chord +${chordMerge.added}`,
+        "success"
+      );
+    } else if (extensionType === "mcbp" || parsed?.exportType === "progression") {
+      const incomingPitchPresets = Array.isArray(parsed?.payload?.pitchPresets) ? parsed.payload.pitchPresets : [];
+      const incomingChordPresets = Array.isArray(parsed?.payload?.chordPresets) ? parsed.payload.chordPresets : [];
+      const pitchMerge = mergeById(state.pitchPresets, incomingPitchPresets);
+      const chordMerge = mergeById(state.chordPresets, incomingChordPresets);
+      state.pitchPresets = pitchMerge.merged;
+      state.chordPresets = chordMerge.merged;
+      if (parsed?.payload?.progression) {
+        state.progression = {
+          ...state.progression,
+          ...parsed.payload.progression,
+          parts: Array.isArray(parsed.payload.progression.parts) ? parsed.payload.progression.parts : []
+        };
+      }
+      if (parsed?.payload?.progressionEditor) {
+        state.progressionEditor = { ...state.progressionEditor, ...parsed.payload.progressionEditor };
+      }
+      setStatus(
+        els.progStatus,
+        `progression を読込: pitch +${pitchMerge.added}, chord +${chordMerge.added}, parts ${state.progression.parts.length}`,
         "success"
       );
     } else {
@@ -1486,9 +1763,33 @@ function buildProgressionBassState() {
 }
 
 function buildProgressionVoicingState() {
+  const chord = state.chordPresets.find((item) => item.id === state.progressionEditor.chordId);
+  const total = chord?.tones?.length || 1;
+  const normalizedVoicing = normalizeVoicingState(
+    total,
+    state.progressionEditor.voicingOctave,
+    state.progressionEditor.inversionStep
+  );
   return {
-    octave: clamp(Number(state.progressionEditor.voicingOctave) || 4, -2, 9),
-    step: Number(state.progressionEditor.inversionStep) || 0
+    octave: normalizedVoicing.octave,
+    step: normalizedVoicing.step
+  };
+}
+
+function buildProgressionSectionName() {
+  return String(state.progressionEditor.sectionName || "").trim();
+}
+
+function buildProgressionPartFromEditor(partId, root, chunkId, sectionName) {
+  return {
+    id: partId,
+    chordId: state.progressionEditor.chordId,
+    root,
+    chunkId,
+    sectionName,
+    bass: buildProgressionBassState(),
+    voicing: buildProgressionVoicingState(),
+    beats: clamp(Number(state.progressionEditor.beats) || 4, 1, 16)
   };
 }
 
@@ -1506,16 +1807,8 @@ function addProgressionPart() {
   }
 
   const before = snapshotState();
-  const beats = clamp(Number(state.progressionEditor.beats) || 4, 1, 16);
   const partId = `PART_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-  const newPart = {
-    id: partId,
-    chordId,
-    root,
-    bass: buildProgressionBassState(),
-    voicing: buildProgressionVoicingState(),
-    beats
-  };
+  const newPart = buildProgressionPartFromEditor(partId, root, currentChunkId(), "");
   const selectedIndex = state.progression.parts.findIndex((part) => part.id === state.progression.selectedPartId);
   if (selectedIndex >= 0) {
     state.progression.parts.splice(selectedIndex + 1, 0, newPart);
@@ -1531,6 +1824,50 @@ function addProgressionPart() {
   syncFormFromState();
   render();
   setStatus(els.progStatus, "進行セルを追加しました。", "success");
+}
+
+function addProgressionSection() {
+  const root = resolveProgressionRootInput();
+  if (!root || !state.progressionEditor.chordId) {
+    setStatus(els.progStatus, "Section 追加前にコードとルートを設定してください。", "error");
+    return;
+  }
+  const before = snapshotState();
+  const selectedIndex = state.progression.parts.findIndex((part) => part.id === state.progression.selectedPartId);
+  const insertIndex = selectedIndex >= 0 ? selectedIndex + 1 : state.progression.parts.length;
+  const partId = `PART_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const sectionName = buildProgressionSectionName() || `section ${insertIndex + 1}`;
+  const newPart = buildProgressionPartFromEditor(partId, root, currentChunkId(), sectionName);
+  state.progression.parts.splice(insertIndex, 0, newPart);
+  state.progression.selectedPartId = partId;
+  const after = snapshotState();
+  trackStateChange("add_progression_section", "進行 section 追加", before, after);
+  syncFormFromState();
+  render();
+  setStatus(els.progStatus, "Section を追加しました。", "success");
+}
+
+function addProgressionChunk() {
+  const root = resolveProgressionRootInput();
+  if (!root || !state.progressionEditor.chordId) {
+    setStatus(els.progStatus, "チャンク追加前にコードとルートを設定してください。", "error");
+    return;
+  }
+  const before = snapshotState();
+  const chunks = progressionChunks();
+  const current = chunkContextForPartId(state.progression.selectedPartId || "");
+  const insertAfterChunk = current.chunk || chunks[chunks.length - 1] || null;
+  const insertIndex = insertAfterChunk ? insertAfterChunk.startIndex + insertAfterChunk.partIds.length : state.progression.parts.length;
+  const chunkId = `CHUNK_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const partId = `PART_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const newPart = buildProgressionPartFromEditor(partId, root, chunkId, buildProgressionSectionName());
+  state.progression.parts.splice(insertIndex, 0, newPart);
+  state.progression.selectedPartId = partId;
+  const after = snapshotState();
+  trackStateChange("add_progression_chunk", "進行チャンク追加", before, after);
+  syncFormFromState();
+  render();
+  setStatus(els.progStatus, "チャンクを追加しました。", "success");
 }
 
 function selectProgressionPart(partId) {
@@ -1597,6 +1934,7 @@ function syncProgressionSelectionFromEditor(changeLabel, preview = false) {
     ...state.progression.parts[index],
     chordId: state.progressionEditor.chordId,
     root,
+    sectionName: buildProgressionSectionName(),
     bass: buildProgressionBassState(),
     voicing: buildProgressionVoicingState(),
     beats: clamp(Number(state.progressionEditor.beats) || 4, 1, 16)
@@ -1612,11 +1950,12 @@ function syncProgressionSelectionFromEditor(changeLabel, preview = false) {
 }
 
 function setProgressionEditorRoot({ letter, accidental, octave }) {
-  const previous = resolveProgressionRootInput();
+  const previousParts = rootEditorParts();
   state.progressionEditor.rootNoteText = `${letter}${accidental}${octave}`;
   const nextOctave = Number(octave);
-  if (previous && Number.isFinite(nextOctave)) {
-    const offset = Number(state.progressionEditor.voicingOctave || previous.octave) - previous.octave;
+  const previousOctave = Number(previousParts.octave);
+  if (Number.isFinite(previousOctave) && Number.isFinite(nextOctave)) {
+    const offset = Number(state.progressionEditor.voicingOctave || previousOctave) - previousOctave;
     state.progressionEditor.voicingOctave = clamp(nextOctave + offset, -2, 9);
   } else if (Number.isFinite(nextOctave)) {
     state.progressionEditor.voicingOctave = clamp(nextOctave, -2, 9);
@@ -1627,10 +1966,10 @@ function setProgressionEditorRoot({ letter, accidental, octave }) {
 }
 
 function stepSelectedProgressionPart(direction) {
-  if (state.progression.parts.length === 0) return;
-  const currentIndex = Math.max(0, currentProgressionSelectionIndex());
-  const nextIndex = clamp(currentIndex + direction, 0, state.progression.parts.length - 1);
-  selectProgressionPart(state.progression.parts[nextIndex].id);
+  const current = chunkContextForPartId(state.progression.selectedPartId || state.progression.parts[0]?.id || "");
+  if (!current.chunk || current.chunks.length === 0) return;
+  const nextIndex = clamp(current.index + direction, 0, current.chunks.length - 1);
+  selectProgressionPart(current.chunks[nextIndex].partIds[0]);
 }
 
 function getProgressionDropPlacement(cell, clientX, clientY) {
@@ -1745,6 +2084,7 @@ async function applyDragPitch(finalize = false) {
     note.microStepInOctave = normalized.microStepInOctave;
     note.cent = Number(microStepToCent(normalized.microStepInOctave));
     note.id = buildNoteId(note.octave, note.microStepInOctave);
+    dragContext.noteId = note.id;
     dedupeActiveNotes(note);
     syncDraftFromNote(note);
     syncFormFromState();
@@ -1914,7 +2254,10 @@ function populateComposerRootPresetSelect(select, selectedId = "") {
     select.appendChild(option);
   });
 
-  select.value = state.pitchPresets.some((preset) => preset.id === selectedId) ? selectedId : "";
+  const fallbackId = defaultRootPresetId();
+  select.value = state.pitchPresets.some((preset) => preset.id === selectedId)
+    ? selectedId
+    : fallbackId;
 }
 
 function renderPresetTableEmpty(container, message) {
@@ -2621,6 +2964,8 @@ function attachEvents() {
     renderChordPresets();
   });
   els.addProgPartBtn.addEventListener("click", addProgressionPart);
+  els.addProgChunkBtn?.addEventListener("click", addProgressionChunk);
+  els.addProgSectionBtn?.addEventListener("click", addProgressionSection);
   els.deleteProgPartBtn.addEventListener("click", deleteSelectedProgressionPart);
   els.progPrevBtn.addEventListener("click", () => stepSelectedProgressionPart(-1));
   els.progNextBtn.addEventListener("click", () => stepSelectedProgressionPart(1));
@@ -2637,11 +2982,10 @@ function attachEvents() {
       setStatus(els.progStatus, "再生するセルがありません。", "error");
       return;
     }
-    const startIndex = Math.max(
-      0,
-      state.progression.parts.findIndex((part) => part.id === state.progression.selectedPartId)
-    );
-    void playProgressionPart(state.progression.parts[startIndex] || state.progression.parts[0], startIndex >= 0 ? startIndex : 0);
+    const chunkInfo = chunkContextForPartId(state.progression.selectedPartId || state.progression.parts[0]?.id || "");
+    const firstPartId = chunkInfo.chunk?.partIds[0] || state.progression.parts[0]?.id;
+    const startIndex = Math.max(0, state.progression.parts.findIndex((part) => part.id === firstPartId));
+    void playProgressionPart(state.progression.parts[startIndex] || state.progression.parts[0], startIndex);
     setStatus(els.progStatus, "進行再生を開始しました。", "success");
   });
   els.stopProgBtn.addEventListener("click", () => {
@@ -2657,10 +3001,11 @@ function attachEvents() {
       if (els.progRootOctaveInput) els.progRootOctaveInput.value = parts.octave;
       return;
     }
-    const previous = parseDirectRootNote(state.progressionEditor.rootNoteText);
+    const previousParts = rootEditorParts();
     state.progressionEditor.rootNoteText = parsed.noteText;
-    if (previous) {
-      const offset = Number(state.progressionEditor.voicingOctave || previous.octave) - previous.octave;
+    const previousOctave = Number(previousParts.octave);
+    if (Number.isFinite(previousOctave)) {
+      const offset = Number(state.progressionEditor.voicingOctave || previousOctave) - previousOctave;
       state.progressionEditor.voicingOctave = clamp(parsed.octave + offset, -2, 9);
     } else {
       state.progressionEditor.voicingOctave = parsed.octave;
@@ -2680,6 +3025,10 @@ function attachEvents() {
   };
   els.progRootOctaveInput?.addEventListener("input", syncProgressionRootOctave);
   els.progRootOctaveInput?.addEventListener("change", syncProgressionRootOctave);
+  els.progSectionNameInput?.addEventListener("input", () => {
+    state.progressionEditor.sectionName = String(els.progSectionNameInput.value || "");
+    syncProgressionSelectionFromEditor("進行セルのセクション変更", false);
+  });
   els.progBassInput?.addEventListener("focus", () => openProgressionPopover("bass"));
   els.progBassInput?.addEventListener("pointerdown", () => openProgressionPopover("bass"));
   els.progBassInput?.addEventListener("change", () => {
@@ -2753,12 +3102,13 @@ function attachEvents() {
     openProgressionPopover("inversion");
     const startX = ev.clientX;
     const startStep = Number(state.progressionEditor.inversionStep) || 0;
+    const startOctave = Number(state.progressionEditor.voicingOctave) || 4;
     let appliedOffset = 0;
     const move = (moveEv) => {
       const offset = Math.trunc((moveEv.clientX - startX) / 24);
       if (offset === appliedOffset) return;
       appliedOffset = offset;
-      selectInversionStep(startStep + offset, "進行セルの転回形スワイプ変更");
+      selectInversionStep(startStep + offset, "進行セルの転回形スワイプ変更", startOctave);
     };
     const cleanup = () => {
       window.removeEventListener("pointermove", move);
@@ -2770,16 +3120,13 @@ function attachEvents() {
     window.addEventListener("pointercancel", cleanup);
   });
   els.progFlatBtn.addEventListener("click", () => {
-    const parts = rootEditorParts();
-    setProgressionEditorRoot({ ...parts, accidental: "b" });
+    applyRootAccidentalChange("b");
   });
   els.progNaturalBtn.addEventListener("click", () => {
-    const parts = rootEditorParts();
-    setProgressionEditorRoot({ ...parts, accidental: "" });
+    applyRootAccidentalChange("");
   });
   els.progSharpBtn.addEventListener("click", () => {
-    const parts = rootEditorParts();
-    setProgressionEditorRoot({ ...parts, accidental: "#" });
+    applyRootAccidentalChange("#");
   });
   els.progRootLetterButtons.addEventListener("click", (ev) => {
     const target = ev.target;
@@ -2817,13 +3164,16 @@ function attachEvents() {
   els.activeNotesFilterInput?.addEventListener("input", render);
   els.pitchPresetFilterInput?.addEventListener("input", render);
   els.progChordTagFilterInput.addEventListener("input", render);
-  els.progColumnsSelect.addEventListener("change", () => {
+  const syncProgressionColumns = () => {
     const before = snapshotState();
-    state.progression.columns = clamp(Number(els.progColumnsSelect.value) || 4, 2, 8);
+    state.progression.columns = clamp(Number(els.progColumnsSelect.value) || 4, 1, 12);
     const after = snapshotState();
     trackStateChange("update_progression_columns", "進行列数変更", before, after);
+    applyLayoutSettings();
     render();
-  });
+  };
+  els.progColumnsSelect.addEventListener("input", syncProgressionColumns);
+  els.progColumnsSelect.addEventListener("change", syncProgressionColumns);
   els.progLoopInput.addEventListener("change", () => {
     const before = snapshotState();
     state.progression.loop = els.progLoopInput.checked;
@@ -3188,6 +3538,13 @@ function attachEvents() {
 
   els.exportBtn.addEventListener("click", exportProject);
   els.exportLibraryBtn.addEventListener("click", exportLibrary);
+  els.progExportBtn?.addEventListener("click", exportProgressionProject);
+  els.progImportFileInput?.addEventListener("change", async () => {
+    const file = els.progImportFileInput.files?.[0];
+    if (!file) return;
+    await importDataFile(file);
+    els.progImportFileInput.value = "";
+  });
   els.runtimeRefreshBtn?.addEventListener("click", () => {
     showRuntimeNotice("キャッシュを破棄して再読込します。", "info");
     void forceRefreshApplication();
@@ -3327,6 +3684,7 @@ function syncFormFromState() {
   state.settings.progressionCellWidth = Number(state.settings.progressionCellWidth) || 124;
   state.settings.dismissedRuntimeNotice = Boolean(state.settings.dismissedRuntimeNotice);
   state.settings.dismissedPwaNotice = Boolean(state.settings.dismissedPwaNotice);
+  state.progression.columns = clamp(Number(state.progression.columns) || 4, 1, 12);
   applyLayoutSettings();
   els.octaveInput.value = state.pitchDraft.octave;
   els.snapCentInput.value = formatDecimal(state.settings.snapCent);
@@ -3343,14 +3701,21 @@ function syncFormFromState() {
   populateChordBaseRootOptions();
   populateRecallChordOptions();
   populateRecallRootPresetOptions();
+  if (!els.recallRootTextInput.value.trim() && !els.recallRootPresetSelect.value) {
+    els.recallRootPresetSelect.value = defaultRootPresetId();
+  }
   if (!state.progressionEditor.chordId && state.chordPresets[0]) {
     state.progressionEditor.chordId = state.chordPresets[0].id;
+  }
+  if (!state.progressionEditor.sectionName) {
+    state.progressionEditor.sectionName = "";
   }
   const rootParts = rootEditorParts();
   els.progRootNoteInput.value = `${rootParts.letter}${rootParts.accidental}`;
   if (els.progRootOctaveInput) els.progRootOctaveInput.value = rootParts.octave;
   els.progColumnsSelect.value = String(state.progression.columns);
   els.progLoopInput.checked = state.progression.loop;
+  if (els.progSectionNameInput) els.progSectionNameInput.value = state.progressionEditor.sectionName;
   if (els.runtimeInfoText) renderRuntimeInfo();
   if (els.presetNameWidthInput) els.presetNameWidthInput.value = state.settings.tableColumnWidths.name;
   if (els.presetCentWidthInput) els.presetCentWidthInput.value = state.settings.tableColumnWidths.cent;
@@ -3362,6 +3727,8 @@ function syncFormFromState() {
   renderProgressionEditorButtons();
   renderRecallSummary();
   els.addProgPartBtn.textContent = state.progression.selectedPartId ? "後ろに挿入" : "挿入";
+  if (els.addProgChunkBtn) els.addProgChunkBtn.disabled = !state.progressionEditor.chordId;
+  if (els.addProgSectionBtn) els.addProgSectionBtn.disabled = !state.progressionEditor.chordId;
   els.deleteProgPartBtn.disabled = !state.progression.selectedPartId;
   els.progPrevBtn.disabled = state.progression.parts.length === 0;
   els.progNextBtn.disabled = state.progression.parts.length === 0;
@@ -3586,7 +3953,8 @@ function populateRecallRootPresetOptions() {
   });
 
   select.disabled = state.pitchPresets.length === 0;
-  select.value = state.pitchPresets.some((preset) => preset.id === previous) ? previous : "";
+  const fallbackId = defaultRootPresetId();
+  select.value = state.pitchPresets.some((preset) => preset.id === previous) ? previous : fallbackId;
 }
 
 function resolveRecallRoot() {
@@ -3594,7 +3962,7 @@ function resolveRecallRoot() {
   if (directText) {
     return parseDirectRootNote(directText);
   }
-  const preset = findPitchPresetById(els.recallRootPresetSelect.value);
+  const preset = findPitchPresetById(els.recallRootPresetSelect.value || defaultRootPresetId());
   if (!preset) return null;
   return {
     octave: state.pitchDraft.octave,
@@ -3638,8 +4006,9 @@ function syncChordComposerInputsFromRow(row) {
 
 function renderProgressionSummary() {
   const selectedIndex = currentProgressionSelectionIndex();
-  const current = selectedIndex >= 0 ? String(selectedIndex + 1).padStart(2, "0") : "00";
-  const total = String(state.progression.parts.length).padStart(2, "0");
+  const chunkInfo = chunkContextForPartId(state.progression.selectedPartId || state.progression.parts[0]?.id || "");
+  const current = chunkInfo.index >= 0 ? String(chunkInfo.index + 1).padStart(2, "0") : "00";
+  const total = String(chunkInfo.chunks.length).padStart(2, "0");
   els.progCounter.textContent = `${current}/${total}`;
 
   const selected = selectedIndex >= 0 ? state.progression.parts[selectedIndex] : null;
@@ -3647,9 +4016,12 @@ function renderProgressionSummary() {
   const editorRoot = state.progressionEditor.rootNoteText;
   const bassLabel = bassTokenLabel();
   const inversionLabel = `${currentInversionLabel()} / oct ${currentVoicingOctave()}`;
+  const sectionLabel = selected
+    ? String(selected.sectionName || "").trim()
+    : String(state.progressionEditor.sectionName || "").trim();
   els.progSummary.textContent = selected
-    ? `${chord?.name || selected.chordId} / ${formatDirectRootFromPart(selected.root)} / bass ${bassLabel} / ${inversionLabel} / ${selected.beats}/4`
-    : `編集中: ${state.progressionEditor.chordId || "未選択"} / ${editorRoot} / bass ${bassLabel} / ${inversionLabel} / ${state.progressionEditor.beats}/4`;
+    ? `${sectionLabel ? `${sectionLabel} / ` : ""}${chord?.name || selected.chordId} / ${formatDirectRootFromPart(selected.root)} / bass ${bassLabel} / ${inversionLabel} / ${selected.beats}/4`
+    : `編集中: ${sectionLabel ? `${sectionLabel} / ` : ""}${state.progressionEditor.chordId || "未選択"} / ${editorRoot} / bass ${bassLabel} / ${inversionLabel} / ${state.progressionEditor.beats}/4`;
 }
 
 function saveChordFromActiveNotes() {
@@ -3658,10 +4030,9 @@ function saveChordFromActiveNotes() {
     return;
   }
 
-  const rootId = els.chordBaseRootSelect.value;
-  const rootNote = state.activeNotes.find((note) => note.id === rootId) || state.activeNotes[0];
-  if (!rootNote) {
-    setStatus(els.chordStatus, "基準音を選べませんでした。", "error");
+  const root = resolveRecallRoot();
+  if (!root) {
+    setStatus(els.chordStatus, "基音を指定できませんでした。", "error");
     return;
   }
 
@@ -3670,21 +4041,21 @@ function saveChordFromActiveNotes() {
   const generatedId = `CHORD_${slugifyIdPart(rawName || "AUTO")}_${state.chordPresets.length + 1}`;
   const chordId = slugifyIdPart(els.chordIdInput.value) || generatedId;
   const userLabels = parseCsvList(els.chordLabelsInput.value);
+  const rootAbsolute = (root.octave * OCTAVE_MICROSTEP) + root.microStepInOctave;
   const orderedNotes = [
-    rootNote,
     ...state.activeNotes
-      .filter((note) => note.id !== rootNote.id)
+      .slice()
       .sort(
         (a, b) =>
-          (absoluteMicroStep(a) - absoluteMicroStep(rootNote)) -
-          (absoluteMicroStep(b) - absoluteMicroStep(rootNote))
+          (absoluteMicroStep(a) - rootAbsolute) -
+          (absoluteMicroStep(b) - rootAbsolute)
       )
   ];
 
   const tones = orderedNotes.map((note, index) => {
-    const relative = normalizePitch(0, absoluteMicroStep(note) - absoluteMicroStep(rootNote));
+    const relative = normalizePitch(0, absoluteMicroStep(note) - rootAbsolute);
     const preset = findPitchPresetByMicroStep(relative.microStepInOctave);
-    const label = userLabels[index] || buildChordToneDefaults(note, index, rootNote);
+    const label = userLabels[index] || buildChordToneDefaultsFromAbsolute(note, index, rootAbsolute);
     return {
       pitchPresetId: preset ? preset.id : null,
       localAnonymousId: preset ? null : `anon:${chordId}:${String(index + 1).padStart(4, "0")}`,
@@ -3704,8 +4075,10 @@ function saveChordFromActiveNotes() {
     id: chordId,
     name: chordName,
     baseRoot: {
-      octave: rootNote.octave,
-      microStepInOctave: rootNote.microStepInOctave
+      octave: root.octave,
+      microStepInOctave: root.microStepInOctave,
+      pitchPresetId: root.pitchPresetId || null,
+      noteText: root.noteText || ""
     },
     tones,
     tags: parseCsvList(els.chordTagsInput.value),
@@ -3836,6 +4209,7 @@ async function init() {
     await resetDevelopmentCaches();
   }
   await restoreFromStorage();
+  ensureDefaultLibrary();
   state.activeNotes = [];
   syncDraftFromCent(0, state.pitchDraft.octave);
   syncFormFromState();
