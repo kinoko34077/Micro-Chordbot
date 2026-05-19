@@ -6,16 +6,16 @@
   "payload": {
     "settings": {
       "a4Hz": 440,
-      "bpm": 130,
-      "roundUnitCent": 0,
-      "roundingMode": "beforeRoot",
-      "masterVolume": 0.3,
-      "activeNotesVolume": 0.5,
-      "snapCent": 16.666,
+      "bpm": 102,
+      "roundUnitCent": 16.666,
+      "roundingMode": "afterRoot",
+      "masterVolume": 0.61,
+      "activeNotesVolume": 0.24,
+      "snapCent": 16.695,
       "playMode": "toggle",
-      "waveform": "sine",
+      "waveform": "sawtooth",
       "dismissedRuntimeNotice": false,
-      "dismissedPwaNotice": false,
+      "dismissedPwaNotice": true,
       "progressionCellWidth": 124,
       "tableColumnWidths": {
         "name": 11,
@@ -26,44 +26,3052 @@
       }
     },
     "pitchPresets": [
-      { "id": "PITCH_P1_0", "name": "完全1度", "shortName": "P1", "cent": 0, "microStep": 0, "symbolRuleKey": "default", "symbolMap": {}, "tags": ["core", "degree"], "memo": "default root" },
-      { "id": "PITCH_M2_600", "name": "長2度", "shortName": "M2", "cent": 200, "microStep": 600, "symbolRuleKey": "default", "symbolMap": {}, "tags": ["core", "degree"], "memo": "" },
-      { "id": "PITCH_m3_900", "name": "短3度", "shortName": "m3", "cent": 300, "microStep": 900, "symbolRuleKey": "default", "symbolMap": {}, "tags": ["minor", "degree"], "memo": "" },
-      { "id": "PITCH_M3_1200", "name": "長3度", "shortName": "M3", "cent": 400, "microStep": 1200, "symbolRuleKey": "default", "symbolMap": {}, "tags": ["core", "degree"], "memo": "" },
-      { "id": "PITCH_P4_1500", "name": "完全4度", "shortName": "P4", "cent": 500, "microStep": 1500, "symbolRuleKey": "default", "symbolMap": {}, "tags": ["core", "degree"], "memo": "" },
-      { "id": "PITCH_B5_1800", "name": "減5度", "shortName": "b5", "cent": 600, "microStep": 1800, "symbolRuleKey": "default", "symbolMap": {}, "tags": ["altered", "degree"], "memo": "" },
-      { "id": "PITCH_P5_2100", "name": "完全5度", "shortName": "P5", "cent": 700, "microStep": 2100, "symbolRuleKey": "default", "symbolMap": {}, "tags": ["core", "degree"], "memo": "" },
-      { "id": "PITCH_M6_2700", "name": "長6度", "shortName": "M6", "cent": 900, "microStep": 2700, "symbolRuleKey": "default", "symbolMap": {}, "tags": ["degree"], "memo": "" },
-      { "id": "PITCH_m7_3000", "name": "短7度", "shortName": "m7", "cent": 1000, "microStep": 3000, "symbolRuleKey": "default", "symbolMap": {}, "tags": ["minor", "degree"], "memo": "" },
-      { "id": "PITCH_M7_3300", "name": "長7度", "shortName": "M7", "cent": 1100, "microStep": 3300, "symbolRuleKey": "default", "symbolMap": {}, "tags": ["degree"], "memo": "" }
+      {
+        "id": "PITCH_M4",
+        "name": "自然11度/長4度",
+        "shortName": "M4",
+        "cent": 551.32,
+        "microStep": 55132,
+        "symbolRuleKey": "default",
+        "symbolMap": {},
+        "tags": [
+          "24edo",
+          "JI",
+          "ratio"
+        ],
+        "memo": "JI ratio=11:8; cent=551.318",
+        "ratio": "11:8"
+      },
+      {
+        "id": "PITCH_DSL_1",
+        "name": "完全1度",
+        "shortName": "P1",
+        "microStep": 0,
+        "cent": 0,
+        "tags": [
+          "dsl",
+          "degree",
+          "core",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: 1 | JI ratio=1:1; cent=0.0",
+        "ratio": "1:1"
+      },
+      {
+        "id": "PITCH_DSL_FLAT2",
+        "name": "短2度",
+        "shortName": "b2",
+        "microStep": 11173,
+        "cent": 111.73,
+        "tags": [
+          "dsl",
+          "degree",
+          "altered",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: b2 | JI ratio=16:15; cent=111.731",
+        "ratio": "16:15"
+      },
+      {
+        "id": "PITCH_DSL_2",
+        "name": "長2度",
+        "shortName": "M2",
+        "microStep": 20391,
+        "cent": 203.91,
+        "tags": [
+          "dsl",
+          "degree",
+          "core",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: 2 | JI ratio=9:8; cent=203.91",
+        "ratio": "9:8"
+      },
+      {
+        "id": "PITCH_DSL_FLAT3",
+        "name": "短3度",
+        "shortName": "b3",
+        "microStep": 31564,
+        "cent": 315.64,
+        "tags": [
+          "dsl",
+          "degree",
+          "minor",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: b3 | JI ratio=6:5; cent=315.641",
+        "ratio": "6:5"
+      },
+      {
+        "id": "PITCH_DSL_3",
+        "name": "長3度",
+        "shortName": "M3",
+        "microStep": 38631,
+        "cent": 386.31,
+        "tags": [
+          "dsl",
+          "degree",
+          "major",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: 3 | JI ratio=5:4; cent=386.314",
+        "ratio": "5:4"
+      },
+      {
+        "id": "PITCH_DSL_4",
+        "name": "完全4度",
+        "shortName": "P4",
+        "microStep": 49805,
+        "cent": 498.05,
+        "tags": [
+          "dsl",
+          "degree",
+          "sus",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: 4 | JI ratio=4:3; cent=498.045",
+        "ratio": "4:3"
+      },
+      {
+        "id": "PITCH_DSL_FLAT5",
+        "name": "減5度",
+        "shortName": "b5",
+        "microStep": 59022,
+        "cent": 590.22,
+        "tags": [
+          "dsl",
+          "degree",
+          "altered",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: b5 | JI ratio=45:32; cent=590.224",
+        "ratio": "45:32"
+      },
+      {
+        "id": "PITCH_DSL_5",
+        "name": "完全5度",
+        "shortName": "P5",
+        "microStep": 70196,
+        "cent": 701.96,
+        "tags": [
+          "dsl",
+          "degree",
+          "core",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: 5 | JI ratio=3:2; cent=701.955",
+        "ratio": "3:2"
+      },
+      {
+        "id": "PITCH_DSL_SHARP5",
+        "name": "増5度/短6度",
+        "shortName": "#5",
+        "microStep": 81369,
+        "cent": 813.69,
+        "tags": [
+          "dsl",
+          "degree",
+          "altered",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: #5 | JI ratio=8:5; cent=813.686",
+        "ratio": "8:5"
+      },
+      {
+        "id": "PITCH_DSL_6",
+        "name": "長6度",
+        "shortName": "6",
+        "microStep": 88436,
+        "cent": 884.36,
+        "tags": [
+          "dsl",
+          "degree",
+          "sixth",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: 6 | JI ratio=5:3; cent=884.359",
+        "ratio": "5:3"
+      },
+      {
+        "id": "PITCH_DSL_DBLFLAT7",
+        "name": "減7度",
+        "shortName": "bb7",
+        "microStep": 88436,
+        "cent": 884.36,
+        "tags": [
+          "dsl",
+          "degree",
+          "dim7",
+          "enharmonic",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: bb7 | JI ratio=5:3; cent=884.359",
+        "ratio": "5:3"
+      },
+      {
+        "id": "PITCH_DSL_FLAT7",
+        "name": "短7度/自然7度",
+        "shortName": "b7",
+        "microStep": 96883,
+        "cent": 968.83,
+        "tags": [
+          "dsl",
+          "degree",
+          "dominant",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: b7 | JI ratio=7:4; cent=968.826",
+        "ratio": "7:4"
+      },
+      {
+        "id": "PITCH_DSL_7",
+        "name": "長7度",
+        "shortName": "7",
+        "microStep": 108827,
+        "cent": 1088.27,
+        "tags": [
+          "dsl",
+          "degree",
+          "major7",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: 7 | JI ratio=15:8; cent=1088.269",
+        "ratio": "15:8"
+      },
+      {
+        "id": "PITCH_DSL_FLAT9",
+        "name": "短9度",
+        "shortName": "b9",
+        "microStep": 11173,
+        "cent": 111.73,
+        "tags": [
+          "dsl",
+          "degree",
+          "altered",
+          "extension",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: b9 | JI ratio=16:15; cent=111.731",
+        "ratio": "16:15"
+      },
+      {
+        "id": "PITCH_DSL_9",
+        "name": "長9度",
+        "shortName": "9",
+        "microStep": 20391,
+        "cent": 203.91,
+        "tags": [
+          "dsl",
+          "degree",
+          "extension",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: 9 | JI ratio=9:8; cent=203.91",
+        "ratio": "9:8"
+      },
+      {
+        "id": "PITCH_DSL_SHARP9",
+        "name": "増9度",
+        "shortName": "#9",
+        "microStep": 31564,
+        "cent": 315.64,
+        "tags": [
+          "dsl",
+          "degree",
+          "altered",
+          "extension",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: #9 | JI ratio=6:5; cent=315.641",
+        "ratio": "6:5"
+      },
+      {
+        "id": "PITCH_DSL_11",
+        "name": "自然11度/長4度",
+        "shortName": "M4",
+        "microStep": 55132,
+        "cent": 551.32,
+        "tags": [
+          "dsl",
+          "degree",
+          "extension",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: 11 | JI ratio=11:8; cent=551.318",
+        "ratio": "11:8"
+      },
+      {
+        "id": "PITCH_DSL_SHARP11",
+        "name": "増11度",
+        "shortName": "#11",
+        "microStep": 59022,
+        "cent": 590.22,
+        "tags": [
+          "dsl",
+          "degree",
+          "altered",
+          "extension",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: #11 | JI ratio=45:32; cent=590.224",
+        "ratio": "45:32"
+      },
+      {
+        "id": "PITCH_DSL_FLAT13",
+        "name": "短13度",
+        "shortName": "b13",
+        "microStep": 81369,
+        "cent": 813.69,
+        "tags": [
+          "dsl",
+          "degree",
+          "altered",
+          "extension",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: b13 | JI ratio=8:5; cent=813.686",
+        "ratio": "8:5"
+      },
+      {
+        "id": "PITCH_HARMONIC_13",
+        "name": "自然13度/中6度",
+        "shortName": "nat13",
+        "cent": 840.53,
+        "microStep": 84053,
+        "ratio": "13:8",
+        "symbolRuleKey": "default",
+        "symbolMap": {},
+        "tags": [
+          "JI",
+          "ratio",
+          "harmonic",
+          "degree",
+          "extension",
+          "13-limit"
+        ],
+        "memo": "13-limit harmonic thirteenth / neutral sixth | JI ratio=13:8; cent=840.528"
+      },
+      {
+        "id": "PITCH_DSL_13",
+        "name": "長13度",
+        "shortName": "13",
+        "microStep": 88436,
+        "cent": 884.36,
+        "tags": [
+          "dsl",
+          "degree",
+          "extension",
+          "JI",
+          "ratio"
+        ],
+        "memo": "DSL degree preset: 13 | JI ratio=5:3; cent=884.359",
+        "ratio": "5:3"
+      },
+      {
+        "id": "NATURAL_7",
+        "name": "自然7度",
+        "shortName": "nat7",
+        "cent": 968.83,
+        "microStep": 96883,
+        "symbolRuleKey": "default",
+        "symbolMap": {},
+        "tags": [
+          "JI",
+          "ratio"
+        ],
+        "memo": "JI ratio=7:4; cent=968.826",
+        "ratio": "7:4"
+      }
     ],
     "chordPresets": [
-      { "id": "CHORD_MAJ", "name": "maj", "baseRoot": { "octave": 4, "microStepInOctave": 0, "pitchPresetId": "PITCH_P1_0", "noteText": "C4" }, "tones": [{ "pitchPresetId": "PITCH_P1_0", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "Root" }, { "pitchPresetId": "PITCH_M3_1200", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "M3" }, { "pitchPresetId": "PITCH_P5_2100", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "P5" }], "tags": ["basic", "major"], "memo": "" },
-      { "id": "CHORD_MIN", "name": "min", "baseRoot": { "octave": 4, "microStepInOctave": 0, "pitchPresetId": "PITCH_P1_0", "noteText": "C4" }, "tones": [{ "pitchPresetId": "PITCH_P1_0", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "Root" }, { "pitchPresetId": "PITCH_m3_900", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "m3" }, { "pitchPresetId": "PITCH_P5_2100", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "P5" }], "tags": ["basic", "minor"], "memo": "" },
-      { "id": "CHORD_7", "name": "7", "baseRoot": { "octave": 4, "microStepInOctave": 0, "pitchPresetId": "PITCH_P1_0", "noteText": "C4" }, "tones": [{ "pitchPresetId": "PITCH_P1_0", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "Root" }, { "pitchPresetId": "PITCH_M3_1200", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "M3" }, { "pitchPresetId": "PITCH_P5_2100", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "P5" }, { "pitchPresetId": "PITCH_m7_3000", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "m7" }], "tags": ["basic", "dominant"], "memo": "" },
-      { "id": "CHORD_M7", "name": "M7", "baseRoot": { "octave": 4, "microStepInOctave": 0, "pitchPresetId": "PITCH_P1_0", "noteText": "C4" }, "tones": [{ "pitchPresetId": "PITCH_P1_0", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "Root" }, { "pitchPresetId": "PITCH_M3_1200", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "M3" }, { "pitchPresetId": "PITCH_P5_2100", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "P5" }, { "pitchPresetId": "PITCH_M7_3300", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "M7" }], "tags": ["basic", "major"], "memo": "" },
-      { "id": "CHORD_m7", "name": "m7", "baseRoot": { "octave": 4, "microStepInOctave": 0, "pitchPresetId": "PITCH_P1_0", "noteText": "C4" }, "tones": [{ "pitchPresetId": "PITCH_P1_0", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "Root" }, { "pitchPresetId": "PITCH_m3_900", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "m3" }, { "pitchPresetId": "PITCH_P5_2100", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "P5" }, { "pitchPresetId": "PITCH_m7_3000", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "m7" }], "tags": ["basic", "minor"], "memo": "" },
-      { "id": "CHORD_SUS4", "name": "sus4", "baseRoot": { "octave": 4, "microStepInOctave": 0, "pitchPresetId": "PITCH_P1_0", "noteText": "C4" }, "tones": [{ "pitchPresetId": "PITCH_P1_0", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "Root" }, { "pitchPresetId": "PITCH_P4_1500", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "P4" }, { "pitchPresetId": "PITCH_P5_2100", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "P5" }], "tags": ["basic", "sus"], "memo": "" },
-      { "id": "CHORD_DIM", "name": "dim", "baseRoot": { "octave": 4, "microStepInOctave": 0, "pitchPresetId": "PITCH_P1_0", "noteText": "C4" }, "tones": [{ "pitchPresetId": "PITCH_P1_0", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "Root" }, { "pitchPresetId": "PITCH_m3_900", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "m3" }, { "pitchPresetId": "PITCH_B5_1800", "localAnonymousId": null, "localCent": null, "octaveShift": 0, "label": "b5" }], "tags": ["basic", "dim"], "memo": "" }
+      {
+        "id": "CHORD_AUTO_1",
+        "name": "Root-tone2-tone3",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 41667
+        },
+        "tones": [
+          {
+            "pitchPresetId": null,
+            "localAnonymousId": "anon:CHORD_AUTO_1:0001",
+            "localCent": 0,
+            "octaveShift": 0,
+            "label": "Root"
+          },
+          {
+            "pitchPresetId": null,
+            "localAnonymousId": "anon:CHORD_AUTO_1:0002",
+            "localCent": 100,
+            "octaveShift": 0,
+            "label": "tone2"
+          },
+          {
+            "pitchPresetId": null,
+            "localAnonymousId": "anon:CHORD_AUTO_1:0003",
+            "localCent": 200,
+            "octaveShift": 0,
+            "label": "tone3"
+          }
+        ],
+        "tags": [],
+        "memo": ""
+      },
+      {
+        "id": "CHORD_4_1",
+        "name": "susｷ4",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": null,
+            "localAnonymousId": "anon:edit:0001",
+            "localCent": 0,
+            "octaveShift": 0,
+            "label": "R"
+          },
+          {
+            "pitchPresetId": "PITCH_M4",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "M4"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "P5"
+          }
+        ],
+        "tags": [
+          "浮遊"
+        ],
+        "memo": ""
+      },
+      {
+        "id": "CHORD_DSL_MAJOR",
+        "name": "M",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "quality",
+          "major",
+          "triad"
+        ],
+        "memo": ":major = :1 :3 :5",
+        "dslNotations": [
+          "<C>"
+        ]
+      },
+      {
+        "id": "CHORD_DSL_MINOR",
+        "name": "m",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "quality",
+          "minor",
+          "triad"
+        ],
+        "memo": ":minor = :1 :b3 :5",
+        "dslNotations": [
+          "<Cm>"
+        ]
+      },
+      {
+        "id": "CHORD_DSL_DIM",
+        "name": "dim",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b5"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "quality",
+          "diminished",
+          "triad"
+        ],
+        "memo": ":dim = :1 :b3 :b5"
+      },
+      {
+        "id": "CHORD_DSL_DIM7",
+        "name": "dim7",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_DBLFLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "bb7"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "quality",
+          "diminished",
+          "seventh"
+        ],
+        "memo": ":dim7 = :1 :b3 :b5 :bb7",
+        "dslNotations": [
+          "<Cdim7>"
+        ]
+      },
+      {
+        "id": "CHORD_DSL_AUG",
+        "name": "aug",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_SHARP5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "#5"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "quality",
+          "augmented",
+          "triad"
+        ],
+        "memo": ":aug = :1 :3 :#5"
+      },
+      {
+        "id": "CHORD_DSL_SUS2",
+        "name": "sus2",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_2",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "2"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "quality",
+          "sus"
+        ],
+        "memo": ":sus2 = :1 :2 :5"
+      },
+      {
+        "id": "CHORD_DSL_SUS4",
+        "name": "sus4",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_4",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "4"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "quality",
+          "sus"
+        ],
+        "memo": ":sus4 = :1 :4 :5"
+      },
+      {
+        "id": "CHORD_DSL_SUS2SUS4",
+        "name": "sus2sus4",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_2",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "2"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_4",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "4"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "quality",
+          "sus"
+        ],
+        "memo": ":sus2sus4 = :1 :2 :4 :5"
+      },
+      {
+        "id": "CHORD_DSL_POWER",
+        "name": "P5",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "quality",
+          "power"
+        ],
+        "memo": ":power = :1 :5",
+        "dslNotations": [
+          "<C5>"
+        ]
+      },
+      {
+        "id": "CHORD_DSL_SIX",
+        "name": "M6",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_6",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "6"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "quality",
+          "sixth"
+        ],
+        "memo": ":six = :1 :3 :5 :6"
+      },
+      {
+        "id": "CHORD_DSL_MINOR_SIX",
+        "name": "m6",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_6",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "6"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "quality",
+          "minor",
+          "sixth"
+        ],
+        "memo": ":minor-six = :1 :b3 :5 :6"
+      },
+      {
+        "id": "CHORD_DSL_SIX_NINE",
+        "name": "6/9",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_6",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "6"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "quality",
+          "sixth",
+          "extension"
+        ],
+        "memo": ":six-nine = :1 :3 :5 :6 :9",
+        "dslNotations": [
+          "<C6/9>"
+        ]
+      },
+      {
+        "id": "CHORD_DSL_MINOR_SIX_NINE",
+        "name": "m6/9",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_6",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "6"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "quality",
+          "minor",
+          "sixth",
+          "extension"
+        ],
+        "memo": ":minor-six-nine = :1 :b3 :5 :6 :9"
+      },
+      {
+        "id": "CHORD_DSL_M7B5",
+        "name": "m7b5",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "quality",
+          "minor",
+          "half-diminished"
+        ],
+        "memo": ":m7b5 = :1 :b3 :b5 :b7"
+      },
+      {
+        "id": "CHORD_DSL_DOM7",
+        "name": "7",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "extension",
+          "dominant"
+        ],
+        "memo": ":7 = :b7"
+      },
+      {
+        "id": "CHORD_DSL_DOM9",
+        "name": "9",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "extension",
+          "dominant"
+        ],
+        "memo": ":9 = :b7 :9",
+        "dslNotations": [
+          "<C9>"
+        ]
+      },
+      {
+        "id": "CHORD_DSL_DOM11",
+        "name": "11",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_11",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "11"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "extension",
+          "dominant"
+        ],
+        "memo": ":11 = :b7 :9 :11"
+      },
+      {
+        "id": "CHORD_DSL_DOM13",
+        "name": "13",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_11",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "11"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_13",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "13"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "extension",
+          "dominant"
+        ],
+        "memo": ":13 = :b7 :9 :11 :13"
+      },
+      {
+        "id": "CHORD_DSL_MAJOR7",
+        "name": "M7",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "7"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "extension",
+          "major"
+        ],
+        "memo": ":major7 = :7"
+      },
+      {
+        "id": "CHORD_DSL_MAJOR9",
+        "name": "M9",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "extension",
+          "major"
+        ],
+        "memo": ":major9 = :7 :9",
+        "dslNotations": [
+          "<Cmaj9>",
+          "<Cmaj9> in progression"
+        ]
+      },
+      {
+        "id": "CHORD_DSL_MAJOR11",
+        "name": "M11",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_11",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "11"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "extension",
+          "major"
+        ],
+        "memo": ":major11 = :7 :9 :11"
+      },
+      {
+        "id": "CHORD_DSL_MAJOR13",
+        "name": "M13",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_11",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "11"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_13",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "13"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "extension",
+          "major"
+        ],
+        "memo": ":major13 = :7 :9 :11 :13"
+      },
+      {
+        "id": "CHORD_DSL_MINOR7",
+        "name": "m7",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "extension",
+          "minor"
+        ],
+        "memo": "quality=:minor, :7 = :b7",
+        "dslNotations": [
+          "<Cm7>"
+        ]
+      },
+      {
+        "id": "CHORD_DSL_MINOR9",
+        "name": "m9",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "extension",
+          "minor"
+        ],
+        "memo": "quality=:minor, :9 = :b7 :9",
+        "dslNotations": [
+          "<Cm9>"
+        ]
+      },
+      {
+        "id": "CHORD_DSL_MINOR11",
+        "name": "m11",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_11",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "11"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "extension",
+          "minor"
+        ],
+        "memo": "quality=:minor, :11 = :b7 :9 :11"
+      },
+      {
+        "id": "CHORD_DSL_MINOR13",
+        "name": "m13",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_11",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "11"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_13",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "13"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "extension",
+          "minor"
+        ],
+        "memo": "quality=:minor, :13 = :b7 :9 :11 :13"
+      },
+      {
+        "id": "CHORD_DSL_ADD9",
+        "name": "add9",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "addition"
+        ],
+        "memo": "<C(9)> = :1 :3 :5 :9",
+        "dslNotations": [
+          "<C(9)>"
+        ]
+      },
+      {
+        "id": "CHORD_DSL_ADD_9_SHARP11_13",
+        "name": "add(9,#11,13)",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_SHARP11",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "#11"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_13",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "13"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "addition",
+          "altered"
+        ],
+        "memo": "<C(9,#11,13)> = :1 :3 :5 :9 :#11 :13",
+        "dslNotations": [
+          "<C(9,#11,13)>"
+        ]
+      },
+      {
+        "id": "CHORD_DSL_DOM7_FLAT5",
+        "name": "7(b5)",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "altered",
+          "dominant"
+        ],
+        "memo": "b5 replaces fifth family"
+      },
+      {
+        "id": "CHORD_DSL_DOM7_SHARP5",
+        "name": "7(#5)",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_SHARP5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "#5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "altered",
+          "dominant"
+        ],
+        "memo": "#5 replaces fifth family"
+      },
+      {
+        "id": "CHORD_DSL_DOM7_FLAT9",
+        "name": "7(b9)",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "b9"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "altered",
+          "dominant"
+        ],
+        "memo": "b9 replaces ninth family"
+      },
+      {
+        "id": "CHORD_DSL_DOM7_SHARP9",
+        "name": "7(#9)",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_SHARP9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "#9"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "altered",
+          "dominant"
+        ],
+        "memo": "#9 replaces ninth family"
+      },
+      {
+        "id": "CHORD_DSL_DOM9_SHARP11",
+        "name": "9(#11)",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_SHARP11",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "#11"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "altered",
+          "dominant"
+        ],
+        "memo": "#11 replaces eleventh family"
+      },
+      {
+        "id": "CHORD_DSL_DOM13_FLAT13",
+        "name": "11(b13)",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_11",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "11"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT13",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "b13"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "altered",
+          "dominant"
+        ],
+        "memo": "b13 replaces thirteenth family"
+      },
+      {
+        "id": "CHORD_13_OMIT3",
+        "name": "13(omit3)",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_11",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "11"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_13",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "13"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "omit",
+          "dominant"
+        ],
+        "memo": "omit3 removes third family"
+      },
+      {
+        "id": "CHORD_13_OMIT5",
+        "name": "13(omit5)",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_11",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "11"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_13",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "13"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "omit",
+          "dominant"
+        ],
+        "memo": "<C13omit5> = :1 :3 :b7 :9 :11 :13",
+        "dslNotations": [
+          "<C13omit5>",
+          "<G13omit5>"
+        ]
+      },
+      {
+        "id": "CHORD_13_OMIT7",
+        "name": "13(omit7)",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_11",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "11"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_13",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "13"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "omit",
+          "dominant"
+        ],
+        "memo": "omit7 removes seventh family"
+      },
+      {
+        "id": "CHORD_13_OMIT9",
+        "name": "13(omit9)",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_11",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "11"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_13",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "13"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "omit",
+          "dominant"
+        ],
+        "memo": "omit9 removes ninth family"
+      },
+      {
+        "id": "CHORD_13_OMIT11",
+        "name": "13(omit11)",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_13",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "13"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "omit",
+          "dominant"
+        ],
+        "memo": "omit11 removes eleventh family"
+      },
+      {
+        "id": "CHORD_13_OMIT13",
+        "name": "13(omit13)",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_11",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "11"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "omit",
+          "dominant"
+        ],
+        "memo": "omit13 removes thirteenth family"
+      },
+      {
+        "id": "CHORD_13_OMIT5_SLASH_3",
+        "name": "13(omit5)/3",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "9"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_11",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "11"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_13",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "13"
+          }
+        ],
+        "tags": [
+          "dsl",
+          "omit",
+          "dominant",
+          "slash"
+        ],
+        "memo": "<C13omit5/E>: slash bass stored as DSL metadata. Current μChordbot chord recall does not yet render chord-level bass.",
+        "dslNotations": [
+          "<C13omit5/E>"
+        ],
+        "dslBass": {
+          "degree": "3",
+          "source": "slash-bass"
+        }
+      },
+      {
+        "id": "CHORD_5:6:7:9_44",
+        "name": "5:6:7:9",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 70200
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_3",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "1"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "3"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_9",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 1,
+            "label": "b7"
+          }
+        ],
+        "tags": [],
+        "memo": ""
+      },
+      {
+        "id": "CHORD_7SUS4_45",
+        "name": "7susｷ4",
+        "baseRoot": {
+          "octave": 4,
+          "microStepInOctave": 0,
+          "pitchPresetId": "PITCH_DSL_1",
+          "noteText": "P1@4"
+        },
+        "tones": [
+          {
+            "pitchPresetId": "PITCH_DSL_1",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "Root"
+          },
+          {
+            "pitchPresetId": "PITCH_M4",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "M4"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_5",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "P5"
+          },
+          {
+            "pitchPresetId": "PITCH_DSL_FLAT7",
+            "localAnonymousId": null,
+            "localCent": null,
+            "octaveShift": 0,
+            "label": "b7"
+          }
+        ],
+        "tags": [],
+        "memo": ""
+      }
     ],
     "progression": {
       "id": "PROG_MAIN",
       "name": "main loop",
-      "columns": 4,
-      "loop": false,
-      "selectedPartId": null,
+      "columns": 5,
+      "loop": true,
+      "selectedPartId": "PART_1778863734044_hht5",
       "playingPartId": null,
-      "parts": []
+      "parts": [
+        {
+          "id": "PART_1778769109088_f2ot",
+          "chordId": "CHORD_DSL_MINOR",
+          "root": {
+            "noteText": "A4",
+            "octave": 4,
+            "microStepInOctave": 90000,
+            "pitchPresetId": null
+          },
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": null
+          },
+          "voicing": {
+            "octave": 3,
+            "step": 2
+          },
+          "beats": 4,
+          "sectionName": "",
+          "beatUnit": 4
+        },
+        {
+          "id": "PART_1778769157342_73vv",
+          "chordId": "CHORD_DSL_MAJOR",
+          "root": {
+            "noteText": "F4",
+            "octave": 4,
+            "microStepInOctave": 50000,
+            "pitchPresetId": null
+          },
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": null
+          },
+          "voicing": {
+            "octave": 3,
+            "step": 2
+          },
+          "beats": 4,
+          "sectionName": "",
+          "beatUnit": 4
+        },
+        {
+          "id": "PART_1778769164759_uc2v",
+          "chordId": "CHORD_4_1",
+          "root": {
+            "noteText": "G4",
+            "octave": 4,
+            "microStepInOctave": 70000,
+            "pitchPresetId": null
+          },
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": null
+          },
+          "voicing": {
+            "octave": 3,
+            "step": 2
+          },
+          "beats": 4,
+          "sectionName": ""
+        },
+        {
+          "id": "PART_1778769458746_85v9",
+          "chordId": "CHORD_DSL_M7B5",
+          "root": {
+            "noteText": "F#4",
+            "octave": 4,
+            "microStepInOctave": 60000,
+            "pitchPresetId": null
+          },
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": null
+          },
+          "voicing": {
+            "octave": 3,
+            "step": 3
+          },
+          "beats": 4,
+          "sectionName": ""
+        },
+        {
+          "id": "PART_1778770292225_potp",
+          "chordId": "CHORD_DSL_MINOR",
+          "root": {
+            "noteText": "A4",
+            "octave": 4,
+            "microStepInOctave": 90000,
+            "pitchPresetId": null
+          },
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": "PITCH_DSL_13"
+          },
+          "voicing": {
+            "octave": 3,
+            "step": 1
+          },
+          "beats": 4,
+          "sectionName": ""
+        },
+        {
+          "id": "PART_1778771187220_1e87",
+          "chordId": "CHORD_DSL_MINOR7",
+          "root": {
+            "noteText": "A3",
+            "octave": 3,
+            "microStepInOctave": 90000,
+            "pitchPresetId": null
+          },
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": null
+          },
+          "voicing": {
+            "octave": 3,
+            "step": 2
+          },
+          "beats": 4,
+          "sectionName": ""
+        },
+        {
+          "id": "PART_1778770103968_c3hr",
+          "chordId": "CHORD_5:6:7:9_44",
+          "root": {
+            "noteText": "D4",
+            "octave": 4,
+            "microStepInOctave": 20000,
+            "pitchPresetId": null
+          },
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": "PITCH_DSL_3"
+          },
+          "voicing": {
+            "octave": 3,
+            "step": 3
+          },
+          "beats": 4,
+          "sectionName": "",
+          "beatUnit": 4
+        },
+        {
+          "id": "PART_1778769283916_qspq",
+          "chordId": "CHORD_DSL_MAJOR",
+          "root": {
+            "noteText": "C4",
+            "octave": 4,
+            "microStepInOctave": 0,
+            "pitchPresetId": null
+          },
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": null
+          },
+          "voicing": {
+            "octave": 4,
+            "step": 1
+          },
+          "beats": 4,
+          "sectionName": ""
+        },
+        {
+          "id": "PART_1778838041525_88ar",
+          "chordId": "CHORD_DSL_MAJOR",
+          "root": {
+            "noteText": "C4",
+            "octave": 4,
+            "microStepInOctave": 0,
+            "pitchPresetId": null
+          },
+          "chunkId": "chunk-1",
+          "sectionName": "う",
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": null
+          },
+          "voicing": {
+            "octave": 4,
+            "step": 1
+          },
+          "beats": 4,
+          "chunkName": "chunk 1"
+        },
+        {
+          "id": "PART_1778863389505_eblz",
+          "chordId": "CHORD_DSL_MINOR",
+          "root": {
+            "noteText": "A4",
+            "octave": 4,
+            "microStepInOctave": 90000,
+            "pitchPresetId": null
+          },
+          "chunkId": "CHUNK_1778862942845_tqmh",
+          "chunkName": "6453派生",
+          "sectionName": "section 11",
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": null
+          },
+          "voicing": {
+            "octave": 3,
+            "step": 2
+          },
+          "beats": 2,
+          "beatUnit": 4
+        },
+        {
+          "id": "PART_1778862978555_wknq",
+          "chordId": "CHORD_DSL_MAJOR",
+          "root": {
+            "noteText": "F4",
+            "octave": 4,
+            "microStepInOctave": 50000,
+            "pitchPresetId": null
+          },
+          "chunkId": "CHUNK_1778862942845_tqmh",
+          "chunkName": "6453派生",
+          "sectionName": "",
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": null
+          },
+          "voicing": {
+            "octave": 3,
+            "step": 2
+          },
+          "beats": 2,
+          "beatUnit": 4
+        },
+        {
+          "id": "PART_1778862989734_6dsb",
+          "chordId": "CHORD_4_1",
+          "root": {
+            "noteText": "G4",
+            "octave": 4,
+            "microStepInOctave": 70000,
+            "pitchPresetId": null
+          },
+          "chunkId": "CHUNK_1778862942845_tqmh",
+          "chunkName": "6453派生",
+          "sectionName": "",
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": null
+          },
+          "voicing": {
+            "octave": 3,
+            "step": 2
+          },
+          "beats": 2,
+          "beatUnit": 4
+        },
+        {
+          "id": "PART_1778863000129_yaek",
+          "chordId": "CHORD_DSL_ADD9",
+          "root": {
+            "noteText": "C4",
+            "octave": 4,
+            "microStepInOctave": 0,
+            "pitchPresetId": null
+          },
+          "chunkId": "CHUNK_1778862942845_tqmh",
+          "chunkName": "6453派生",
+          "sectionName": "",
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": "PITCH_DSL_3"
+          },
+          "voicing": {
+            "octave": 4,
+            "step": 0
+          },
+          "beats": 2,
+          "beatUnit": 4
+        },
+        {
+          "id": "PART_1778863734044_hht5",
+          "chordId": "CHORD_DSL_MINOR7",
+          "root": {
+            "noteText": "D4",
+            "octave": 4,
+            "microStepInOctave": 20000,
+            "pitchPresetId": null
+          },
+          "chunkId": "CHUNK_1778863734043_9r7e",
+          "chunkName": "えゝぢゃないか",
+          "sectionName": "イントロ",
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": null
+          },
+          "voicing": {
+            "octave": 4,
+            "step": 0
+          },
+          "beats": 2,
+          "beatUnit": 4
+        },
+        {
+          "id": "PART_1778863851651_yuat",
+          "chordId": "CHORD_DSL_ADD9",
+          "root": {
+            "noteText": "F3",
+            "octave": 3,
+            "microStepInOctave": 50000,
+            "pitchPresetId": null
+          },
+          "chunkId": "CHUNK_1778863734043_9r7e",
+          "chunkName": "えゝぢゃないか",
+          "sectionName": "",
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": null
+          },
+          "voicing": {
+            "octave": 3,
+            "step": 2
+          },
+          "beats": 2,
+          "beatUnit": 4
+        },
+        {
+          "id": "PART_1778863975042_03w2",
+          "chordId": "CHORD_DSL_MAJOR7",
+          "root": {
+            "noteText": "A#3",
+            "octave": 3,
+            "microStepInOctave": 100000,
+            "pitchPresetId": null
+          },
+          "chunkId": "CHUNK_1778863734043_9r7e",
+          "chunkName": "えゝぢゃないか",
+          "sectionName": "",
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": null
+          },
+          "voicing": {
+            "octave": 3,
+            "step": 0
+          },
+          "beats": 2,
+          "beatUnit": 4
+        },
+        {
+          "id": "PART_1778863997765_n89y",
+          "chordId": "CHORD_DSL_MINOR7",
+          "root": {
+            "noteText": "G3",
+            "octave": 3,
+            "microStepInOctave": 70000,
+            "pitchPresetId": null
+          },
+          "chunkId": "CHUNK_1778863734043_9r7e",
+          "chunkName": "えゝぢゃないか",
+          "sectionName": "",
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": null
+          },
+          "voicing": {
+            "octave": 3,
+            "step": 2
+          },
+          "beats": 1,
+          "beatUnit": 4
+        },
+        {
+          "id": "PART_1778864182387_q6jm",
+          "chordId": "CHORD_4_1",
+          "root": {
+            "noteText": "C4",
+            "octave": 4,
+            "microStepInOctave": 0,
+            "pitchPresetId": null
+          },
+          "chunkId": "CHUNK_1778863734043_9r7e",
+          "chunkName": "えゝぢゃないか",
+          "sectionName": "",
+          "bass": {
+            "mode": "relative",
+            "pitchPresetId": null
+          },
+          "voicing": {
+            "octave": 4,
+            "step": 0
+          },
+          "beats": 1,
+          "beatUnit": 4
+        }
+      ]
     },
     "progressionEditor": {
-      "chordId": "CHORD_MAJ",
-      "rootNoteText": "C4",
-      "beats": 4,
-      "sectionName": "",
+      "chordId": "CHORD_DSL_MINOR7",
+      "rootNoteText": "D4",
+      "beats": 2,
+      "beatUnit": 4,
+      "sectionName": "イントロ",
       "bassMode": "relative",
       "bassValue": "__root__",
       "voicingOctave": 4,
-      "inversionStep": 0
+      "inversionStep": 0,
+      "bassPresetId": "",
+      "voicingBand": "mid"
     }
   }
 }

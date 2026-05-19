@@ -7,8 +7,11 @@
   --accent-2: #fb7185;
   --panel: #111827;
   --preset-name-col: 11rem;
+  --preset-id-col: 7rem;
   --preset-cent-col: 5rem;
   --preset-short-col: 5rem;
+  --preset-root-col: 6rem;
+  --preset-tones-col: 12rem;
   --preset-tags-col: 8rem;
   --preset-memo-col: 10rem;
   --progression-cell-width: 124px;
@@ -113,6 +116,63 @@ body {
   place-items: center;
   border-radius: 999px;
 }
+.master-volume-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.settings-menu-button svg,
+.inline-volume-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.settings-drawer {
+  position: fixed;
+  top: 58px;
+  right: 12px;
+  z-index: 50;
+  width: min(420px, calc(100vw - 24px));
+  max-height: calc(100vh - 72px);
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  background: rgba(10, 16, 28, 0.97);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.38);
+}
+.settings-drawer[hidden] { display: none; }
+.settings-drawer-head,
+.settings-drawer-links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.settings-drawer-head { justify-content: space-between; }
+.settings-drawer-links button {
+  flex: 1 1 0;
+  min-height: 30px;
+  padding: 4px 6px;
+  font-size: 0.78rem;
+}
+.settings-drawer-body {
+  display: grid;
+  gap: 8px;
+}
+.settings-drawer .panel {
+  margin: 0;
+  padding: 8px;
+}
 .master-volume-inline {
   display: inline-flex;
   align-items: center;
@@ -177,11 +237,11 @@ input[type="checkbox"] { width: auto; }
 body.workspace-combined main {
   display: grid;
   grid-template-columns:
-    minmax(260px, var(--workspace-left-col, calc((100% - 16px) * 0.31)))
+    minmax(220px, var(--workspace-left-col, clamp(260px, 30vw, 520px)))
     8px
-    minmax(230px, var(--workspace-mid-col, calc((100% - 16px) * 0.27)))
+    minmax(220px, var(--workspace-mid-col, clamp(260px, 28vw, 500px)))
     8px
-    minmax(320px, 1fr);
+    minmax(280px, 1fr);
   grid-template-rows: auto auto auto;
   gap: 8px 0;
   align-items: start;
@@ -229,14 +289,16 @@ body.workspace-combined .progression-toolbar {
   grid-row: 1;
   align-self: start;
   display: grid;
-  grid-template-columns: 42px max-content 42px 42px 1fr;
+  grid-template-columns: 34px max-content 34px 34px minmax(0, 1fr);
   gap: 6px;
   justify-items: start;
 }
 body.workspace-combined .progression-toolbar > button,
 body.workspace-combined .progression-counter {
-  min-width: 42px;
-  width: 42px;
+  min-width: 34px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
   justify-self: start;
 }
 body.workspace-combined .progression-toolbar-actions {
@@ -327,6 +389,15 @@ body.workspace-combined .pitch-options {
   height: 32px;
   padding: 0;
 }
+.waveform-button-group svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .active-notes-volume-inline {
   width: 36px;
   min-width: 36px;
@@ -336,10 +407,13 @@ body.workspace-combined .pitch-options {
   place-items: center;
   color: transparent;
 }
-.active-notes-volume-inline::before {
-  content: "◉";
+.icon-volume-inline { gap: 0; }
+.inline-volume-icon {
+  display: inline-grid;
+  place-items: center;
   color: var(--muted);
 }
+.active-notes-volume-inline::before { content: none; }
 body.workspace-combined .progression-editor {
   font-size: 0.88rem;
 }
@@ -390,7 +464,8 @@ body.workspace-combined .progression-popover-row {
 }
 body.workspace-combined .progression-token {
   min-height: 30px;
-  padding: 4px 6px;
+  padding: 3px 5px;
+  max-width: 9rem;
 }
 body.workspace-combined .progression-token-label {
   display: none;
@@ -403,6 +478,7 @@ body.workspace-combined .progression-popover {
   gap: 5px;
   margin-bottom: 0;
   padding: 6px;
+  min-width: 0;
 }
 body.workspace-combined .progression-popover-head {
   gap: 6px;
@@ -412,7 +488,11 @@ body.workspace-combined #progBassClearBtn {
 }
 body.workspace-combined .pitch-choice-grid,
 body.workspace-combined .inversion-grid {
-  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(30px, 1fr));
+}
+body.workspace-combined .pitch-choice-grid {
+  max-height: 220px;
+  overflow: auto;
 }
 body.workspace-combined .inversion-grid,
 body.workspace-combined .voicing-band-grid,
@@ -424,7 +504,7 @@ body.workspace-combined .root-grid {
   grid-row: 2 / span 5;
   align-self: start;
   justify-self: end;
-  width: min(4.8rem, 100%);
+  width: min(3.1rem, 100%);
 }
 body.workspace-combined .chord-grid {
   grid-column: 1 / -1;
@@ -441,6 +521,7 @@ body.workspace-combined .quick-row button {
   padding: 4px 6px;
 }
 body.workspace-combined .beat-token {
+  grid-column: 2;
   max-width: 98px;
 }
 body.workspace-combined .beat-inline {
@@ -464,7 +545,8 @@ body.workspace-combined .progression-columns {
   white-space: nowrap;
 }
 body.workspace-combined .progression-counter {
-  min-width: 56px;
+  min-width: 46px;
+  width: auto;
 }
 body.workspace-combined[data-workspace-focus="pitch"] .active-notes-panel,
 body.workspace-combined[data-workspace-focus="pitch"] .line-wrap {
@@ -496,6 +578,14 @@ body.workspace-combined[data-workspace-focus="progression"] .progression-grid {
   align-items: end;
 }
 label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); min-width: 0; }
+.readout,
+.panel-note,
+.status-text,
+.preset-id,
+.composer-note,
+.cell-meta {
+  font-size: 0.72rem;
+}
 .inline-row-compact input { max-width: 112px; }
 #octaveInput { width: 3.5rem; }
 #snapCentInput { width: 5rem; }
@@ -680,17 +770,23 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   grid-column: 2;
   overflow: auto;
   resize: both;
+  min-width: 0;
+  max-width: 100%;
 }
 .progression-toolbar { grid-column: 2; }
 .progression-chunk {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 .progression-chunk-grid {
   display: grid;
   gap: 6px;
-  grid-template-columns: repeat(var(--progression-columns), minmax(0, var(--progression-cell-width)));
+  grid-template-columns: repeat(var(--progression-columns), minmax(0, 1fr));
   justify-content: flex-start;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 .progression-chunk-head,
 .progression-section-break {
@@ -717,9 +813,10 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
 }
 .progression-cell {
   position: relative;
-  width: var(--progression-cell-width);
-  min-height: 58px;
-  padding: 8px;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 6px 7px;
   border: 1px solid #334155;
   border-radius: 0;
   background:
@@ -727,9 +824,11 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
     rgba(247, 242, 226, 0.06);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: start;
   gap: 6px;
   text-align: left;
+  overflow: hidden;
+  contain: layout paint;
 }
 .progression-cell.active {
   border-color: #8ce4da;
@@ -764,17 +863,23 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   letter-spacing: 0.08em;
 }
 .cell-title {
-  font-size: 0.92rem;
+  font-size: clamp(0.72rem, 1.15vw, 0.92rem);
   font-weight: 500;
   color: #f8f4e5;
+  white-space: normal;
+  overflow: hidden;
   overflow-wrap: anywhere;
+  line-height: 1.15;
 }
 .cell-meta {
   color: var(--muted);
-  font-size: 0.74rem;
+  font-size: 0.68rem;
   line-height: 1.25;
   white-space: nowrap;
   text-transform: lowercase;
+  margin-top: auto;
+  justify-self: end;
+  align-self: end;
 }
 .progression-editor {
   grid-column: 1;
@@ -900,7 +1005,7 @@ body.workspace-combined .chord-library-panel .panel-note {
 }
 .pitch-choice-grid,
 .inversion-grid {
-  grid-template-columns: repeat(auto-fit, minmax(72px, max-content));
+  grid-template-columns: repeat(auto-fit, minmax(48px, max-content));
   justify-content: flex-start;
 }
 .voicing-band-grid {
@@ -915,7 +1020,7 @@ body.workspace-combined .chord-library-panel .panel-note {
   gap: 4px;
   margin-top: 6px;
 }
-.root-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.root-grid { grid-template-columns: repeat(7, minmax(0, 38px)); }
 .octave-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 0; }
 .chord-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--progression-cell-width)), var(--progression-cell-width)));
@@ -923,8 +1028,8 @@ body.workspace-combined .chord-library-panel .panel-note {
 }
 .quick-grid button,
 .quick-row button {
-  min-height: 36px;
-  padding: 6px 8px;
+  min-height: 32px;
+  padding: 4px 6px;
   background: rgba(250, 247, 230, 0.92);
   color: #564f34;
   border-color: rgba(138, 129, 96, 0.35);
@@ -965,7 +1070,8 @@ body.workspace-combined .chord-library-panel .panel-note {
   resize: none;
 }
 .preset-table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 0.8rem;
   table-layout: fixed;
@@ -981,10 +1087,38 @@ body.workspace-combined .chord-library-panel .panel-note {
   text-overflow: ellipsis;
 }
 .preset-table th {
+  position: relative;
   color: var(--muted);
   font-weight: 500;
   white-space: nowrap;
   background: rgba(15, 23, 42, 0.92);
+}
+.preset-table th[data-sort] {
+  cursor: pointer;
+  user-select: none;
+}
+.preset-table th:first-child,
+.preset-table td:first-child {
+  width: 28px;
+  text-align: center;
+}
+.column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 2;
+}
+.column-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 25%;
+  right: 3px;
+  width: 1px;
+  height: 50%;
+  background: rgba(148, 163, 184, 0.35);
 }
 .preset-table tbody tr {
   background: rgba(11, 18, 32, 0.72);
@@ -1003,18 +1137,25 @@ body.workspace-combined .chord-library-panel .panel-note {
   white-space: nowrap;
 }
 .preset-main {
-  display: grid;
-  gap: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 .preset-name {
   color: var(--fg);
   font-weight: 600;
   line-height: 1.2;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .preset-sub {
   color: var(--muted);
   font-size: 0.84rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .preset-inline-input,
 .preset-inline-textarea {
@@ -1030,9 +1171,11 @@ body.workspace-combined .chord-library-panel .panel-note {
 .preset-inline-actions {
   display: flex;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
 }
 .preset-inline-actions button {
+  flex: 0 0 auto;
   padding: 5px 8px;
   font-size: 0.8rem;
 }
@@ -1054,8 +1197,10 @@ body.workspace-combined .chord-library-panel .panel-note {
 }
 .tone-chip-list {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
+  overflow: hidden;
+  min-width: 0;
 }
 .tone-chip {
   display: inline-flex;
@@ -1066,6 +1211,8 @@ body.workspace-combined .chord-library-panel .panel-note {
   border: 1px solid rgba(34, 211, 238, 0.24);
   color: #d8f4fb;
   font-size: 0.76rem;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 .unified-panel {
   display: grid;
@@ -1091,6 +1238,39 @@ body.workspace-combined .chord-library-panel .panel-note {
   width: min(10ch, 100%);
   font-size: 0.78rem;
   padding: 4px 6px;
+}
+.compact-danger {
+  min-height: 28px;
+  padding: 3px 7px;
+  font-size: 0.74rem;
+  color: #fecaca;
+  border-color: rgba(251, 113, 133, 0.35);
+}
+.bulk-edit-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(51, 65, 85, 0.45);
+}
+.bulk-edit-count {
+  color: var(--muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+.bulk-edit-input {
+  width: min(12rem, 100%);
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: rgba(30, 41, 59, 0.92);
+  color: var(--fg);
+}
+[data-bulk-kind="active"] .bulk-edit-input {
+  width: 7rem;
 }
 .library-controls-grid {
   display: grid;
@@ -1125,9 +1305,12 @@ body.workspace-combined .chord-library-panel .panel-note {
 .active-note-remove:hover {
   color: #fda4af;
 }
+.preset-table col.col-select { width: 1.8rem; }
 .preset-table col.col-name { width: var(--preset-name-col); }
 .preset-table col.col-cent { width: var(--preset-cent-col); }
 .preset-table col.col-short { width: var(--preset-short-col); }
+.preset-table col.col-root { width: var(--preset-root-col); }
+.preset-table col.col-tones { width: var(--preset-tones-col); }
 .preset-table col.col-tags { width: var(--preset-tags-col); }
 .preset-table col.col-memo { width: var(--preset-memo-col); }
 .preset-table col.col-remove { width: 1.6rem; }
@@ -1142,12 +1325,18 @@ body.workspace-combined .chord-library-panel .panel-note {
   background: rgba(12, 20, 34, 0.96);
 }
 .composer-stack {
-  display: grid;
+  display: flex;
+  align-items: center;
   gap: 6px;
+  min-width: 0;
+  flex-wrap: nowrap;
 }
 .composer-note {
   color: var(--muted);
   font-size: 0.76rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .preset-inline-select {
   width: 100%;
@@ -1156,6 +1345,17 @@ body.workspace-combined .chord-library-panel .panel-note {
   border: 1px solid #334155;
   border-radius: 8px;
   padding: 8px 10px;
+}
+.composer-row .preset-inline-textarea {
+  min-height: 28px;
+  max-height: 28px;
+  resize: none;
+}
+.composer-row .preset-inline-actions {
+  flex: 0 0 auto;
+}
+.composer-row td {
+  white-space: nowrap;
 }
 .empty-state { color: var(--muted); font-style: italic; }
 .grid-placeholder {
@@ -1172,6 +1372,8 @@ body.workspace-combined .chord-library-panel .panel-note {
   from { opacity: 0; transform: translateY(2px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+.active-notes-volume-inline::before { content: none; }
 
 @media (max-width: 1080px) {
   .pitch-toolbar { grid-template-columns: 1fr; }

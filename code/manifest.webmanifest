@@ -1,9 +1,9 @@
 {
   "name": "μChordbot",
   "short_name": "μChordbot",
-  "id": "https://plscople7-collab.github.io/Micro-Chordbot/",
-  "start_url": "https://plscople7-collab.github.io/Micro-Chordbot/",
-  "scope": "https://plscople7-collab.github.io/Micro-Chordbot/",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#1f2937",
@@ -11,13 +11,13 @@
   "description": "Microtonal chord experiment tool for desktop, tablet, and mobile browsers.",
   "icons": [
     {
-      "src": "https://plscople7-collab.github.io/Micro-Chordbot/icons/icon-192.svg",
+      "src": "./icons/icon-192.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "https://plscople7-collab.github.io/Micro-Chordbot/icons/icon-512.svg",
+      "src": "./icons/icon-512.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"

@@ -17,7 +17,7 @@ const MOMENTARY_VOICE_ID = "__preview__";
 const DRAG_PREVIEW_VOICE_ID = "__preview_drag__";
 const PROGRESSION_VOICE_PREFIX = "__prog__:";
 const PROGRESSION_PREVIEW_VOICE_PREFIX = "__prog_preview__:";
-const APP_BUILD = "2026-05-14-sw-refresh-1";
+const APP_BUILD = "2026-05-19-default-project-layout-1";
 const SEMITONE_MICROSTEP = centToMicroStep(100);
 const ROOT_NOTE_SEMITONES = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 const ROOT_ACCIDENTAL_OPTIONS = [
@@ -66,6 +66,8 @@ const state = {
       id: 7,
       cent: 5,
       short: 5,
+      root: 6,
+      tones: 12,
       tags: 8,
       memo: 10
     }
@@ -247,7 +249,13 @@ const presetUi = {
   editingPitchPresetId: null,
   editingChordPresetId: null,
   pitchPresetClickTimerId: null,
-  chordPresetClickTimerId: null
+  chordPresetClickTimerId: null,
+  selectedPitchPresetIds: new Set(),
+  selectedChordPresetIds: new Set(),
+  selectedActiveNoteIds: new Set(),
+  pitchSort: { column: "name", direction: "asc" },
+  chordSort: { column: "name", direction: "asc" },
+  activeSort: { column: "name", direction: "asc" }
 };
 const pitchUi = {
   lastTouchedNoteId: null
@@ -258,6 +266,66 @@ const popoverUi = {
 };
 const ROOT_BASS_TOKEN = "__root__";
 const WORKSPACE_COLUMNS_STORAGE_KEY = "uchordbot.workspaceColumns.v1";
+const VOLUME_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"></path><path d="M16 9.5c1.2 1.2 1.2 3.8 0 5"></path><path d="M18.5 7c2.4 2.6 2.4 7.4 0 10"></path></svg>';
+const MENU_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"></path><path d="M4 12h16"></path><path d="M4 17h16"></path></svg>';
+
+function setLabelLead(input, text) {
+  const label = input?.closest("label");
+  if (!label) return;
+  const firstText = [...label.childNodes].find((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+  if (firstText) {
+    firstText.textContent = text;
+    return;
+  }
+  let lead = label.querySelector(":scope > .label-lead");
+  if (!lead) {
+    lead = document.createElement("span");
+    lead.className = "label-lead";
+    label.prepend(lead);
+  }
+  lead.textContent = text;
+}
+
+function ensureInlineIcon(label, className, svgMarkup) {
+  if (!(label instanceof HTMLElement)) return null;
+  let icon = label.querySelector(`:scope > .${className}`);
+  if (!(icon instanceof HTMLElement)) {
+    icon = document.createElement("span");
+    icon.className = className;
+    label.prepend(icon);
+  }
+  icon.innerHTML = svgMarkup;
+  icon.setAttribute("aria-hidden", "true");
+  return icon;
+}
+
+function ensureBulkBar(container, kind, fields) {
+  if (!(container instanceof HTMLElement) || container.querySelector(`[data-bulk-kind="${kind}"]`)) return;
+  const bar = document.createElement("div");
+  bar.className = "bulk-edit-bar";
+  bar.dataset.bulkKind = kind;
+  const inputs = fields.map((field) => {
+    const type = field.type || "text";
+    const step = field.step ? ` step="${field.step}"` : "";
+    const min = Number.isFinite(field.min) ? ` min="${field.min}"` : "";
+    const max = Number.isFinite(field.max) ? ` max="${field.max}"` : "";
+    return `<input type="${type}" class="bulk-edit-input" data-bulk-field="${field.name}" placeholder="${escapeHtml(field.placeholder || "")}"${step}${min}${max}>`;
+  }).join("");
+  bar.innerHTML = `
+    <span class="bulk-edit-count" data-bulk-count></span>
+    ${inputs}
+    <button type="button" data-bulk-action="apply" data-kind="${kind}">一括適用</button>
+    <button type="button" class="compact-danger" data-bulk-action="delete" data-kind="${kind}">選択削除</button>
+    <button type="button" data-bulk-action="clear" data-kind="${kind}">選択解除</button>
+  `;
+  bar.hidden = true;
+  const anchor = container.querySelector(".preset-list, .scroll-list, #chordPresetList");
+  if (anchor?.parentElement === container) {
+    container.insertBefore(bar, anchor);
+  } else {
+    container.appendChild(bar);
+  }
+}
 
 function ensureWorkspaceDom() {
   const brandTitle = document.querySelector(".brand-title");
@@ -265,37 +333,87 @@ function ensureWorkspaceDom() {
     brandTitle.setAttribute("aria-label", "μChordbot");
     brandTitle.textContent = "μ";
   }
+  document.querySelector('[data-view="settings"]')?.remove();
   if (!document.getElementById("settingsMenuBtn")) {
     const menuBtn = document.createElement("button");
     menuBtn.id = "settingsMenuBtn";
     menuBtn.type = "button";
     menuBtn.className = "icon-button settings-menu-button";
-    menuBtn.textContent = "☰";
-    menuBtn.ariaLabel = "settings menu";
+    menuBtn.innerHTML = MENU_ICON_SVG;
+    menuBtn.setAttribute("aria-label", "menu");
     document.querySelector(".history-buttons")?.appendChild(menuBtn);
   }
-  els.undoBtn.textContent = "↶";
-  els.redoBtn.textContent = "↷";
+  const settingsView = document.getElementById("view-settings");
+  const settingsMenuBtn = document.getElementById("settingsMenuBtn");
+  if (settingsView && settingsMenuBtn && !document.getElementById("settingsDrawer")) {
+    const drawer = document.createElement("div");
+    drawer.id = "settingsDrawer";
+    drawer.className = "settings-drawer";
+    drawer.hidden = true;
+    drawer.innerHTML = `
+      <div class="settings-drawer-head">
+        <strong>Menu</strong>
+        <button id="settingsDrawerCloseBtn" type="button" class="icon-button" aria-label="close">x</button>
+      </div>
+      <nav class="settings-drawer-links" aria-label="menu links">
+        <button type="button" data-menu-focus="settings">設定</button>
+        <button type="button" data-menu-focus="help">ヘルプ</button>
+        <button type="button" data-menu-focus="privacy">プライバシーポリシー</button>
+      </nav>
+      <div id="settingsDrawerBody" class="settings-drawer-body"></div>
+      <section class="panel settings-placeholder" data-menu-panel="help">
+        <h3>ヘルプ</h3>
+        <p class="readout">操作方法や各機能の補足はここへ整理して追加します。常設説明文は増やさず、必要時の参照先として使います。</p>
+      </section>
+      <section class="panel settings-placeholder" data-menu-panel="privacy">
+        <h3>プライバシーポリシー</h3>
+        <p class="readout">外部送信や収集の有無、保存対象、ローカル保存の扱いなどをここへ明記します。現状はローカル利用前提です。</p>
+      </section>
+    `;
+    document.body.appendChild(drawer);
+    const body = drawer.querySelector("#settingsDrawerBody");
+    [...settingsView.children].forEach((child) => body.appendChild(child));
+    settingsView.remove();
+  }
+  els.undoBtn.setAttribute("aria-label", "undo");
+  els.redoBtn.setAttribute("aria-label", "redo");
   els.undoBtn.classList.add("icon-button");
   els.redoBtn.classList.add("icon-button");
   const masterIcon = document.querySelector(".master-volume-icon");
-  if (masterIcon) masterIcon.textContent = "◉";
+  if (masterIcon) {
+    masterIcon.innerHTML = VOLUME_ICON_SVG;
+  }
+  setLabelLead(els.octaveInput, "oct");
+  setLabelLead(els.snapCentInput, "snap ¢");
+  setLabelLead(els.centInput, "¢");
+  setLabelLead(els.roundUnitInput, "round ¢");
   document.querySelector(".master-volume-inline")?.classList.add("hover-volume");
-  els.activeNotesVolumeInput?.closest("label")?.classList.add("hover-volume", "active-notes-volume-inline");
+  const activeVolumeLabel = els.activeNotesVolumeInput?.closest("label");
+  if (activeVolumeLabel) {
+    activeVolumeLabel.classList.add("hover-volume", "active-notes-volume-inline", "icon-volume-inline");
+    activeVolumeLabel.title = "activeNotes volume";
+    setLabelLead(els.activeNotesVolumeInput, "");
+    ensureInlineIcon(activeVolumeLabel, "inline-volume-icon", VOLUME_ICON_SVG);
+  }
   const waveformLabel = els.waveformSelect?.closest("label");
   if (els.waveformSelect && waveformLabel && !document.getElementById("waveformButtonGroup")) {
     const group = document.createElement("div");
     group.id = "waveformButtonGroup";
     group.className = "waveform-button-group";
+    const icons = {
+      sine: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M3 16c4.5-10 8.5-10 13 0s8.5 10 13 0" /></svg>',
+      square: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 22V10h10v12h14" /></svg>',
+      sawtooth: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 24 14 8v16L28 8" /></svg>'
+    };
     [
-      ["sine", "∿"],
-      ["square", "▣"],
-      ["sawtooth", "◢"]
-    ].forEach(([value, label]) => {
+      ["sine", icons.sine],
+      ["square", icons.square],
+      ["sawtooth", icons.sawtooth]
+    ].forEach(([value, icon]) => {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.waveform = value;
-      button.textContent = label;
+      button.innerHTML = icon;
       button.ariaLabel = value;
       group.appendChild(button);
     });
@@ -305,12 +423,58 @@ function ensureWorkspaceDom() {
   if (els.chordLibraryPanel && els.progressionView && els.chordLibraryPanel.parentElement !== els.progressionView) {
     els.progressionView.appendChild(els.chordLibraryPanel);
   }
+  const beatToken = els.progBeatsNumeratorInput?.closest(".beat-token");
+  if (beatToken && els.progInversionPopover && beatToken.previousElementSibling !== els.progInversionPopover) {
+    els.progInversionPopover.after(beatToken);
+  }
   if (els.pitchPresetFilterInput) {
     const pitchPresetBlock = els.pitchPresetFilterInput.closest(".library-block");
     const head = pitchPresetBlock?.querySelector(".library-block-head");
     if (head && els.pitchPresetFilterInput.parentElement !== head) {
       head.querySelector(".panel-note")?.remove();
       head.appendChild(els.pitchPresetFilterInput);
+    }
+    ensureBulkBar(pitchPresetBlock, "pitch", [
+      { name: "tags", placeholder: "タグ一括変更" },
+      { name: "memo", placeholder: "メモ一括変更" }
+    ]);
+    if (head && !document.getElementById("deleteSelectedPitchBtn")) {
+      const button = document.createElement("button");
+      button.id = "deleteSelectedPitchBtn";
+      button.type = "button";
+      button.className = "compact-danger";
+      button.textContent = "選択削除";
+      head.appendChild(button);
+    }
+  }
+  if (els.activeNotesFilterInput) {
+    const activeBlock = els.activeNotesFilterInput.closest(".library-block");
+    const head = activeBlock?.querySelector(".library-block-head");
+    ensureBulkBar(activeBlock, "active", [
+      { name: "centDelta", placeholder: "¢ += 0.00", type: "number", step: "0.01", min: -1200, max: 1200 }
+    ]);
+    if (head && !document.getElementById("deleteSelectedActiveBtn")) {
+      const button = document.createElement("button");
+      button.id = "deleteSelectedActiveBtn";
+      button.type = "button";
+      button.className = "compact-danger";
+      button.textContent = "選択削除";
+      head.appendChild(button);
+    }
+  }
+  if (els.chordTagFilterInput) {
+    const chordHead = els.chordLibraryPanel?.querySelector(".panel-heading-block");
+    ensureBulkBar(els.chordLibraryPanel, "chord", [
+      { name: "tags", placeholder: "タグ一括変更" },
+      { name: "memo", placeholder: "メモ一括変更" }
+    ]);
+    if (chordHead && !document.getElementById("deleteSelectedChordBtn")) {
+      const button = document.createElement("button");
+      button.id = "deleteSelectedChordBtn";
+      button.type = "button";
+      button.className = "compact-danger";
+      button.textContent = "選択削除";
+      chordHead.appendChild(button);
     }
   }
   if (!els.workspaceMain) return;
@@ -400,6 +564,40 @@ function attachWorkspaceResizers() {
   });
 }
 
+function attachTableColumnResizers() {
+  document.addEventListener("pointerdown", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLElement)) return;
+    const handle = target.closest(".column-resize-handle");
+    if (!(handle instanceof HTMLElement)) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const column = handle.dataset.column || "";
+    const cssVar = cssVarForTableColumn(column);
+    if (!cssVar) return;
+    const th = handle.closest("th");
+    const startWidth = th?.getBoundingClientRect().width || 80;
+    const startX = ev.clientX;
+    document.body.classList.add("workspace-resizing");
+    const move = (moveEv) => {
+      const px = clamp(startWidth + (moveEv.clientX - startX), 36, 420);
+      document.documentElement.style.setProperty(cssVar, `${Math.round(px)}px`);
+    };
+    const cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", cleanup);
+      window.removeEventListener("pointercancel", cleanup);
+      document.body.classList.remove("workspace-resizing");
+      const px = parseCssPixel(getComputedStyle(document.documentElement).getPropertyValue(cssVar), startWidth);
+      const rootFontSize = parseCssPixel(getComputedStyle(document.documentElement).fontSize, 16);
+      state.settings.tableColumnWidths[column] = Math.round((px / rootFontSize) * 10) / 10;
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", cleanup);
+    window.addEventListener("pointercancel", cleanup);
+  });
+}
+
 function showRuntimeWarning(message) {
   runtimeBanner = { message, tone: "", visible: true };
   renderRuntimeBanner();
@@ -418,14 +616,12 @@ function validateRuntime() {
     return { status: "ok", protocol };
   }
   showRuntimeWarning(
-    "このアプリは <code>localhost</code> で開いてください。<br>" +
-    "例: <code>python -m http.server 5173</code> を実行し、" +
-    "<code>http://localhost:5173/</code> を開いてください。<br>" +
-    "現在のURLではES ModulesやService Workerが制限され、JSが正常動作しない可能性があります。"
+    "このアプリは <code>localhost</code> または <code>127.0.0.1</code> の HTTP サーバーで開いてください。<br>" +
+    "例: <code>python -m http.server 5173</code> を実行し、<code>http://localhost:5173/</code> を開いてください。<br>" +
+    "<code>file://</code> 直開きでは ES Modules や Service Worker が正しく動作しません。"
   );
   return { status: "warning", protocol };
 }
-
 function showRuntimeNotice(message, tone = "info") {
   runtimeBanner = { message, tone, visible: true };
   state.settings.dismissedRuntimeNotice = false;
@@ -455,8 +651,8 @@ function renderRuntimeInfo() {
   const runtimeLabel = `runtime: ${runtimeState.mode} (${runtimeState.protocol}//${runtimeState.hostname || ""}) / build: ${APP_BUILD}`;
   const bannerText = runtimeBanner.message
     ? runtimeBanner.message.replace(/<br\s*\/?>/gi, " / ").replace(/<[^>]+>/g, "").trim()
-    : "現在バナー表示はありません。";
-  const pwaText = els.pwaPromptMessage?.textContent?.trim() || "現在 PWA テロップ表示はありません。";
+    : "通常動作中";
+  const pwaText = els.pwaPromptMessage?.textContent?.trim() || "PWA案内なし";
   els.runtimeInfoText.textContent = `${runtimeLabel} / notice: ${bannerText} / pwa: ${pwaText}`;
 }
 
@@ -466,6 +662,8 @@ function applyLayoutSettings() {
   document.documentElement.style.setProperty("--preset-id-col", `${widths.id || 7}rem`);
   document.documentElement.style.setProperty("--preset-cent-col", `${widths.cent || 5}rem`);
   document.documentElement.style.setProperty("--preset-short-col", `${widths.short || 5}rem`);
+  document.documentElement.style.setProperty("--preset-root-col", `${widths.root || 6}rem`);
+  document.documentElement.style.setProperty("--preset-tones-col", `${widths.tones || 12}rem`);
   document.documentElement.style.setProperty("--preset-tags-col", `${widths.tags || 8}rem`);
   document.documentElement.style.setProperty("--preset-memo-col", `${widths.memo || 10}rem`);
   document.documentElement.style.setProperty("--progression-cell-width", `${state.settings.progressionCellWidth || 124}px`);
@@ -477,9 +675,48 @@ function buildPresetColGroup(columns) {
   columns.forEach((column) => {
     const col = document.createElement("col");
     col.className = `col-${column}`;
+    col.dataset.column = column;
     colgroup.appendChild(col);
   });
   return colgroup;
+}
+
+function enhancePresetTable(table) {
+  if (!table) return;
+  table.classList.add("data-table");
+  const cols = [...table.querySelectorAll("colgroup col")].map((col) => col.dataset.column || "");
+  table.querySelectorAll("thead th").forEach((th, index) => {
+    const column = cols[index];
+    if (!column || th.querySelector(".column-resize-handle")) return;
+    th.dataset.column = column;
+    const handle = document.createElement("span");
+    handle.className = "column-resize-handle";
+    handle.dataset.column = column;
+    th.appendChild(handle);
+  });
+}
+
+function syncTableSelectAll(table, kind, selectedSet, visibleIds) {
+  const input = table?.querySelector(`[data-select-all="${kind}"]`);
+  if (!(input instanceof HTMLInputElement)) return;
+  const ids = visibleIds.filter(Boolean);
+  const selectedCount = ids.filter((id) => selectedSet.has(id)).length;
+  input.checked = ids.length > 0 && selectedCount === ids.length;
+  input.indeterminate = selectedCount > 0 && selectedCount < ids.length;
+}
+
+function cssVarForTableColumn(column) {
+  return {
+    select: "",
+    name: "--preset-name-col",
+    id: "--preset-id-col",
+    cent: "--preset-cent-col",
+    short: "--preset-short-col",
+    root: "--preset-root-col",
+    tones: "--preset-tones-col",
+    tags: "--preset-tags-col",
+    memo: "--preset-memo-col"
+  }[column] || "";
 }
 
 function isLocalhostHost(hostname) {
@@ -543,6 +780,33 @@ function compareNamedItems(a, b) {
   return String(a?.name || a?.id || "").localeCompare(String(b?.name || b?.id || ""), "ja");
 }
 
+function sortByColumn(items, sortState, valueResolver) {
+  const column = sortState?.column || "name";
+  const direction = sortState?.direction === "desc" ? -1 : 1;
+  return [...items].sort((a, b) => {
+    const av = valueResolver(a, column);
+    const bv = valueResolver(b, column);
+    const result = typeof av === "number" && typeof bv === "number"
+      ? av - bv
+      : String(av ?? "").localeCompare(String(bv ?? ""), "ja", { numeric: true });
+    return result * direction;
+  });
+}
+
+function toggleSortState(sortState, column) {
+  if (sortState.column === column) {
+    sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
+  } else {
+    sortState.column = column;
+    sortState.direction = "asc";
+  }
+}
+
+function sortIndicator(sortState, column) {
+  if (sortState?.column !== column) return "";
+  return sortState.direction === "desc" ? " ▼" : " ▲";
+}
+
 function isRootLikePreset(preset) {
   if (!preset) return false;
   const tokens = [
@@ -562,11 +826,25 @@ function defaultRootPresetId() {
 }
 
 function sortedPitchPresets() {
-  return [...state.pitchPresets].sort(compareNamedItems);
+  return sortByColumn(state.pitchPresets, presetUi.pitchSort, (preset, column) => {
+    if (column === "id") return preset.id || "";
+    if (column === "cent") return Number(preset.cent) || 0;
+    if (column === "short") return preset.shortName || "";
+    if (column === "tags") return (preset.tags || []).join(", ");
+    if (column === "memo") return preset.memo || "";
+    return preset.name || preset.id || "";
+  });
 }
 
 function sortedChordPresets() {
-  return [...state.chordPresets].sort(compareNamedItems);
+  return sortByColumn(state.chordPresets, presetUi.chordSort, (chord, column) => {
+    if (column === "id") return chord.id || "";
+    if (column === "root") return chord.baseRoot?.noteText || chord.baseRoot?.pitchPresetId || "";
+    if (column === "tones") return (chord.tones || []).length;
+    if (column === "tags") return (chord.tags || []).join(", ");
+    if (column === "memo") return chord.memo || "";
+    return chord.name || chord.id || "";
+  });
 }
 
 function filteredPitchPresets(filterText) {
@@ -582,7 +860,14 @@ function filteredPitchPresets(filterText) {
 
 function filteredActiveNotes(filterText) {
   const normalized = normalizeFilterText(filterText);
-  const notes = [...state.activeNotes].sort((a, b) => absoluteMicroStep(a) - absoluteMicroStep(b));
+  const notes = sortByColumn(state.activeNotes, presetUi.activeSort, (note, column) => {
+    const preset = findPitchPresetByMicroStep(note.microStepInOctave);
+    if (column === "cent") return Number(note.cent) || 0;
+    if (column === "short") return preset?.shortName || "";
+    if (column === "tags") return (preset?.tags || []).join(", ");
+    if (column === "memo") return preset?.memo || "";
+    return preset?.name || note.id || "";
+  });
   if (!normalized) return notes;
   return notes.filter((note, index) => {
     const preset = findPitchPresetByMicroStep(note.microStepInOctave);
@@ -645,8 +930,6 @@ function buildProgressionPayload() {
     extensionType: "mcbp",
     exportType: "progression",
     payload: {
-      pitchPresets: state.pitchPresets,
-      chordPresets: state.chordPresets,
       progression: state.progression,
       progressionEditor: state.progressionEditor
     }
@@ -880,7 +1163,7 @@ function bassSpecForPart(part) {
 
 function fineDragStepCent() {
   const snap = Math.max(0, Number(state.settings.snapCent) || 0);
-  return Math.max(1 / 3, snap > 0 ? snap / 10 : 1 / 3);
+  return Math.max(0.01, snap > 0 ? snap / 10 : 0.01);
 }
 
 function openProgressionPopover(name) {
@@ -1024,8 +1307,8 @@ function syncProgressionLayoutState() {
   els.progEditorToggleBtn.hidden = !compact;
   els.progMenuToggleBtn.setAttribute("aria-expanded", compact && progressionUi.isMenuOpen ? "true" : "false");
   els.progEditorToggleBtn.setAttribute("aria-expanded", editorExpanded ? "true" : "false");
-  els.progMenuToggleBtn.textContent = compact && progressionUi.isMenuOpen ? "閉じる" : "メニュー";
-  els.progEditorToggleBtn.textContent = editorExpanded ? "閉じる" : "編集";
+  els.progMenuToggleBtn.textContent = compact && progressionUi.isMenuOpen ? "メニューを閉じる" : "メニューを開く";
+  els.progEditorToggleBtn.textContent = editorExpanded ? "エディタを閉じる" : "エディタを開く";
 }
 
 function suppressNextProgressionGridClick() {
@@ -1177,6 +1460,16 @@ function formatDirectRootFromPart(root) {
   return `${names[((semitone % 12) + 12) % 12]}${root.octave}`;
 }
 
+function formatChordBaseRoot(baseRoot) {
+  if (!baseRoot) return "";
+  if (baseRoot.noteText) return baseRoot.noteText;
+  if (baseRoot.pitchPresetId) {
+    const preset = findPitchPresetById(baseRoot.pitchPresetId);
+    return formatPresetDisplayName(preset) || baseRoot.pitchPresetId;
+  }
+  return formatDecimal(microStepToCent(baseRoot.microStepInOctave || 0));
+}
+
 function rootEditorParts() {
   const parsed = parseRootEditorTextRaw(state.progressionEditor.rootNoteText);
   if (parsed) return parsed;
@@ -1276,7 +1569,7 @@ function renderProgressionChordButtons() {
   if (chords.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.textContent = "条件に合うコードがありません";
+    empty.textContent = "条件に合うコードがありません。";
     els.progChordButtonGrid.appendChild(empty);
     return;
   }
@@ -1367,16 +1660,18 @@ function progressionPartLabel(part) {
   const chord = state.chordPresets.find((item) => item.id === part.chordId);
   const rootLabel = formatRootPitchClass(part.root);
   const bass = bassSpecForPart(part);
-  const bassDisplay = bass.mode === "relative" && (!bass.value || bass.value === ROOT_BASS_TOKEN)
-    ? ""
-    : ` / ${bassSpecLabel(bass.mode, bass.value)}`;
   const octave = progressionVoicingBaseOctave(part);
+  const chordName = chord?.name || `(deleted: ${part.chordId})`;
+  const bassLabel = bassSpecLabel(bass.mode, bass.value);
+  const inversion = inversionLabelForChord(chord, part.voicing?.step || 0);
   return {
     sectionName: String(part.sectionName || ""),
     chunkName: String(part.chunkName || ""),
-    chordName: `${chord?.name || `(deleted: ${part.chordId})`}${bassDisplay}`,
+    chordName,
     rootLabel,
-    meta: `(${part.beats}/${part.beatUnit || 4} oct:${octave})`
+    title: `${rootLabel}${chordName}`,
+    meta: `${part.beats}/${part.beatUnit || 4}`,
+    detail: `${part.sectionName || "section"} / ${chordName} / ${formatDirectRootFromPart(part.root)} / bass ${bassLabel} / ${inversion} / oct ${octave} / ${part.beats}/${part.beatUnit || 4}`
   };
 }
 
@@ -1594,7 +1889,7 @@ function removeActiveNote(noteId) {
   }
   audio.stopVoice(noteId);
   const after = snapshotState();
-  trackStateChange("remove_active_note", "activeNotesから削除", before, after);
+  trackStateChange("remove_active_note", "activeNotes を削除", before, after);
   syncFormFromState();
   render();
 }
@@ -1740,7 +2035,7 @@ function renderProgressionGrid() {
   if (state.progression.parts.length === 0) {
     const empty = document.createElement("div");
     empty.className = "grid-placeholder";
-    empty.textContent = "セルを追加すると進行がここに並びます";
+    empty.textContent = "進行セルはまだありません。";
     els.progressionGrid.appendChild(empty);
     return;
   }
@@ -1767,7 +2062,7 @@ function renderProgressionGrid() {
     const index = state.progression.parts.findIndex((item) => item.id === partId);
     const part = state.progression.parts[index];
     if (!part) return;
-    const { chordName, rootLabel, meta: metaLabel, sectionName } = progressionPartLabel(part);
+    const { title: cellLabel, meta: metaLabel, detail: detailLabel, sectionName } = progressionPartLabel(part);
 
       if (sectionName) {
         const sectionBreak = document.createElement("div");
@@ -1798,10 +2093,11 @@ function renderProgressionGrid() {
     button.dataset.partId = part.id;
     button.dataset.index = String(index);
     button.dataset.chunkId = chunk.id;
+    button.title = detailLabel;
 
     const title = document.createElement("div");
     title.className = "cell-title";
-    title.textContent = `${rootLabel} ${chordName}`;
+    title.textContent = cellLabel;
     button.appendChild(title);
 
     const meta = document.createElement("div");
@@ -1882,7 +2178,7 @@ async function importDataFile(file) {
   const text = await file.text();
   const parsed = JSON.parse(text);
   const before = snapshotState();
-  history.beginGroup("JSON読み込みを元に戻す");
+  history.beginGroup("json import");
   try {
     const extensionType = parsed?.extensionType;
     if (extensionType === "mcbl" || parsed?.exportType === "library") {
@@ -1898,12 +2194,6 @@ async function importDataFile(file) {
         "success"
       );
     } else if (extensionType === "mcbp" || parsed?.exportType === "progression") {
-      const incomingPitchPresets = Array.isArray(parsed?.payload?.pitchPresets) ? parsed.payload.pitchPresets : [];
-      const incomingChordPresets = Array.isArray(parsed?.payload?.chordPresets) ? parsed.payload.chordPresets : [];
-      const pitchMerge = mergeById(state.pitchPresets, incomingPitchPresets);
-      const chordMerge = mergeById(state.chordPresets, incomingChordPresets);
-      state.pitchPresets = pitchMerge.merged;
-      state.chordPresets = chordMerge.merged;
       if (parsed?.payload?.progression) {
         state.progression = {
           ...state.progression,
@@ -1916,7 +2206,7 @@ async function importDataFile(file) {
       }
       setStatus(
         els.progStatus,
-        `progression を読込: pitch +${pitchMerge.added}, chord +${chordMerge.added}, parts ${state.progression.parts.length}`,
+        `progression を読込: parts ${state.progression.parts.length}`,
         "success"
       );
     } else {
@@ -1944,7 +2234,7 @@ async function importDataFile(file) {
     }
     migratePitchScale();
     const after = snapshotState();
-    trackStateChange("json_import", "JSON読み込みを元に戻す", before, after);
+    trackStateChange("json_import", "json import", before, after);
   } finally {
     history.endGroup();
   }
@@ -2046,11 +2336,12 @@ function addProgressionPart() {
     stopProgressionPlayback(false);
   }
   const after = snapshotState();
-  trackStateChange("add_progression_part", "進行セル追加", before, after);
+  trackStateChange("add_progression_part", "進行セルを追加", before, after);
   syncFormFromState();
   render();
   setStatus(els.progStatus, "進行セルを追加しました。", "success");
 }
+
 
 function addProgressionSection() {
   const root = resolveProgressionRootInput();
@@ -2067,11 +2358,12 @@ function addProgressionSection() {
   state.progression.parts.splice(insertIndex, 0, newPart);
   state.progression.selectedPartId = partId;
   const after = snapshotState();
-  trackStateChange("add_progression_section", "進行 section 追加", before, after);
+  trackStateChange("add_progression_section", "Section を追加", before, after);
   syncFormFromState();
   render();
   setStatus(els.progStatus, "Section を追加しました。", "success");
 }
+
 
 function addProgressionChunk() {
   const root = resolveProgressionRootInput();
@@ -2093,11 +2385,12 @@ function addProgressionChunk() {
   state.progression.parts.splice(insertIndex, 0, newPart);
   state.progression.selectedPartId = partId;
   const after = snapshotState();
-  trackStateChange("add_progression_chunk", "進行チャンク追加", before, after);
+  trackStateChange("add_progression_chunk", "チャンクを追加", before, after);
   syncFormFromState();
   render();
   setStatus(els.progStatus, "チャンクを追加しました。", "success");
 }
+
 
 function renameChunk(chunkId, nextName) {
   const name = String(nextName || "").trim();
@@ -2107,10 +2400,11 @@ function renameChunk(chunkId, nextName) {
     part.chunkId === chunkId ? { ...part, chunkName: name } : part
   );
   const after = snapshotState();
-  trackStateChange("rename_progression_chunk", "チャンク名変更", before, after);
+  trackStateChange("rename_progression_chunk", "チャンク名を変更", before, after);
   syncFormFromState();
   render();
 }
+
 
 function renameSection(partId, nextName) {
   const name = String(nextName || "").trim();
@@ -2123,10 +2417,11 @@ function renameSection(partId, nextName) {
     state.progressionEditor.sectionName = name;
   }
   const after = snapshotState();
-  trackStateChange("rename_progression_section", "セクション名変更", before, after);
+  trackStateChange("rename_progression_section", "Section 名を変更", before, after);
   syncFormFromState();
   render();
 }
+
 
 function selectProgressionPart(partId) {
   state.progression.selectedPartId = partId;
@@ -2164,11 +2459,12 @@ function deleteSelectedProgressionPart() {
     stopProgressionPlayback(false);
   }
   const after = snapshotState();
-  trackStateChange("delete_progression_part", "進行セル削除", before, after);
+  trackStateChange("delete_progression_part", "進行セルを削除", before, after);
   syncFormFromState();
   render();
   setStatus(els.progStatus, "選択セルを削除しました。", "success");
 }
+
 
 function syncProgressionSelectionFromEditor(changeLabel, preview = false) {
   const selectedId = state.progression.selectedPartId;
@@ -2207,6 +2503,7 @@ function syncProgressionSelectionFromEditor(changeLabel, preview = false) {
     void previewProgressionPart(state.progression.parts[index]);
   }
 }
+
 
 function setProgressionEditorRoot({ letter, accidental, octave }) {
   const previousParts = rootEditorParts();
@@ -2254,6 +2551,7 @@ function beginProgressionReorder(partId) {
   setStatus(els.progStatus, "移動先セルをタップ、またはドラッグして並び替え", "success");
 }
 
+
 function cancelProgressionReorder(clearStatus = false) {
   clearProgressionLongPressTimer();
   clearProgressionReorderVisuals();
@@ -2291,7 +2589,7 @@ function commitProgressionReorder(movingId, targetId, placement) {
   if (!changed) {
     syncFormFromState();
     render();
-    setStatus(els.progStatus, "並び順は変わっていません", "");
+    setStatus(els.progStatus, "並び順は変わっていません。", "");
     return;
   }
 
@@ -2300,11 +2598,12 @@ function commitProgressionReorder(movingId, targetId, placement) {
     stopProgressionPlayback(false);
   }
   const after = snapshotState();
-  trackStateChange("reorder_progression_part", "進行セル並び替え", before, after);
+  trackStateChange("reorder_progression_part", "進行セルの並び替え", before, after);
   syncFormFromState();
   render();
-  setStatus(els.progStatus, "進行セルの並び順を更新しました", "success");
+  setStatus(els.progStatus, "進行セルの並び順を更新しました。", "success");
 }
+
 
 function applyActiveNoteGain() {
   audio.setVoiceGain(MOMENTARY_VOICE_ID, state.settings.activeNotesVolume);
@@ -2412,7 +2711,7 @@ async function toggleCurrentNote() {
   }
 
   const after = snapshotState();
-  trackStateChange("active_note_toggle", "activeNotes を更新", before, after);
+  trackStateChange("active_note_toggle", "activeNotes ??", before, after);
   syncFormFromState();
   render();
 }
@@ -2423,7 +2722,7 @@ async function clearAllActiveNotes() {
   state.activeNotes = [];
   pitchUi.lastTouchedNoteId = null;
   const after = snapshotState();
-  trackStateChange("clear_active_notes", "activeNotes 一括削除", before, after);
+  trackStateChange("clear_active_notes", "activeNotes を一括削除", before, after);
   render();
   await syncAudioToActiveNotes();
 }
@@ -2444,7 +2743,7 @@ async function addPitchPresetToActiveNotes(presetId) {
   rememberActiveNote(noteId);
   syncDraftFromCent(microStepToCent(preset.microStep), state.pitchDraft.octave);
   const after = snapshotState();
-  trackStateChange("add_pitch_preset_note", "音高プリセットから追加", before, after);
+  trackStateChange("add_pitch_preset_note", "音高プリセットを追加", before, after);
   syncFormFromState();
   render();
   await syncAudioToActiveNotes();
@@ -2503,7 +2802,7 @@ function populateComposerRootPresetSelect(select, selectedId = "") {
   select.innerHTML = "";
   const empty = document.createElement("option");
   empty.value = "";
-  empty.textContent = "基音プリセット";
+  empty.textContent = "未選択";
   select.appendChild(empty);
 
   sortedPitchPresets().forEach((preset) => {
@@ -2643,11 +2942,16 @@ function parseChordTonesInput(value) {
 }
 
 function renderPitchPresets() {
+  renderPitchPresetsV2();
+}
+
+
+function renderPitchPresetsV2() {
   const container = els.pitchPresetList;
   container.innerHTML = "";
   const presets = filteredPitchPresets(els.pitchPresetFilterInput?.value);
   if (state.pitchPresets.length === 0) {
-    renderPresetTableEmpty(container, "まだ音高プリセットはありません。");
+    renderPresetTableEmpty(container, "音高プリセットはまだありません。");
     return;
   }
 
@@ -2656,20 +2960,22 @@ function renderPitchPresets() {
   table.innerHTML = `
     <thead>
       <tr>
-        <th>音高</th>
-        <th>cent</th>
-        <th>短名</th>
-        <th>タグ</th>
-        <th>メモ</th>
+        <th><input type="checkbox" data-select-all="pitch" aria-label="select all pitch presets"></th>
+        <th data-sort="pitch:name">名前${sortIndicator(presetUi.pitchSort, "name")}</th>
+        <th data-sort="pitch:id">ID${sortIndicator(presetUi.pitchSort, "id")}</th>
+        <th data-sort="pitch:cent">¢${sortIndicator(presetUi.pitchSort, "cent")}</th>
+        <th data-sort="pitch:short">短名${sortIndicator(presetUi.pitchSort, "short")}</th>
+        <th data-sort="pitch:tags">タグ${sortIndicator(presetUi.pitchSort, "tags")}</th>
+        <th data-sort="pitch:memo">メモ${sortIndicator(presetUi.pitchSort, "memo")}</th>
       </tr>
     </thead>
   `;
-  table.prepend(buildPresetColGroup(["name", "cent", "short", "tags", "memo"]));
+  table.prepend(buildPresetColGroup(["select", "name", "id", "cent", "short", "tags", "memo"]));
   const tbody = document.createElement("tbody");
 
   if (presets.length === 0) {
     const emptyRow = document.createElement("tr");
-    emptyRow.innerHTML = `<td colspan="5" class="composer-note">条件に合う音高プリセットがありません。</td>`;
+    emptyRow.innerHTML = `<td colspan="7" class="composer-note">条件に合う音高プリセットがありません。</td>`;
     tbody.appendChild(emptyRow);
   }
 
@@ -2677,83 +2983,82 @@ function renderPitchPresets() {
     const row = document.createElement("tr");
     row.dataset.pitchPresetId = preset.id;
     const isEditing = presetUi.editingPitchPresetId === preset.id;
-    row.title = isEditing ? "" : "クリックで追加 / ダブルクリックで編集";
+    row.title = isEditing ? "" : "クリックで追加、ダブルクリックで編集";
     if (!isEditing && state.activeNotes.some((note) => note.octave === state.pitchDraft.octave && note.microStepInOctave === preset.microStep)) {
       row.classList.add("is-active");
     }
+    const selectCell = document.createElement("td");
+    selectCell.innerHTML = `<input type="checkbox" data-row-select="pitch" data-id="${escapeHtml(preset.id)}" aria-label="select ${escapeHtml(preset.name)}">`;
+    selectCell.querySelector("input").checked = presetUi.selectedPitchPresetIds.has(preset.id);
+    row.appendChild(selectCell);
 
     if (isEditing) {
       const nameCell = document.createElement("td");
-      const wrap = document.createElement("div");
-      wrap.className = "preset-main";
-      wrap.append(
-        buildInlineInput(preset.id, "id"),
-        buildInlineInput(preset.name, "name")
-      );
-      nameCell.appendChild(wrap);
+      nameCell.appendChild(buildInlineInput(preset.name, "name"));
       row.appendChild(nameCell);
-
+      const idCell = document.createElement("td");
+      idCell.appendChild(buildInlineInput(preset.id, "id"));
+      row.appendChild(idCell);
       const centCell = document.createElement("td");
       const centInput = buildInlineInput(formatDecimal(preset.cent), "cent");
       centInput.type = "number";
       centInput.step = String(state.settings.snapCent || 1);
       centCell.appendChild(centInput);
       row.appendChild(centCell);
-
       const shortCell = document.createElement("td");
       shortCell.appendChild(buildInlineInput(preset.shortName || "", "shortName"));
       row.appendChild(shortCell);
-
       const tagsCell = document.createElement("td");
       tagsCell.appendChild(buildInlineInput((preset.tags || []).join(", "), "tags"));
       row.appendChild(tagsCell);
-
       const memoCell = document.createElement("td");
       const memoWrap = document.createElement("div");
       memoWrap.className = "preset-main";
       memoWrap.appendChild(buildInlineTextarea(preset.memo || "", "memo"));
       const actions = document.createElement("div");
       actions.className = "preset-inline-actions";
-      actions.innerHTML = `<button type="button" data-action="save-pitch-inline" data-preset-id="${preset.id}">保存</button><button type="button" data-action="cancel-pitch-inline">取消</button>`;
+      actions.innerHTML = `<button type="button" data-action="save-pitch-inline" data-preset-id="${escapeHtml(preset.id)}">保存</button><button type="button" data-action="cancel-pitch-inline">取消</button>`;
       memoWrap.appendChild(actions);
       memoCell.appendChild(memoWrap);
       row.appendChild(memoCell);
     } else {
       const nameCell = document.createElement("td");
-      nameCell.appendChild(buildPresetMainCell(
-        preset.name,
-        String(preset.id || "").toLowerCase()
-      ));
+      nameCell.appendChild(buildPresetMainCell(preset.name, ""));
       row.appendChild(nameCell);
-
+      const idCell = document.createElement("td");
+      idCell.className = "preset-id";
+      idCell.textContent = String(preset.id || "").toLowerCase();
+      row.appendChild(idCell);
       const centCell = document.createElement("td");
       centCell.textContent = formatDecimal(preset.cent);
       row.appendChild(centCell);
-
-
       const shortCell = document.createElement("td");
       shortCell.textContent = preset.shortName || " ";
       row.appendChild(shortCell);
-
       const tagsCell = document.createElement("td");
       tagsCell.appendChild(buildTagChips(preset.tags));
       row.appendChild(tagsCell);
-
       const memoCell = document.createElement("td");
       memoCell.textContent = preset.memo || " ";
       row.appendChild(memoCell);
     }
-
     tbody.appendChild(row);
   });
 
   table.appendChild(tbody);
   container.appendChild(table);
+  syncTableSelectAll(table, "pitch", presetUi.selectedPitchPresetIds, presets.map((preset) => preset.id));
+  enhancePresetTable(table);
 }
+
 
 function normalizePitchPresetTableColumns() {
   const table = els.pitchPresetList?.querySelector("table");
   if (!table || table.dataset.idColumnReady === "true") return;
+  if (table.querySelector("col.col-id")) {
+    table.dataset.idColumnReady = "true";
+    return;
+  }
   table.dataset.idColumnReady = "true";
   const headerRow = table.querySelector("thead tr");
   const firstHeader = headerRow?.querySelector("th");
@@ -2789,6 +3094,11 @@ function normalizePitchPresetTableColumns() {
 }
 
 function renderChordPresets() {
+  renderChordPresetsV2();
+}
+
+
+function renderChordPresetsV2() {
   const container = els.chordPresetList;
   container.innerHTML = "";
   const chords = filteredChordPresets(els.chordTagFilterInput?.value);
@@ -2798,28 +3108,27 @@ function renderChordPresets() {
   table.innerHTML = `
     <thead>
       <tr>
-        <th>コード</th>
-        <th>基音</th>
-        <th>構成音</th>
-        <th>タグ</th>
-        <th>メモ</th>
+        <th><input type="checkbox" data-select-all="chord" aria-label="select all chord presets"></th>
+        <th data-sort="chord:name">名前${sortIndicator(presetUi.chordSort, "name")}</th>
+        <th data-sort="chord:id">ID${sortIndicator(presetUi.chordSort, "id")}</th>
+        <th data-sort="chord:root">基音${sortIndicator(presetUi.chordSort, "root")}</th>
+        <th data-sort="chord:tones">構成音${sortIndicator(presetUi.chordSort, "tones")}</th>
+        <th data-sort="chord:tags">タグ${sortIndicator(presetUi.chordSort, "tags")}</th>
+        <th data-sort="chord:memo">メモ${sortIndicator(presetUi.chordSort, "memo")}</th>
       </tr>
     </thead>
   `;
+  table.prepend(buildPresetColGroup(["select", "name", "id", "root", "tones", "tags", "memo"]));
   const tbody = document.createElement("tbody");
 
   const composerRow = document.createElement("tr");
   composerRow.className = "composer-row";
   composerRow.dataset.composerRow = "true";
-
-  const composerCodeCell = document.createElement("td");
-  composerCodeCell.innerHTML = `
-    <div class="composer-stack">
-      <input type="text" class="preset-inline-input" data-composer-field="id" placeholder="コードID" value="${escapeHtml(els.chordIdInput.value)}">
-      <input type="text" class="preset-inline-input" data-composer-field="name" placeholder="コード名" value="${escapeHtml(els.chordNameInput.value)}">
-    </div>
+  composerRow.innerHTML = `
+    <td></td>
+    <td><input type="text" class="preset-inline-input" data-composer-field="name" placeholder="コード名" value="${escapeHtml(els.chordNameInput.value)}"></td>
+    <td><input type="text" class="preset-inline-input" data-composer-field="id" placeholder="コードID" value="${escapeHtml(els.chordIdInput.value)}"></td>
   `;
-  composerRow.appendChild(composerCodeCell);
 
   const composerRootCell = document.createElement("td");
   const composerRootWrap = document.createElement("div");
@@ -2851,7 +3160,7 @@ function renderChordPresets() {
       .sort((a, b) => absoluteMicroStep(a) - absoluteMicroStep(b))
       .map((note) => formatPresetDisplayName(findPitchPresetByMicroStep(note.microStepInOctave)) || formatDecimal(note.cent))
       .join(" / ");
-  composerToneWrap.appendChild(composerToneNote);
+  composerToneWrap.append(composerToneNote);
   const labelsInput = document.createElement("input");
   labelsInput.type = "text";
   labelsInput.className = "preset-inline-input";
@@ -2870,9 +3179,7 @@ function renderChordPresets() {
   composerMemoCell.innerHTML = `
     <div class="composer-stack">
       <textarea class="preset-inline-textarea" data-composer-field="memo" placeholder="メモ">${escapeHtml(els.chordMemoInput.value)}</textarea>
-      <div class="preset-inline-actions">
-        <button type="button" data-action="save-chord-compose">activeNotes から保存</button>
-      </div>
+      <div class="preset-inline-actions"><button type="button" data-action="save-chord-compose">保存</button></div>
     </div>
   `;
   composerRow.appendChild(composerMemoCell);
@@ -2881,37 +3188,38 @@ function renderChordPresets() {
   if (chords.length === 0) {
     const emptyRow = document.createElement("tr");
     emptyRow.className = "composer-row";
-    emptyRow.innerHTML = `<td colspan="5" class="composer-note">${state.chordPresets.length === 0 ? "まだコードはありません。" : "条件に合うコードがありません。"}</td>`;
+    emptyRow.innerHTML = `<td colspan="7" class="composer-note">${state.chordPresets.length === 0 ? "コードプリセットはまだありません。" : "条件に合うコードプリセットがありません。"}</td>`;
     tbody.appendChild(emptyRow);
-    table.appendChild(tbody);
-    container.appendChild(table);
-    return;
   }
 
   chords.forEach((chord) => {
     const row = document.createElement("tr");
     row.dataset.chordPresetId = chord.id;
     const isEditing = presetUi.editingChordPresetId === chord.id;
-    row.title = isEditing ? "" : "クリックで展開 / ダブルクリックで編集";
+    row.title = isEditing ? "" : "クリックで追加、ダブルクリックで編集";
     const tonesText = serializeChordTones(chord.tones);
     const rootLabel =
       els.recallRootTextInput.value.trim() ||
       formatPresetDisplayName(findPitchPresetById(els.recallRootPresetSelect.value)) ||
-      "未指定";
+      "未設定";
+
+    const displayRootLabel = formatChordBaseRoot(chord.baseRoot);
+    const selectCell = document.createElement("td");
+    selectCell.innerHTML = `<input type="checkbox" data-row-select="chord" data-id="${escapeHtml(chord.id)}" aria-label="select ${escapeHtml(chord.name)}">`;
+    selectCell.querySelector("input").checked = presetUi.selectedChordPresetIds.has(chord.id);
+    row.appendChild(selectCell);
 
     if (isEditing) {
       const nameCell = document.createElement("td");
-      const wrap = document.createElement("div");
-      wrap.className = "preset-main";
-      wrap.append(
-        buildInlineInput(chord.id, "id"),
-        buildInlineInput(chord.name, "name")
-      );
-      nameCell.appendChild(wrap);
+      nameCell.appendChild(buildInlineInput(chord.name, "name"));
       row.appendChild(nameCell);
 
+      const idCell = document.createElement("td");
+      idCell.appendChild(buildInlineInput(chord.id, "id"));
+      row.appendChild(idCell);
+
       const rootCell = document.createElement("td");
-      rootCell.textContent = rootLabel;
+      rootCell.textContent = displayRootLabel;
       row.appendChild(rootCell);
 
       const tonesCell = document.createElement("td");
@@ -2928,17 +3236,22 @@ function renderChordPresets() {
       memoWrap.appendChild(buildInlineTextarea(chord.memo || "", "memo"));
       const actions = document.createElement("div");
       actions.className = "preset-inline-actions";
-      actions.innerHTML = `<button type="button" data-action="save-chord-inline" data-chord-id="${chord.id}">保存</button><button type="button" data-action="cancel-chord-inline">取消</button>`;
+      actions.innerHTML = `<button type="button" data-action="save-chord-inline" data-chord-id="${escapeHtml(chord.id)}">保存</button><button type="button" data-action="cancel-chord-inline">取消</button>`;
       memoWrap.appendChild(actions);
       memoCell.appendChild(memoWrap);
       row.appendChild(memoCell);
     } else {
       const nameCell = document.createElement("td");
-      nameCell.appendChild(buildPresetMainCell(chord.name, String(chord.id || "").toLowerCase()));
+      nameCell.appendChild(buildPresetMainCell(chord.name, ""));
       row.appendChild(nameCell);
 
+      const idCell = document.createElement("td");
+      idCell.className = "preset-id";
+      idCell.textContent = String(chord.id || "").toLowerCase();
+      row.appendChild(idCell);
+
       const rootCell = document.createElement("td");
-      rootCell.textContent = rootLabel;
+      rootCell.textContent = displayRootLabel;
       row.appendChild(rootCell);
 
       const tonesCell = document.createElement("td");
@@ -2953,12 +3266,13 @@ function renderChordPresets() {
       memoCell.textContent = chord.memo || " ";
       row.appendChild(memoCell);
     }
-
     tbody.appendChild(row);
   });
 
   table.appendChild(tbody);
   container.appendChild(table);
+  syncTableSelectAll(table, "chord", presetUi.selectedChordPresetIds, chords.map((chord) => chord.id));
+  enhancePresetTable(table);
 }
 
 function editPitchPreset(presetId) {
@@ -2984,7 +3298,7 @@ function saveInlinePitchPreset(presetId, row) {
   const nextMemo = String(row.querySelector('[data-field="memo"]')?.value || "").trim();
 
   if (nextId !== preset.id && state.pitchPresets.some((item) => item.id === nextId)) {
-    setStatus(els.pitchPresetStatus, `ID ${nextId} は既に使われています。`, "error");
+    setStatus(els.pitchPresetStatus, `ID ${nextId} は既存プリセットと重複しています。`, "error");
     return;
   }
 
@@ -3000,7 +3314,7 @@ function saveInlinePitchPreset(presetId, row) {
   preset.memo = nextMemo;
   presetUi.editingPitchPresetId = null;
   const after = snapshotState();
-  trackStateChange("edit_pitch_preset", "音高プリセット編集", before, after);
+  trackStateChange("edit_pitch_preset", "音高プリセットを更新", before, after);
   setStatus(els.pitchPresetStatus, `${preset.name} を更新しました。`, "success");
   render();
 }
@@ -3015,7 +3329,7 @@ function saveInlineChordPreset(chordId, row) {
   const nextMemo = String(row.querySelector('[data-field="memo"]')?.value || "").trim();
 
   if (nextId !== chord.id && state.chordPresets.some((item) => item.id === nextId)) {
-    setStatus(els.chordStatus, `ID ${nextId} は既に使われています。`, "error");
+    setStatus(els.chordStatus, `ID ${nextId} は既存プリセットと重複しています。`, "error");
     return;
   }
   if (nextTones.length === 0) {
@@ -3031,7 +3345,7 @@ function saveInlineChordPreset(chordId, row) {
   chord.memo = nextMemo;
   presetUi.editingChordPresetId = null;
   const after = snapshotState();
-  trackStateChange("edit_chord_preset", "コード編集", before, after);
+  trackStateChange("edit_chord_preset", "コードプリセットを更新", before, after);
   setStatus(els.chordStatus, `${chord.name} を更新しました。`, "success");
   render();
 }
@@ -3055,15 +3369,169 @@ function updateActiveNoteFromRow(noteId) {
   }
 
   const after = snapshotState();
-  trackStateChange("update_active_note", "activeNotes 行編集", before, after);
+  trackStateChange("update_active_note", "activeNotes を更新", before, after);
   syncFormFromState();
+  render();
+  void syncAudioToActiveNotes();
+}
+
+function toggleSettingsDrawer(forceOpen = null) {
+  const drawer = document.getElementById("settingsDrawer");
+  if (!drawer) return;
+  const nextOpen = forceOpen ?? drawer.hidden;
+  drawer.hidden = !nextOpen;
+  document.getElementById("settingsMenuBtn")?.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+}
+
+function selectMenuPanel(panelName) {
+  const drawer = document.getElementById("settingsDrawer");
+  if (!drawer) return;
+  drawer.querySelectorAll("[data-menu-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.menuPanel !== panelName;
+  });
+  const settingsBody = drawer.querySelector("#settingsDrawerBody");
+  if (settingsBody) settingsBody.hidden = panelName !== "settings";
+  drawer.querySelectorAll("[data-menu-focus]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.menuFocus === panelName);
+  });
+}
+
+function selectedIdsForKind(kind) {
+  if (kind === "pitch") return presetUi.selectedPitchPresetIds;
+  if (kind === "chord") return presetUi.selectedChordPresetIds;
+  if (kind === "active") return presetUi.selectedActiveNoteIds;
+  return new Set();
+}
+
+function updateBulkBars() {
+  document.querySelectorAll("[data-bulk-kind]").forEach((bar) => {
+    if (!(bar instanceof HTMLElement)) return;
+    const selected = selectedIdsForKind(bar.dataset.bulkKind || "");
+    const count = selected.size;
+    bar.hidden = count === 0;
+    const countLabel = bar.querySelector("[data-bulk-count]");
+    if (countLabel) {
+      countLabel.textContent = count > 0 ? `${count}件選択中` : "";
+    }
+  });
+}
+
+function applyBulkEdit(kind) {
+  const selected = selectedIdsForKind(kind);
+  if (selected.size === 0) return;
+  const bar = document.querySelector(`[data-bulk-kind="${kind}"]`);
+  if (!(bar instanceof HTMLElement)) return;
+
+  if (kind === "pitch") {
+    const before = snapshotState();
+    const tags = parseCsvList(bar.querySelector('[data-bulk-field="tags"]')?.value || "");
+    const memo = String(bar.querySelector('[data-bulk-field="memo"]')?.value || "").trim();
+    state.pitchPresets.forEach((preset) => {
+      if (!selected.has(preset.id)) return;
+      preset.tags = tags.slice();
+      preset.memo = memo;
+    });
+    const after = snapshotState();
+    trackStateChange("bulk_edit_pitch_presets", "pitch preset bulk edit", before, after);
+    render();
+    return;
+  }
+
+  if (kind === "chord") {
+    const before = snapshotState();
+    const tags = parseCsvList(bar.querySelector('[data-bulk-field="tags"]')?.value || "");
+    const memo = String(bar.querySelector('[data-bulk-field="memo"]')?.value || "").trim();
+    state.chordPresets.forEach((chord) => {
+      if (!selected.has(chord.id)) return;
+      chord.tags = tags.slice();
+      chord.memo = memo;
+    });
+    const after = snapshotState();
+    trackStateChange("bulk_edit_chord_presets", "chord preset bulk edit", before, after);
+    render();
+    return;
+  }
+
+  if (kind === "active") {
+    const delta = Number(String(bar.querySelector('[data-bulk-field="centDelta"]')?.value || "").replace(",", "."));
+    if (!Number.isFinite(delta) || delta === 0) return;
+    const before = snapshotState();
+    state.activeNotes.slice().forEach((note) => {
+      if (!selected.has(note.id)) return;
+      const absolute = (note.octave * OCTAVE_MICROSTEP) + note.microStepInOctave + centToMicroStep(delta);
+      const normalized = normalizePitch(0, absolute);
+      note.octave = normalized.octave;
+      note.microStepInOctave = normalized.microStepInOctave;
+      note.cent = Number(microStepToCent(normalized.microStepInOctave));
+      note.id = buildNoteId(note.octave, note.microStepInOctave);
+      dedupeActiveNotes(note);
+    });
+    selected.clear();
+    const after = snapshotState();
+    trackStateChange("bulk_edit_active_notes", "active note bulk edit", before, after);
+    syncFormFromState();
+    render();
+    void syncAudioToActiveNotes();
+  }
+}
+
+function deleteSelectedPitchPresets() {
+  const ids = presetUi.selectedPitchPresetIds;
+  if (ids.size === 0) return;
+  const before = snapshotState();
+  state.pitchPresets = state.pitchPresets.filter((preset) => !ids.has(preset.id));
+  ids.clear();
+  presetUi.editingPitchPresetId = null;
+  const after = snapshotState();
+  trackStateChange("delete_pitch_presets", "音高プリセットを一括削除", before, after);
+  render();
+}
+
+function deleteSelectedChordPresets() {
+  const ids = presetUi.selectedChordPresetIds;
+  if (ids.size === 0) return;
+  const before = snapshotState();
+  state.chordPresets = state.chordPresets.filter((chord) => !ids.has(chord.id));
+  ids.clear();
+  presetUi.editingChordPresetId = null;
+  const after = snapshotState();
+  trackStateChange("delete_chord_presets", "コードプリセットを一括削除", before, after);
+  render();
+}
+
+function deleteSelectedActiveNotes() {
+  const ids = presetUi.selectedActiveNoteIds;
+  if (ids.size === 0) return;
+  const before = snapshotState();
+  state.activeNotes = state.activeNotes.filter((note) => {
+    const keep = !ids.has(note.id);
+    if (!keep) audio.stopVoice(note.id);
+    return keep;
+  });
+  ids.clear();
+  const after = snapshotState();
+  trackStateChange("delete_active_notes", "activeNotes を一括削除", before, after);
   render();
   void syncAudioToActiveNotes();
 }
 
 function attachEvents() {
   attachWorkspaceResizers();
-  document.getElementById("settingsMenuBtn")?.addEventListener("click", () => setView("settings"));
+  attachTableColumnResizers();
+  selectMenuPanel("settings");
+  document.getElementById("settingsMenuBtn")?.addEventListener("click", () => toggleSettingsDrawer());
+  document.getElementById("settingsDrawerCloseBtn")?.addEventListener("click", () => toggleSettingsDrawer(false));
+  document.getElementById("deleteSelectedPitchBtn")?.addEventListener("click", deleteSelectedPitchPresets);
+  document.getElementById("deleteSelectedChordBtn")?.addEventListener("click", deleteSelectedChordPresets);
+  document.getElementById("deleteSelectedActiveBtn")?.addEventListener("click", deleteSelectedActiveNotes);
+  document.getElementById("settingsDrawer")?.addEventListener("click", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLElement)) return;
+    const menuButton = target.closest("[data-menu-focus]");
+    if (menuButton instanceof HTMLElement) {
+      selectMenuPanel(menuButton.dataset.menuFocus || "settings");
+    }
+  });
   document.getElementById("waveformButtonGroup")?.addEventListener("click", (ev) => {
     const target = ev.target;
     if (!(target instanceof HTMLButtonElement)) return;
@@ -3112,6 +3580,9 @@ function attachEvents() {
   });
 
   document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") {
+      toggleSettingsDrawer(false);
+    }
     const meta = ev.ctrlKey || ev.metaKey;
     if (!meta) return;
     if (ev.key.toLowerCase() === "z" && !ev.shiftKey) {
@@ -3131,18 +3602,76 @@ function attachEvents() {
   document.addEventListener("pointerdown", (ev) => {
     const target = ev.target;
     if (!(target instanceof HTMLElement)) return;
+    const drawer = document.getElementById("settingsDrawer");
+    if (drawer && !drawer.hidden && !target.closest("#settingsDrawer") && !target.closest("#settingsMenuBtn")) {
+      toggleSettingsDrawer(false);
+    }
     if (target.closest(".progression-popover") || target.closest(".progression-token")) return;
     closeProgressionPopovers();
   });
   document.addEventListener("pointerup", () => {
     popoverUi.pointerDown = false;
   });
+  document.addEventListener("click", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLElement)) return;
+    const bulkButton = target.closest("[data-bulk-action]");
+    if (bulkButton instanceof HTMLElement) {
+      const kind = bulkButton.dataset.kind || bulkButton.closest("[data-bulk-kind]")?.dataset.bulkKind || "";
+      if (bulkButton.dataset.bulkAction === "apply") applyBulkEdit(kind);
+      if (bulkButton.dataset.bulkAction === "delete") {
+        if (kind === "pitch") deleteSelectedPitchPresets();
+        if (kind === "chord") deleteSelectedChordPresets();
+        if (kind === "active") deleteSelectedActiveNotes();
+      }
+      if (bulkButton.dataset.bulkAction === "clear") {
+        selectedIdsForKind(kind).clear();
+        render();
+      }
+      return;
+    }
+    const sortHeader = target.closest("[data-sort]");
+    if (sortHeader instanceof HTMLElement && !target.closest(".column-resize-handle")) {
+      const [kind, column] = String(sortHeader.dataset.sort || "").split(":");
+      if (kind === "pitch") toggleSortState(presetUi.pitchSort, column);
+      if (kind === "chord") toggleSortState(presetUi.chordSort, column);
+      if (kind === "active") toggleSortState(presetUi.activeSort, column);
+      render();
+    }
+  });
+  document.addEventListener("change", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    const selectAll = target.dataset.selectAll;
+    if (selectAll) {
+      const ids = [...document.querySelectorAll(`[data-row-select="${selectAll}"]`)].map((input) => input.dataset.id).filter(Boolean);
+      const set = selectAll === "pitch"
+        ? presetUi.selectedPitchPresetIds
+        : selectAll === "chord"
+          ? presetUi.selectedChordPresetIds
+          : presetUi.selectedActiveNoteIds;
+      ids.forEach((id) => target.checked ? set.add(id) : set.delete(id));
+      render();
+      return;
+    }
+    const rowSelect = target.dataset.rowSelect;
+    if (rowSelect && target.dataset.id) {
+      const set = rowSelect === "pitch"
+        ? presetUi.selectedPitchPresetIds
+        : rowSelect === "chord"
+          ? presetUi.selectedChordPresetIds
+          : presetUi.selectedActiveNoteIds;
+      if (target.checked) set.add(target.dataset.id);
+      else set.delete(target.dataset.id);
+      render();
+    }
+  });
 
   els.octaveInput.addEventListener("change", () => {
     const before = snapshotState();
     syncDraftFromCent(state.pitchDraft.cent, Number(els.octaveInput.value));
     const after = snapshotState();
-    trackStateChange("update_octave", "オクターブ変更", before, after);
+    trackStateChange("update_octave", "oct 変更", before, after);
     syncFormFromState();
     render();
   });
@@ -3152,7 +3681,7 @@ function attachEvents() {
     state.settings.snapCent = clamp(Number(els.snapCentInput.value) || 0, 0, 600);
     syncDraftFromCent(Number(els.centInput.value), state.pitchDraft.octave);
     const after = snapshotState();
-    trackStateChange("update_snap", "スナップ変更", before, after);
+    trackStateChange("update_snap", "snap ¢ 変更", before, after);
     syncFormFromState();
     render();
   });
@@ -3174,7 +3703,7 @@ function attachEvents() {
       syncDraftFromCent(nextCent, state.pitchDraft.octave);
     }
     const after = snapshotState();
-    trackStateChange("update_cent", "cent入力変更", before, after);
+    trackStateChange("update_cent", "¢ 変更", before, after);
     syncFormFromState();
     render();
     void syncAudioToActiveNotes();
@@ -3205,7 +3734,7 @@ function attachEvents() {
     const before = snapshotState();
     state.settings.waveform = els.waveformSelect.value;
     const after = snapshotState();
-    trackStateChange("update_waveform", "波形変更", before, after);
+    trackStateChange("update_waveform", "髮主桁・ｽ・｢髯溷私・ｽ・｢髯樊ｺｽ蛻､陝ｲ・ｩ", before, after);
     void syncAudioToActiveNotes();
   });
 
@@ -3214,14 +3743,14 @@ function attachEvents() {
     state.settings.masterVolume = Number(els.masterVolumeInput.value);
     audio.setMasterVolume(state.settings.masterVolume);
     const after = snapshotState();
-    trackStateChange("update_master_gain", "Master音量変更", before, after);
+    trackStateChange("update_master_gain", "master 音量変更", before, after);
   });
 
   els.activeNotesVolumeInput.addEventListener("input", () => {
     const before = snapshotState();
     state.settings.activeNotesVolume = Number(els.activeNotesVolumeInput.value);
     const after = snapshotState();
-    trackStateChange("update_active_gain", "activeNotes音量変更", before, after);
+    trackStateChange("update_active_gain", "activeNotes 音量変更", before, after);
     applyActiveNoteGain();
   });
 
@@ -3229,7 +3758,7 @@ function attachEvents() {
     const before = snapshotState();
     state.settings.a4Hz = Number(els.a4HzInput.value);
     const after = snapshotState();
-    trackStateChange("update_a4", "A4周波数変更", before, after);
+    trackStateChange("update_a4", "A4 変更", before, after);
     void syncAudioToActiveNotes();
   });
 
@@ -3237,7 +3766,7 @@ function attachEvents() {
     const before = snapshotState();
     state.settings.bpm = clamp(Number(els.bpmInput.value) || 130, 5, 300);
     const after = snapshotState();
-    trackStateChange("update_bpm", "BPM変更", before, after);
+    trackStateChange("update_bpm", "BPM 変更", before, after);
     syncFormFromState();
   });
 
@@ -3245,7 +3774,7 @@ function attachEvents() {
     const before = snapshotState();
     state.settings.roundUnitCent = Math.max(0, Number(els.roundUnitInput.value) || 0);
     const after = snapshotState();
-    trackStateChange("update_round_unit", "丸め単位変更", before, after);
+    trackStateChange("update_round_unit", "丸め込み単位変更", before, after);
     syncFormFromState();
   });
 
@@ -3253,7 +3782,7 @@ function attachEvents() {
     const before = snapshotState();
     state.settings.roundingMode = els.roundingModeSelect.value;
     const after = snapshotState();
-    trackStateChange("update_round_mode", "丸めモード変更", before, after);
+    trackStateChange("update_round_mode", "丸め込みモード変更", before, after);
   });
 
   els.savePitchPresetBtn.addEventListener("click", saveCurrentPitchPreset);
@@ -3268,11 +3797,11 @@ function attachEvents() {
   els.recallRootModeSelect.addEventListener("change", renderRecallSummary);
   els.recallRootTextInput.addEventListener("input", () => {
     renderRecallSummary();
-    renderChordPresets();
+    renderChordPresetsV2();
   });
   els.recallRootPresetSelect.addEventListener("change", () => {
     renderRecallSummary();
-    renderChordPresets();
+    renderChordPresetsV2();
   });
   els.addProgPartBtn.addEventListener("click", addProgressionPart);
   els.addProgChunkBtn?.addEventListener("click", addProgressionChunk);
@@ -3291,27 +3820,27 @@ function attachEvents() {
   els.playProgBtn.addEventListener("click", () => {
     if (state.progression.playingPartId) {
       stopProgressionPlayback();
-      setStatus(els.progStatus, "一時停止しました。", "success");
+      setStatus(els.progStatus, "再生を停止しました。", "success");
       render();
       return;
     }
     if (state.progression.parts.length === 0) {
-      setStatus(els.progStatus, "再生するセルがありません。", "error");
+      setStatus(els.progStatus, "再生対象がありません。", "error");
       return;
     }
     const selectedId = state.progression.selectedPartId || state.progression.parts[0]?.id;
     const startIndex = Math.max(0, state.progression.parts.findIndex((part) => part.id === selectedId));
     void playProgressionPart(state.progression.parts[startIndex] || state.progression.parts[0], startIndex);
-    setStatus(els.progStatus, "進行再生を開始しました。", "success");
+      setStatus(els.progStatus, "再生を開始しました。", "success");
   });
   els.stopProgBtn.addEventListener("click", () => {
     stopProgressionPlayback();
-    setStatus(els.progStatus, "進行再生を停止しました。", "success");
+    setStatus(els.progStatus, "停止しました。", "success");
   });
   els.progRootNoteInput.addEventListener("change", () => {
     const parsed = resolveProgressionRootInput();
     if (!parsed) {
-      setStatus(els.progStatus, "ルートは D# のように入力してください。オクターブは右欄です。", "error");
+      setStatus(els.progStatus, "ルート音は C, D#, Bb などの形式で入力してください。", "error");
       const parts = rootEditorParts();
       els.progRootNoteInput.value = `${parts.letter}${parts.accidental}`;
       if (els.progRootOctaveInput) els.progRootOctaveInput.value = parts.octave;
@@ -3343,12 +3872,12 @@ function attachEvents() {
   els.progRootOctaveInput?.addEventListener("change", syncProgressionRootOctave);
   els.progSectionNameInput?.addEventListener("input", () => {
     state.progressionEditor.sectionName = String(els.progSectionNameInput.value || "");
-    syncProgressionSelectionFromEditor("進行セルのセクション変更", false);
+    syncProgressionSelectionFromEditor("進行セルのセクション変更", true);
   });
   const syncProgressionBeatInputs = () => {
     state.progressionEditor.beats = clamp(Number(els.progBeatsNumeratorInput?.value) || 4, 1, 32);
     state.progressionEditor.beatUnit = clamp(Number(els.progBeatsDenominatorInput?.value) || 4, 1, 32);
-    syncProgressionSelectionFromEditor("進行セルの拍変更", false);
+    syncProgressionSelectionFromEditor("進行セルの拍変更", true);
   };
   els.progBeatsNumeratorInput?.addEventListener("input", syncProgressionBeatInputs);
   els.progBeatsNumeratorInput?.addEventListener("change", syncProgressionBeatInputs);
@@ -3359,7 +3888,7 @@ function attachEvents() {
   els.progBassInput?.addEventListener("change", () => {
     const raw = String(els.progBassInput.value || "").trim();
     if (!raw || /^(root|p1)$/i.test(raw)) {
-      selectBassPreset(ROOT_BASS_TOKEN, "進行セルの bass root 変更");
+      selectBassPreset(ROOT_BASS_TOKEN, "進行セルの bass 変更");
       els.progBassInput.value = bassTokenLabel();
       return;
     }
@@ -3379,7 +3908,7 @@ function attachEvents() {
     els.progBassInput.value = bassTokenLabel();
   });
   els.progBassPopoverBtn?.addEventListener("click", () => openProgressionPopover("bass"));
-  els.progBassClearBtn?.addEventListener("click", () => selectBassPreset(ROOT_BASS_TOKEN, "進行セルの bass root 変更"));
+      selectBassPreset(ROOT_BASS_TOKEN, "進行セルの bass 変更");
   els.progBassButtonGrid?.addEventListener("click", (ev) => {
     const target = ev.target;
     if (!(target instanceof HTMLButtonElement)) return;
@@ -3389,7 +3918,7 @@ function attachEvents() {
     popoverUi.pointerDown = true;
     const button = buttonAtClientPoint(els.progBassButtonGrid, ev.clientX, ev.clientY);
     if (!(button instanceof HTMLButtonElement)) return;
-    selectBassPreset(button.dataset.bassPresetId || "", "進行セルの bass スワイプ変更");
+    selectBassPreset(button.dataset.bassPresetId || "", "進行セルの bass 変更");
   });
   els.progBassButtonGrid?.addEventListener("pointermove", (ev) => {
     if (!popoverUi.pointerDown) return;
@@ -3400,7 +3929,7 @@ function attachEvents() {
       state.progressionEditor.bassMode === "relative" &&
       presetId === (state.progressionEditor.bassValue || ROOT_BASS_TOKEN)
     ) return;
-    selectBassPreset(presetId, "進行セルの bass スワイプ変更");
+    selectBassPreset(presetId, "進行セルの bass 変更");
   });
   els.progInversionPopoverBtn?.addEventListener("click", () => openProgressionPopover("inversion"));
   els.progInversionButtonGrid?.addEventListener("click", (ev) => {
@@ -3412,7 +3941,7 @@ function attachEvents() {
     popoverUi.pointerDown = true;
     const button = buttonAtClientPoint(els.progInversionButtonGrid, ev.clientX, ev.clientY);
     if (!(button instanceof HTMLButtonElement)) return;
-    selectInversionStep(Number(button.dataset.inversionStep), "進行セルの転回形スワイプ変更");
+    selectInversionStep(Number(button.dataset.inversionStep), "進行セルの転回形変更");
   });
   els.progInversionButtonGrid?.addEventListener("pointermove", (ev) => {
     if (!popoverUi.pointerDown) return;
@@ -3420,7 +3949,7 @@ function attachEvents() {
     if (!(button instanceof HTMLButtonElement)) return;
     const step = Number(button.dataset.inversionStep);
     if (!Number.isFinite(step) || step === state.progressionEditor.inversionStep) return;
-    selectInversionStep(step, "進行セルの転回形スワイプ変更");
+    selectInversionStep(step, "進行セルの転回形変更");
   });
   els.progInversionPopoverBtn?.addEventListener("pointerdown", (ev) => {
     if (!(ev.target instanceof HTMLElement)) return;
@@ -3433,7 +3962,7 @@ function attachEvents() {
       const offset = Math.trunc((moveEv.clientX - startX) / 24);
       if (offset === appliedOffset) return;
       appliedOffset = offset;
-      selectInversionStep(startStep + offset, "進行セルの転回形スワイプ変更", startOctave);
+      selectInversionStep(startStep + offset, "進行セルの転回形変更", startOctave);
     };
     const cleanup = () => {
       window.removeEventListener("pointermove", move);
@@ -3525,6 +4054,7 @@ function attachEvents() {
   els.activeNotesList.addEventListener("click", (ev) => {
     const target = ev.target;
     if (!(target instanceof HTMLElement)) return;
+    if (target.closest('input[type="checkbox"], input, textarea, select')) return;
     if (!(target instanceof HTMLButtonElement)) {
       const row = target.closest("[data-note-id]");
       if (!(row instanceof HTMLElement)) return;
@@ -3583,6 +4113,7 @@ function attachEvents() {
   els.pitchPresetList.addEventListener("dblclick", (ev) => {
     const target = ev.target;
     if (!(target instanceof HTMLElement)) return;
+    if (target.closest("input, textarea, button")) return;
     if (presetUi.pitchPresetClickTimerId) {
       clearTimeout(presetUi.pitchPresetClickTimerId);
       presetUi.pitchPresetClickTimerId = null;
@@ -3651,6 +4182,7 @@ function attachEvents() {
   els.chordPresetList.addEventListener("dblclick", (ev) => {
     const target = ev.target;
     if (!(target instanceof HTMLElement)) return;
+    if (target.closest("input, textarea, button, select")) return;
     if (presetUi.chordPresetClickTimerId) {
       clearTimeout(presetUi.chordPresetClickTimerId);
       presetUi.chordPresetClickTimerId = null;
@@ -3875,12 +4407,12 @@ function attachEvents() {
     await applyDragPitch(true);
     if (dragContext.mode === "active-note") {
       const after = snapshotState();
-      trackStateChange("active_note_drag", "activeNotes ドラッグ調整", dragContext.before, after);
+      trackStateChange("active_note_drag", "activeNotes ドラッグ", dragContext.before, after);
       await syncAudioToActiveNotes();
     } else if (state.settings.playMode === "momentary") {
       audio.stopVoice(MOMENTARY_VOICE_ID);
       const after = snapshotState();
-      trackStateChange("pitch_drag_commit", "数直線ドラッグ確定", dragContext.before, after);
+      trackStateChange("pitch_drag_commit", "音高ドラッグ確定", dragContext.before, after);
     }
     dragContext = null;
     render();
@@ -3915,7 +4447,7 @@ function attachEvents() {
     els.progImportFileInput.value = "";
   });
   els.runtimeRefreshBtn?.addEventListener("click", () => {
-    showRuntimeNotice("キャッシュを破棄して再読込します。", "info");
+    showRuntimeNotice("キャッシュを更新中です。完了後に自動で再読込される場合があります。", "info");
     void forceRefreshApplication();
   });
   els.importFileInput.addEventListener("change", async () => {
@@ -3932,9 +4464,9 @@ function classifyRuntime() {
 
   if (protocol === "file:") {
     showRuntimeWarning(
-      "このアプリは <code>file://</code> では動作保証しません。<br>" +
-      "PC では <code>python -m http.server 5173</code> を実行し、<code>http://localhost:5173/</code> で開いてください。<br>" +
-      "スマホ確認は LAN URL、PWA インストールは HTTPS 公開 URL を使ってください。"
+      "このアプリは <code>file://</code> 直開きでは正しく動作しません。<br>" +
+      "PC では <code>python -m http.server 5173</code> を実行し、<code>http://localhost:5173/</code> を開いてください。<br>" +
+      "PWA 確認や LAN 共有は HTTPS 公開 URL で行ってください。"
     );
     clearRuntimeWarningTone();
     return { mode: "file", protocol, hostname, swAllowed: false };
@@ -3954,9 +4486,8 @@ function classifyRuntime() {
 
   if (protocol === "http:" && isLanHost(hostname)) {
     showRuntimeNotice(
-      "LAN 閲覧モードです。同一 Wi-Fi 上のスマホやタブレットからブラウザ確認できます。<br>" +
-      "この URL では PWA インストールと Service Worker は使わず、実機確認用として扱います。<br>" +
-      "ホーム画面追加やオフライン利用は HTTPS 公開 URL を使ってください。",
+      "LAN URL では基本動作を確認できますが、PWA インストールや Service Worker の最終確認には向きません。<br>" +
+      "同一 Wi-Fi 内の共有確認に使い、PWA 実機確認は HTTPS 公開 URL で行ってください。",
       "info"
     );
     return { mode: "lan", protocol, hostname, swAllowed: false };
@@ -3964,15 +4495,15 @@ function classifyRuntime() {
 
   if (protocol === "http:") {
     showRuntimeNotice(
-      "HTTP URL で動作中です。PC では <code>localhost</code>、実機確認は LAN URL、PWA 利用は HTTPS 公開 URL を使ってください。",
+      "HTTP の通常 URL です。PC 確認は <code>localhost</code>、LAN 共有や PWA 実機確認は HTTPS 公開 URL を使ってください。",
       "info"
     );
     return { mode: "http", protocol, hostname, swAllowed: false };
   }
 
   showRuntimeWarning(
-    "この環境では動作保証できません。<br>" +
-    "PC では <code>http://localhost:5173/</code>、実機確認は LAN URL、PWA 利用は HTTPS 公開 URL を使ってください。"
+    "現在の URL では動作保証できません。<br>" +
+    "PC では <code>http://localhost:5173/</code>、LAN 共有や PWA 実機確認は HTTPS 公開 URL を使ってください。"
   );
   clearRuntimeWarningTone();
   return { mode: "unknown", protocol, hostname, swAllowed: false };
@@ -3985,19 +4516,19 @@ function renderPwaPrompt() {
   let showButton = false;
 
   if (runtimeState.mode === "lan") {
-    message = "同一 Wi-Fi 上の端末からはこの URL をブラウザで開けます。ホーム画面追加やオフライン利用は HTTPS 公開 URL を使ってください。";
+    message = "同一 Wi-Fi 内の共有確認向けです。PWA インストールや最終確認は HTTPS 公開 URL で行ってください。";
   } else if (runtimeState.mode === "localhost") {
     message = "PC 開発モードです。実機確認は LAN URL、PWA インストールは HTTPS 公開 URL で行ってください。";
   } else if (runtimeState.mode === "https") {
     if (isStandaloneDisplay()) {
-      message = "PWA モードで起動中です。ホーム画面から通常アプリのように使えます。";
+      message = "PWA モードで起動中です。";
     } else if (deferredInstallPrompt) {
-      message = "この HTTPS 公開 URL ではインストール可能です。「アプリを追加」から追加できます。";
+      message = "この HTTPS URL では PWA をインストールできます。";
       showButton = true;
     } else if (isIosLike()) {
-      message = "iPhone / iPad では Safari の共有メニューから「ホーム画面に追加」でインストールしてください。";
+      message = "iPhone / iPad は Safari の共有メニューからホーム画面へ追加してください。";
     } else {
-      message = "HTTPS 公開 URL で動作中です。対応ブラウザではメニューからアプリとして追加できます。";
+      message = "HTTPS で動作中です。必要ならインストール案内を確認してください。";
     }
   }
 
@@ -4044,8 +4575,11 @@ async function forceRefreshApplication() {
 function syncFormFromState() {
   state.settings.tableColumnWidths = {
     name: 11,
+    id: 7,
     cent: 5,
     short: 5,
+    root: 6,
+    tones: 12,
     tags: 8,
     memo: 10,
     ...(state.settings.tableColumnWidths || {})
@@ -4107,16 +4641,16 @@ function syncFormFromState() {
   renderProgressionChordButtons();
   renderProgressionEditorButtons();
   renderRecallSummary();
-  els.addProgPartBtn.textContent = state.progression.selectedPartId ? "後ろに挿入" : "挿入";
+  els.addProgPartBtn.textContent = state.progression.selectedPartId ? "後ろに挿入" : "追加";
   if (els.addProgChunkBtn) els.addProgChunkBtn.disabled = !state.progressionEditor.chordId;
   if (els.addProgSectionBtn) els.addProgSectionBtn.disabled = !state.progressionEditor.chordId;
   els.deleteProgPartBtn.disabled = !state.progression.selectedPartId;
   els.progPrevBtn.disabled = state.progression.parts.length === 0;
   els.progNextBtn.disabled = state.progression.parts.length === 0;
   els.playProgBtn.disabled = state.progression.parts.length === 0;
-  els.playProgBtn.textContent = state.progression.playingPartId ? "⏸" : "▶";
+  els.playProgBtn.textContent = state.progression.playingPartId ? "一時停止" : "再生";
   els.stopProgBtn.disabled = !state.progression.playingPartId;
-  els.stopProgBtn.textContent = "■";
+  els.stopProgBtn.textContent = "??";
   els.saveChordBtn.disabled = state.activeNotes.length === 0;
   document.querySelectorAll("#waveformButtonGroup button").forEach((button) => {
     if (button instanceof HTMLButtonElement) {
@@ -4127,10 +4661,15 @@ function syncFormFromState() {
 }
 
 function renderActiveNotes() {
+  renderActiveNotesV2();
+}
+
+
+function renderActiveNotesV2() {
   const container = els.activeNotesList;
   container.innerHTML = "";
   if (state.activeNotes.length === 0) {
-    renderPresetTableEmpty(container, "まだ activeNotes はありません。");
+    renderPresetTableEmpty(container, "activeNotes はまだありません。");
     els.activeNotesSummary.textContent = "数直線か音高プリセットから追加してください。";
     return;
   }
@@ -4141,38 +4680,39 @@ function renderActiveNotes() {
   table.innerHTML = `
     <thead>
       <tr>
+        <th><input type="checkbox" data-select-all="active" aria-label="select all active notes"></th>
         <th></th>
-        <th>音高</th>
-        <th>cent</th>
-        <th>短名</th>
-        <th>タグ</th>
-        <th>メモ</th>
+        <th data-sort="active:name">名前${sortIndicator(presetUi.activeSort, "name")}</th>
+        <th data-sort="active:cent">¢${sortIndicator(presetUi.activeSort, "cent")}</th>
+        <th data-sort="active:short">短名${sortIndicator(presetUi.activeSort, "short")}</th>
+        <th data-sort="active:tags">タグ${sortIndicator(presetUi.activeSort, "tags")}</th>
+        <th data-sort="active:memo">メモ${sortIndicator(presetUi.activeSort, "memo")}</th>
         <th></th>
       </tr>
     </thead>
   `;
-  table.prepend(buildPresetColGroup(["remove", "name", "cent", "short", "tags", "memo", "actions"]));
+  table.prepend(buildPresetColGroup(["select", "remove", "name", "cent", "short", "tags", "memo", "actions"]));
   const tbody = document.createElement("tbody");
-
   const notes = filteredActiveNotes(els.activeNotesFilterInput?.value);
   if (notes.length === 0) {
     const emptyRow = document.createElement("tr");
-    emptyRow.innerHTML = `<td colspan="7" class="composer-note">条件に合う activeNotes がありません。</td>`;
+    emptyRow.innerHTML = `<td colspan="8" class="composer-note">条件に合う activeNotes はありません。</td>`;
     tbody.appendChild(emptyRow);
   }
-
   notes.forEach((note, index) => {
     const row = document.createElement("tr");
     row.dataset.noteId = note.id;
     const preset = findPitchPresetByMicroStep(note.microStepInOctave);
-
+    const selectCell = document.createElement("td");
+    selectCell.innerHTML = `<input type="checkbox" data-row-select="active" data-id="${escapeHtml(note.id)}" aria-label="select active note">`;
+    selectCell.querySelector("input").checked = presetUi.selectedActiveNoteIds.has(note.id);
+    row.appendChild(selectCell);
     const removeCell = document.createElement("td");
-    removeCell.innerHTML = `<button type="button" class="danger-button active-note-remove" data-note-id="${note.id}" aria-label="削除">×</button>`;
+    removeCell.innerHTML = `<button type="button" class="danger-button active-note-remove" data-note-id="${escapeHtml(note.id)}" aria-label="削除">x</button>`;
     row.appendChild(removeCell);
-
     const labelCell = document.createElement("td");
     const resolvedName = preset?.name || describeNoteTitle(note, index);
-    labelCell.appendChild(buildPresetMainCell(resolvedName, String(preset?.id || note.id).toLowerCase()));
+    labelCell.appendChild(buildPresetMainCell(resolvedName, ""));
     const hiddenName = document.createElement("input");
     hiddenName.type = "hidden";
     hiddenName.dataset.field = "name";
@@ -4184,7 +4724,6 @@ function renderActiveNotes() {
     hiddenId.value = preset?.id || "";
     labelCell.appendChild(hiddenId);
     row.appendChild(labelCell);
-
     const centCell = document.createElement("td");
     const centInput = document.createElement("input");
     centInput.type = "number";
@@ -4194,13 +4733,7 @@ function renderActiveNotes() {
     centInput.dataset.field = "cent";
     centCell.appendChild(centInput);
     row.appendChild(centCell);
-
-    const fields = [
-      ["shortName", "短名"],
-      ["tags", "タグ"],
-      ["memo", "メモ"]
-    ];
-    fields.forEach(([field, placeholder]) => {
+    [["shortName", "短名"], ["tags", "タグ"], ["memo", "メモ"]].forEach(([field, placeholder]) => {
       const td = document.createElement("td");
       const input = document.createElement("input");
       input.type = "text";
@@ -4213,24 +4746,23 @@ function renderActiveNotes() {
       td.appendChild(input);
       row.appendChild(td);
     });
-
     const actionCell = document.createElement("td");
-    actionCell.innerHTML = `<div class="preset-inline-actions"><button type="button" data-action="update-active-note" data-note-id="${note.id}">更新</button><button type="button" data-action="save-pitch-preset" data-note-id="${note.id}">追加</button></div>`;
+    actionCell.innerHTML = `<div class="preset-inline-actions"><button type="button" data-action="update-active-note" data-note-id="${escapeHtml(note.id)}">更新</button><button type="button" data-action="save-pitch-preset" data-note-id="${escapeHtml(note.id)}">追加</button></div>`;
     row.appendChild(actionCell);
-
     tbody.appendChild(row);
   });
-
   table.appendChild(tbody);
   container.appendChild(table);
+  syncTableSelectAll(table, "active", presetUi.selectedActiveNoteIds, notes.map((note) => note.id));
+  enhancePresetTable(table);
   els.activeNotesSummary.textContent = `${state.activeNotes.length} 音を保持中`;
 }
+
 
 function populateChordBaseRootOptions() {
   const select = els.chordBaseRootSelect;
   const previous = select.value;
   select.innerHTML = "";
-
   if (state.activeNotes.length === 0) {
     const option = document.createElement("option");
     option.value = "";
@@ -4239,7 +4771,6 @@ function populateChordBaseRootOptions() {
     select.disabled = true;
     return;
   }
-
   const sorted = [...state.activeNotes].sort((a, b) => absoluteMicroStep(a) - absoluteMicroStep(b));
   sorted.forEach((note, index) => {
     const option = document.createElement("option");
@@ -4251,11 +4782,11 @@ function populateChordBaseRootOptions() {
   select.value = sorted.some((note) => note.id === previous) ? previous : sorted[0].id;
 }
 
+
 function populateRecallChordOptions() {
   const select = els.recallChordSelect;
   const previous = select.value;
   select.innerHTML = "";
-
   if (state.chordPresets.length === 0) {
     const option = document.createElement("option");
     option.value = "";
@@ -4264,17 +4795,17 @@ function populateRecallChordOptions() {
     select.disabled = true;
     return;
   }
-
-  sortedChordPresets().forEach((chord) => {
+  const sorted = sortedChordPresets();
+  sorted.forEach((chord) => {
     const option = document.createElement("option");
     option.value = chord.id;
     option.textContent = chord.name;
     select.appendChild(option);
   });
   select.disabled = false;
-  const sorted = sortedChordPresets();
   select.value = sorted.some((chord) => chord.id === previous) ? previous : sorted[0].id;
 }
+
 
 function saveCurrentPitchPreset(source = null) {
   const note = source?.note || state.pitchDraft;
@@ -4290,16 +4821,14 @@ function saveCurrentPitchPreset(source = null) {
   const pitchId = slugifyIdPart(values.id) || generatedId;
   const pitchName = values.name.trim() || `音高 ${formatDecimal(note.cent)}`;
   const shortName = values.shortName.trim();
-
   if (state.pitchPresets.some((preset) => preset.id === pitchId)) {
-    setStatus(els.pitchPresetStatus, `ID ${pitchId} は既に使われています。`, "error");
+    setStatus(els.pitchPresetStatus, `ID ${pitchId} は既存プリセットと重複しています。`, "error");
     return;
   }
   if (state.pitchPresets.some((preset) => preset.name === pitchName)) {
-    setStatus(els.pitchPresetStatus, `音名 ${pitchName} は既に使われています。`, "error");
+    setStatus(els.pitchPresetStatus, `名前 ${pitchName} は既存プリセットと重複しています。`, "error");
     return;
   }
-
   state.pitchPresets.push({
     id: pitchId,
     name: pitchName,
@@ -4311,39 +4840,37 @@ function saveCurrentPitchPreset(source = null) {
     tags: parseCsvList(values.tags),
     memo: values.memo.trim()
   });
-
   const after = snapshotState();
-  trackStateChange("create_pitch_preset", "音高プリセット追加", before, after);
+  trackStateChange("create_pitch_preset", "音高プリセットを保存", before, after);
   els.pitchPresetIdInput.value = "";
   els.pitchPresetNameInput.value = "";
   els.pitchPresetShortNameInput.value = "";
   els.pitchPresetTagsInput.value = "";
   els.pitchPresetMemoInput.value = "";
-  setStatus(els.pitchPresetStatus, `${pitchName} を追加しました。`, "success");
+  setStatus(els.pitchPresetStatus, `${pitchName} を保存しました。`, "success");
   render();
 }
+
 
 function populateRecallRootPresetOptions() {
   const select = els.recallRootPresetSelect;
   const previous = select.value;
   select.innerHTML = "";
-
   const empty = document.createElement("option");
   empty.value = "";
   empty.textContent = "未選択";
   select.appendChild(empty);
-
   sortedPitchPresets().forEach((preset) => {
     const option = document.createElement("option");
     option.value = preset.id;
-    option.textContent = `${formatPresetDisplayName(preset)} / ${formatDecimal(preset.cent)}c`;
+    option.textContent = `${formatPresetDisplayName(preset)} / ${formatDecimal(preset.cent)}¢`;
     select.appendChild(option);
   });
-
   select.disabled = state.pitchPresets.length === 0;
   const fallbackId = defaultRootPresetId();
   select.value = state.pitchPresets.some((preset) => preset.id === previous) ? previous : fallbackId;
 }
+
 
 function resolveRecallRoot() {
   const directText = els.recallRootTextInput.value.trim();
@@ -4369,17 +4896,15 @@ function renderRecallSummary() {
   }
   const root = resolveRecallRoot();
   if (!root) {
-    els.recallChordSummary.textContent = "音高入力かプリセット選択してください。";
+    els.recallChordSummary.textContent = "音高入力かプリセット選択をしてください。";
     els.loadChordBtn.disabled = true;
     return;
   }
-  const rootLabel =
-    els.recallRootTextInput.value.trim() ||
-    formatPresetDisplayName(findPitchPresetById(els.recallRootPresetSelect.value)) ||
-    "未選択";
+  const rootLabel = els.recallRootTextInput.value.trim() || formatPresetDisplayName(findPitchPresetById(els.recallRootPresetSelect.value)) || "未選択";
   els.recallChordSummary.textContent = `${chord.name} / 構成音 ${chord.tones.length} / root ${rootLabel}`;
   els.loadChordBtn.disabled = false;
 }
+
 
 function syncChordComposerInputsFromRow(row) {
   if (!(row instanceof HTMLElement)) return;
@@ -4398,83 +4923,62 @@ function renderProgressionSummary() {
   const current = chunkInfo.index >= 0 ? String(chunkInfo.index + 1).padStart(2, "0") : "00";
   const total = String(chunkInfo.chunks.length).padStart(2, "0");
   els.progCounter.textContent = `${current}/${total}`;
-
   const selected = selectedIndex >= 0 ? state.progression.parts[selectedIndex] : null;
   const chord = selected ? state.chordPresets.find((item) => item.id === selected.chordId) : null;
   const editorRoot = state.progressionEditor.rootNoteText;
   const bassLabel = bassTokenLabel();
   const inversionLabel = `${currentInversionLabel()} / oct ${currentVoicingOctave()}`;
-  const sectionLabel = selected
-    ? String(selected.sectionName || "").trim()
-    : String(state.progressionEditor.sectionName || "").trim();
+  const sectionLabel = selected ? String(selected.sectionName || "").trim() : String(state.progressionEditor.sectionName || "").trim();
   els.progSummary.textContent = selected
     ? `${sectionLabel ? `${sectionLabel} / ` : ""}${chord?.name || selected.chordId} / ${formatDirectRootFromPart(selected.root)} / bass ${bassLabel} / ${inversionLabel} / ${selected.beats}/${selected.beatUnit || 4}`
     : `編集中: ${sectionLabel ? `${sectionLabel} / ` : ""}${state.progressionEditor.chordId || "未選択"} / ${editorRoot} / bass ${bassLabel} / ${inversionLabel} / ${state.progressionEditor.beats}/${state.progressionEditor.beatUnit || 4}`;
 }
+
 
 function saveChordFromActiveNotes() {
   if (state.activeNotes.length === 0) {
     setStatus(els.chordStatus, "activeNotes がありません。", "error");
     return;
   }
-
   const root = resolveRecallRoot();
   if (!root) {
-    setStatus(els.chordStatus, "基音を指定できませんでした。", "error");
+    setStatus(els.chordStatus, "基音を指定してください。", "error");
     return;
   }
-
   const before = snapshotState();
   const rawName = els.chordNameInput.value.trim();
   const generatedId = `CHORD_${slugifyIdPart(rawName || "AUTO")}_${state.chordPresets.length + 1}`;
   const chordId = slugifyIdPart(els.chordIdInput.value) || generatedId;
   const userLabels = parseCsvList(els.chordLabelsInput.value);
   const rootAbsolute = (root.octave * OCTAVE_MICROSTEP) + root.microStepInOctave;
-  const orderedNotes = [
-    ...state.activeNotes
-      .slice()
-      .sort(
-        (a, b) =>
-          (absoluteMicroStep(a) - rootAbsolute) -
-          (absoluteMicroStep(b) - rootAbsolute)
-      )
-  ];
-
+  const orderedNotes = [...state.activeNotes.slice().sort((a, b) => (absoluteMicroStep(a) - rootAbsolute) - (absoluteMicroStep(b) - rootAbsolute))];
   const tones = orderedNotes.map((note, index) => {
     const relative = normalizePitch(0, absoluteMicroStep(note) - rootAbsolute);
     const preset = findPitchPresetByMicroStep(relative.microStepInOctave);
     const label = userLabels[index] || buildChordToneDefaultsFromAbsolute(note, index, rootAbsolute);
     return {
       pitchPresetId: preset ? preset.id : null,
-      localAnonymousId: preset ? null : `anon:${chordId}:${String(index + 1).padStart(4, "0")}`,
+      localAnonymousId: preset ? null : `anon:${chordId}:${String(index + 1).padStart(4, "0")}` ,
       localCent: preset ? null : Number(microStepToCent(relative.microStepInOctave)),
       octaveShift: relative.octave,
       label
     };
   });
-
   const chordName = rawName || deriveChordName(userLabels, tones);
   if (state.chordPresets.some((preset) => preset.id === chordId)) {
-    setStatus(els.chordStatus, `ID ${chordId} は既に使われています。`, "error");
+    setStatus(els.chordStatus, `ID ${chordId} は既存プリセットと重複しています。`, "error");
     return;
   }
-
   state.chordPresets.push({
     id: chordId,
     name: chordName,
-    baseRoot: {
-      octave: root.octave,
-      microStepInOctave: root.microStepInOctave,
-      pitchPresetId: root.pitchPresetId || null,
-      noteText: root.noteText || ""
-    },
+    baseRoot: { octave: root.octave, microStepInOctave: root.microStepInOctave, pitchPresetId: root.pitchPresetId || null, noteText: root.noteText || "" },
     tones,
     tags: parseCsvList(els.chordTagsInput.value),
     memo: els.chordMemoInput.value.trim()
   });
-
   const after = snapshotState();
-  trackStateChange("create_chord_preset", "コード保存", before, after);
+  trackStateChange("create_chord_preset", "コードプリセットを保存", before, after);
   els.chordIdInput.value = "";
   els.chordNameInput.value = "";
   els.chordTagsInput.value = "";
@@ -4484,26 +4988,24 @@ function saveChordFromActiveNotes() {
   render();
 }
 
+
 async function loadChordIntoActiveNotes(chordId = els.recallChordSelect.value) {
   if (chordId) {
     els.recallChordSelect.value = chordId;
   }
   const chord = state.chordPresets.find((item) => item.id === chordId);
   if (!chord) {
-    setStatus(els.recallChordStatus, "呼び出すコードがありません。", "error");
+    setStatus(els.recallChordStatus, "保存済みコードが見つかりません。", "error");
     return;
   }
-
   const root = resolveRecallRoot();
   if (!root) {
     setStatus(els.recallChordStatus, "基音を指定してください。", "error");
     return;
   }
-
   const before = snapshotState();
   const rootAbsolute = (root.octave * OCTAVE_MICROSTEP) + root.microStepInOctave;
   const notesById = new Map();
-
   chord.tones.forEach((tone, index) => {
     let intervalMicroStep = 0;
     if (tone.pitchPresetId) {
@@ -4513,51 +5015,59 @@ async function loadChordIntoActiveNotes(chordId = els.recallChordSelect.value) {
     } else {
       intervalMicroStep = centToMicroStep(Number(tone.localCent) || 0);
     }
-
     const absolute = rootAbsolute + (tone.octaveShift * OCTAVE_MICROSTEP) + intervalMicroStep;
     const normalized = normalizePitch(0, absolute);
     const noteId = buildNoteId(normalized.octave, normalized.microStepInOctave);
     if (!notesById.has(noteId)) {
-      notesById.set(noteId, {
-        id: noteId,
-        octave: normalized.octave,
-        microStepInOctave: normalized.microStepInOctave,
-        cent: Number(microStepToCent(normalized.microStepInOctave)),
-        sourceChordId: chord.id,
-        sourceToneIndex: index
-      });
+      notesById.set(noteId, { id: noteId, octave: normalized.octave, microStepInOctave: normalized.microStepInOctave, cent: Number(microStepToCent(normalized.microStepInOctave)), sourceChordId: chord.id, sourceToneIndex: index });
     }
   });
-
   state.activeNotes = [...notesById.values()].sort((a, b) => absoluteMicroStep(a) - absoluteMicroStep(b));
   pitchUi.lastTouchedNoteId = state.activeNotes[0]?.id || null;
   syncDraftFromCent(microStepToCent(root.microStepInOctave), root.octave);
   const after = snapshotState();
-  trackStateChange("load_chord_preset", "コード呼び出し", before, after);
+  trackStateChange("load_chord_preset", "コードを activeNotes へ展開", before, after);
   syncFormFromState();
   render();
   await syncAudioToActiveNotes();
   setStatus(els.recallChordStatus, `${chord.name} を展開しました。`, "success");
 }
 
+
 function render() {
   const currentPreset = findPitchPresetByMicroStep(state.pitchDraft.microStepInOctave);
-  const parts = [
-    `cent ${formatDecimal(state.pitchDraft.cent)}`
-  ];
-  if (currentPreset) {
-    parts.push(`named ${formatPresetDisplayName(currentPreset)}`);
-  }
+  const parts = [`cent ${formatDecimal(state.pitchDraft.cent)}`];
+  if (currentPreset) parts.push(`named ${formatPresetDisplayName(currentPreset)}`);
   els.lineReadout.textContent = parts.join(" / ");
-
   renderLine();
-  renderActiveNotes();
-  renderPitchPresets();
-  normalizePitchPresetTableColumns();
-  renderChordPresets();
+  renderActiveNotesV2();
+  renderPitchPresetsV2();
+  renderChordPresetsV2();
   renderProgressionGrid();
   renderProgressionSummary();
+  updateBulkBars();
+  renderProgressionChordButtons();
+  renderProgressionEditorButtons();
+  renderRecallSummary();
+  els.addProgPartBtn.textContent = state.progression.selectedPartId ? "後ろに挿入" : "追加";
+  if (els.addProgChunkBtn) els.addProgChunkBtn.disabled = !state.progressionEditor.chordId;
+  if (els.addProgSectionBtn) els.addProgSectionBtn.disabled = !state.progressionEditor.chordId;
+  els.deleteProgPartBtn.disabled = !state.progression.selectedPartId;
+  els.progPrevBtn.disabled = state.progression.parts.length === 0;
+  els.progNextBtn.disabled = state.progression.parts.length === 0;
+  els.playProgBtn.disabled = state.progression.parts.length === 0;
+  els.playProgBtn.textContent = state.progression.playingPartId ? "一時停止" : "再生";
+  els.stopProgBtn.disabled = !state.progression.playingPartId;
+  els.stopProgBtn.textContent = "??";
+  els.saveChordBtn.disabled = state.activeNotes.length === 0;
+  document.querySelectorAll("#waveformButtonGroup button").forEach((button) => {
+    if (button instanceof HTMLButtonElement) {
+      button.classList.toggle("active", button.dataset.waveform === state.settings.waveform);
+    }
+  });
+  syncProgressionLayoutState();
 }
+
 
 async function restoreFromStorage() {
   try {
@@ -4598,7 +5108,7 @@ async function init() {
   restoreWorkspaceColumns();
   syncWorkspaceViewState("pitch");
   if (runtimeState.mode !== "https") {
-    await resetDevelopmentCaches();
+    await resetDevelopmentCaches().catch(() => {});
   }
   await restoreFromStorage();
   migratePitchScale();
@@ -4623,7 +5133,7 @@ async function init() {
   window.addEventListener("appinstalled", () => {
     deferredInstallPrompt = null;
     renderPwaPrompt();
-    showRuntimeNotice("PWA をインストールしました。ホーム画面から単体アプリとして起動できます。", "success");
+    showRuntimeNotice("PWA モードで起動中です。設定やメニューから状態を確認できます。", "success");
   });
 
   if ("serviceWorker" in navigator && runtimeState.swAllowed && runtimeState.mode === "https") {
@@ -4652,8 +5162,8 @@ async function init() {
     }).catch((err) => {
       console.warn("service worker register failed:", err);
       showRuntimeWarning(
-        "PWA機能の初期化に失敗しました（通常利用は継続可能）。<br>" +
-        "開発時は <code>localhost</code>、PWA 利用時は HTTPS URL を使ってください。"
+        "PWA 用の Service Worker 登録に失敗しました。<br>" +
+        "PC 開発時は <code>localhost</code>、PWA 実機確認は HTTPS 公開 URL を使ってください。"
       );
     });
   }
@@ -4670,7 +5180,7 @@ init().catch((err) => {
   console.error("init failed:", err);
   showRuntimeWarning(
     "初期化に失敗しました。<br>" +
-    "このアプリは <code>localhost</code> で開いてください。<br>" +
-    "例: <code>python -m http.server 5173</code> → <code>http://localhost:5173/</code>"
+    "このアプリは <code>localhost</code> または <code>127.0.0.1</code> の HTTP サーバーで開いてください。<br>" +
+    "例: <code>python -m http.server 5173</code> を実行して <code>http://localhost:5173/</code> を開いてください。"
   );
 });

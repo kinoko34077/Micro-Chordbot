@@ -2,6 +2,17 @@ const DB_NAME = "muChordbotDB";
 const STORE_NAME = "project";
 const KEY = "current";
 const DEFAULT_PROJECT_URL = "./default_project.mcb";
+const DEFAULT_PROJECT_SOURCE_ID = "project-7";
+const DB_TIMEOUT_MS = 900;
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+    })
+  ]);
+}
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -18,10 +29,13 @@ function openDb() {
 }
 
 export async function saveProject(stateWithoutHistory) {
+  const storedValue = stateWithoutHistory?.app === "muChordbot"
+    ? { ...stateWithoutHistory, defaultProjectSourceId: DEFAULT_PROJECT_SOURCE_ID }
+    : stateWithoutHistory;
   const db = await openDb();
   await new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).put(stateWithoutHistory, KEY);
+    tx.objectStore(STORE_NAME).put(storedValue, KEY);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
@@ -38,26 +52,41 @@ async function loadDefaultProject() {
   if (!payload || projectFile?.app !== "muChordbot" || projectFile?.extensionType !== "mcb") {
     throw new Error("Default project file is invalid.");
   }
-  return payload;
+  return {
+    ...projectFile,
+    defaultProjectSourceId: DEFAULT_PROJECT_SOURCE_ID
+  };
 }
 
 export async function loadProject() {
-  const db = await openDb();
-  const value = await new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const req = tx.objectStore(STORE_NAME).get(KEY);
-    req.onsuccess = () => resolve(req.result || null);
-    req.onerror = () => reject(req.error);
-  });
-  db.close();
+  let db = null;
+  let value = null;
+  try {
+    db = await withTimeout(openDb(), DB_TIMEOUT_MS, "Project DB open");
+    value = await withTimeout(new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const req = tx.objectStore(STORE_NAME).get(KEY);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    }), DB_TIMEOUT_MS, "Project DB read");
+  } catch (error) {
+    console.warn("Project DB load failed. Falling back to default project.", error);
+  } finally {
+    db?.close();
+  }
 
   if (value) {
+    if (value?.defaultProjectSourceId !== DEFAULT_PROJECT_SOURCE_ID) {
+      const defaultProject = await loadDefaultProject();
+      await saveProject(defaultProject).catch(() => {});
+      return defaultProject;
+    }
     return value;
   }
 
   try {
     const defaultProject = await loadDefaultProject();
-    await saveProject(defaultProject);
+    await saveProject(defaultProject).catch(() => {});
     return defaultProject;
   } catch (error) {
     console.warn(error);

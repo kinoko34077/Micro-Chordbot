@@ -1,9 +1,10 @@
-const CACHE_NAME = "mu-chordbot-v4";
+const CACHE_NAME = "mu-chordbot-v5";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./manifest.webmanifest",
+  "./default_project.mcb",
   "./icons/icon-192.svg",
   "./icons/icon-512.svg",
   "./src/app.js",
