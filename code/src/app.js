@@ -10,6 +10,29 @@ import {
   OCTAVE_MICROSTEP
 } from "./pitch.js";
 import { loadProject, saveProject } from "./storage.js";
+import {
+  DEFAULT_CHORD_PRESETS,
+  DEFAULT_PITCH_PRESETS,
+  ROOT_ACCIDENTAL_OPTIONS,
+  ROOT_NOTE_SEMITONES
+} from "./default-library.js";
+import {
+  buildLibraryPayload as createLibraryPayload,
+  buildProgressionPayload as createProgressionPayload,
+  buildProjectPayload as createProjectPayload,
+  cloneStateSnapshot as cloneProjectStateSnapshot,
+  ensureDefaultLibrary as ensureDefaultLibraryState,
+  migratePitchScale as migratePitchScaleState
+} from "./project-state.js";
+import {
+  formatDecimal,
+  normalizeFilterText,
+  parseCsvList,
+  slugifyIdPart,
+  sortByColumn,
+  sortIndicator,
+  toggleSortState
+} from "./format-utils.js";
 
 const audio = new AudioEngine();
 const history = new HistoryManager(100);
@@ -17,35 +40,8 @@ const MOMENTARY_VOICE_ID = "__preview__";
 const DRAG_PREVIEW_VOICE_ID = "__preview_drag__";
 const PROGRESSION_VOICE_PREFIX = "__prog__:";
 const PROGRESSION_PREVIEW_VOICE_PREFIX = "__prog_preview__:";
-const APP_BUILD = "2026-05-19-default-project-layout-1";
+const APP_BUILD = "2026-05-20-performance-refactor-1";
 const SEMITONE_MICROSTEP = centToMicroStep(100);
-const ROOT_NOTE_SEMITONES = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-const ROOT_ACCIDENTAL_OPTIONS = [
-  { id: "flat", symbol: "b", delta: -1 },
-  { id: "natural", symbol: "", delta: 0 },
-  { id: "sharp", symbol: "#", delta: 1 }
-];
-const DEFAULT_PITCH_PRESETS = [
-  { id: "PITCH_P1_0", name: "完全1度", shortName: "P1", cent: 0, microStep: 0, symbolRuleKey: "default", symbolMap: {}, tags: ["core", "degree"], memo: "default root" },
-  { id: "PITCH_M2_600", name: "長2度", shortName: "M2", cent: 200, microStep: 600, symbolRuleKey: "default", symbolMap: {}, tags: ["core", "degree"], memo: "" },
-  { id: "PITCH_M3_1200", name: "長3度", shortName: "M3", cent: 400, microStep: 1200, symbolRuleKey: "default", symbolMap: {}, tags: ["core", "degree"], memo: "" },
-  { id: "PITCH_P4_1500", name: "完全4度", shortName: "P4", cent: 500, microStep: 1500, symbolRuleKey: "default", symbolMap: {}, tags: ["core", "degree"], memo: "" },
-  { id: "PITCH_B5_1800", name: "減5度", shortName: "b5", cent: 600, microStep: 1800, symbolRuleKey: "default", symbolMap: {}, tags: ["altered", "degree"], memo: "" },
-  { id: "PITCH_P5_2100", name: "完全5度", shortName: "P5", cent: 700, microStep: 2100, symbolRuleKey: "default", symbolMap: {}, tags: ["core", "degree"], memo: "" },
-  { id: "PITCH_M6_2700", name: "長6度", shortName: "M6", cent: 900, microStep: 2700, symbolRuleKey: "default", symbolMap: {}, tags: ["degree"], memo: "" },
-  { id: "PITCH_M7_3300", name: "長7度", shortName: "M7", cent: 1100, microStep: 3300, symbolRuleKey: "default", symbolMap: {}, tags: ["degree"], memo: "" },
-  { id: "PITCH_m3_900", name: "短3度", shortName: "m3", cent: 300, microStep: 900, symbolRuleKey: "default", symbolMap: {}, tags: ["minor", "degree"], memo: "" },
-  { id: "PITCH_m7_3000", name: "短7度", shortName: "m7", cent: 1000, microStep: 3000, symbolRuleKey: "default", symbolMap: {}, tags: ["minor", "degree"], memo: "" }
-];
-const DEFAULT_CHORD_PRESETS = [
-  { id: "CHORD_MAJ", name: "maj", baseRoot: { octave: 4, microStepInOctave: 0, pitchPresetId: "PITCH_P1_0", noteText: "C4" }, tones: [{ pitchPresetId: "PITCH_P1_0", localAnonymousId: null, localCent: null, octaveShift: 0, label: "Root" }, { pitchPresetId: "PITCH_M3_1200", localAnonymousId: null, localCent: null, octaveShift: 0, label: "M3" }, { pitchPresetId: "PITCH_P5_2100", localAnonymousId: null, localCent: null, octaveShift: 0, label: "P5" }], tags: ["basic", "major"], memo: "" },
-  { id: "CHORD_MIN", name: "min", baseRoot: { octave: 4, microStepInOctave: 0, pitchPresetId: "PITCH_P1_0", noteText: "C4" }, tones: [{ pitchPresetId: "PITCH_P1_0", localAnonymousId: null, localCent: null, octaveShift: 0, label: "Root" }, { pitchPresetId: "PITCH_m3_900", localAnonymousId: null, localCent: null, octaveShift: 0, label: "m3" }, { pitchPresetId: "PITCH_P5_2100", localAnonymousId: null, localCent: null, octaveShift: 0, label: "P5" }], tags: ["basic", "minor"], memo: "" },
-  { id: "CHORD_7", name: "7", baseRoot: { octave: 4, microStepInOctave: 0, pitchPresetId: "PITCH_P1_0", noteText: "C4" }, tones: [{ pitchPresetId: "PITCH_P1_0", localAnonymousId: null, localCent: null, octaveShift: 0, label: "Root" }, { pitchPresetId: "PITCH_M3_1200", localAnonymousId: null, localCent: null, octaveShift: 0, label: "M3" }, { pitchPresetId: "PITCH_P5_2100", localAnonymousId: null, localCent: null, octaveShift: 0, label: "P5" }, { pitchPresetId: "PITCH_m7_3000", localAnonymousId: null, localCent: null, octaveShift: 0, label: "m7" }], tags: ["basic", "dominant"], memo: "" },
-  { id: "CHORD_M7", name: "M7", baseRoot: { octave: 4, microStepInOctave: 0, pitchPresetId: "PITCH_P1_0", noteText: "C4" }, tones: [{ pitchPresetId: "PITCH_P1_0", localAnonymousId: null, localCent: null, octaveShift: 0, label: "Root" }, { pitchPresetId: "PITCH_M3_1200", localAnonymousId: null, localCent: null, octaveShift: 0, label: "M3" }, { pitchPresetId: "PITCH_P5_2100", localAnonymousId: null, localCent: null, octaveShift: 0, label: "P5" }, { pitchPresetId: "PITCH_M7_3300", localAnonymousId: null, localCent: null, octaveShift: 0, label: "M7" }], tags: ["basic", "major"], memo: "" },
-  { id: "CHORD_m7", name: "m7", baseRoot: { octave: 4, microStepInOctave: 0, pitchPresetId: "PITCH_P1_0", noteText: "C4" }, tones: [{ pitchPresetId: "PITCH_P1_0", localAnonymousId: null, localCent: null, octaveShift: 0, label: "Root" }, { pitchPresetId: "PITCH_m3_900", localAnonymousId: null, localCent: null, octaveShift: 0, label: "m3" }, { pitchPresetId: "PITCH_P5_2100", localAnonymousId: null, localCent: null, octaveShift: 0, label: "P5" }, { pitchPresetId: "PITCH_m7_3000", localAnonymousId: null, localCent: null, octaveShift: 0, label: "m7" }], tags: ["basic", "minor"], memo: "" },
-  { id: "CHORD_SUS4", name: "sus4", baseRoot: { octave: 4, microStepInOctave: 0, pitchPresetId: "PITCH_P1_0", noteText: "C4" }, tones: [{ pitchPresetId: "PITCH_P1_0", localAnonymousId: null, localCent: null, octaveShift: 0, label: "Root" }, { pitchPresetId: "PITCH_P4_1500", localAnonymousId: null, localCent: null, octaveShift: 0, label: "P4" }, { pitchPresetId: "PITCH_P5_2100", localAnonymousId: null, localCent: null, octaveShift: 0, label: "P5" }], tags: ["basic", "sus"], memo: "" },
-  { id: "CHORD_DIM", name: "dim", baseRoot: { octave: 4, microStepInOctave: 0, pitchPresetId: "PITCH_P1_0", noteText: "C4" }, tones: [{ pitchPresetId: "PITCH_P1_0", localAnonymousId: null, localCent: null, octaveShift: 0, label: "Root" }, { pitchPresetId: "PITCH_m3_900", localAnonymousId: null, localCent: null, octaveShift: 0, label: "m3" }, { pitchPresetId: "PITCH_B5_1800", localAnonymousId: null, localCent: null, octaveShift: 0, label: "b5" }], tags: ["basic", "dim"], memo: "" }
-];
 
 const state = {
   settings: {
@@ -264,10 +260,97 @@ const popoverUi = {
   active: "",
   pointerDown: false
 };
+const renderCache = Object.create(null);
+const dataRevision = {
+  pitch: 0,
+  chord: 0,
+  progression: 0,
+  settings: 0
+};
+let persistDirty = false;
+let persistTimerId = null;
 const ROOT_BASS_TOKEN = "__root__";
 const WORKSPACE_COLUMNS_STORAGE_KEY = "uchordbot.workspaceColumns.v1";
 const VOLUME_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"></path><path d="M16 9.5c1.2 1.2 1.2 3.8 0 5"></path><path d="M18.5 7c2.4 2.6 2.4 7.4 0 10"></path></svg>';
 const MENU_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"></path><path d="M4 12h16"></path><path d="M4 17h16"></path></svg>';
+
+function invalidateRenderCache() {
+  for (const key of Object.keys(renderCache)) {
+    delete renderCache[key];
+  }
+}
+
+function renderIfChanged(slot, key, run) {
+  if (renderCache[slot] === key) return;
+  renderCache[slot] = key;
+  run();
+}
+
+function selectionKey(set) {
+  return [...set].sort().join("|");
+}
+
+function isViewVisible(viewId) {
+  return els.views.some((view) => view.id === viewId && view.classList.contains("active"));
+}
+
+function bumpAllDataRevisions() {
+  dataRevision.pitch += 1;
+  dataRevision.chord += 1;
+  dataRevision.progression += 1;
+  dataRevision.settings += 1;
+}
+
+function bumpDataRevisionForChange(type) {
+  if (type === "json_import") {
+    bumpAllDataRevisions();
+    return;
+  }
+
+  if (
+    type.startsWith("update_progression_") ||
+    type.startsWith("add_progression_") ||
+    type.startsWith("rename_progression_") ||
+    type.startsWith("delete_progression_") ||
+    type.startsWith("reorder_progression_")
+  ) {
+    dataRevision.progression += 1;
+  }
+
+  if (
+    type.includes("pitch") ||
+    type.includes("active_note") ||
+    type === "clear_active_notes" ||
+    type === "remove_active_note" ||
+    type === "delete_active_notes" ||
+    type === "load_chord_preset"
+  ) {
+    dataRevision.pitch += 1;
+  }
+
+  if (
+    type.includes("chord") ||
+    type === "load_chord_preset"
+  ) {
+    dataRevision.chord += 1;
+  }
+
+  if (
+    type.startsWith("update_") ||
+    type === "update_mode"
+  ) {
+    dataRevision.settings += 1;
+  }
+}
+
+function markProjectDirty() {
+  persistDirty = true;
+  if (persistTimerId) clearTimeout(persistTimerId);
+  persistTimerId = window.setTimeout(() => {
+    persistTimerId = null;
+    persistLoop().catch(() => {});
+  }, 1200);
+}
 
 function setLabelLead(input, text) {
   const label = input?.closest("label");
@@ -740,15 +823,7 @@ function isStandaloneDisplay() {
 }
 
 function snapshotState() {
-  return JSON.parse(JSON.stringify({
-    settings: state.settings,
-    pitchDraft: state.pitchDraft,
-    activeNotes: state.activeNotes,
-    pitchPresets: state.pitchPresets,
-    chordPresets: state.chordPresets,
-    progression: state.progression,
-    progressionEditor: state.progressionEditor
-  }));
+  return cloneProjectStateSnapshot(state);
 }
 
 function setStatus(el, message, tone = "") {
@@ -763,48 +838,6 @@ function setStatus(el, message, tone = "") {
 
 function absoluteMicroStep(note) {
   return (note.octave * OCTAVE_MICROSTEP) + note.microStepInOctave;
-}
-
-function parseCsvList(value) {
-  return String(value || "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function normalizeFilterText(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function compareNamedItems(a, b) {
-  return String(a?.name || a?.id || "").localeCompare(String(b?.name || b?.id || ""), "ja");
-}
-
-function sortByColumn(items, sortState, valueResolver) {
-  const column = sortState?.column || "name";
-  const direction = sortState?.direction === "desc" ? -1 : 1;
-  return [...items].sort((a, b) => {
-    const av = valueResolver(a, column);
-    const bv = valueResolver(b, column);
-    const result = typeof av === "number" && typeof bv === "number"
-      ? av - bv
-      : String(av ?? "").localeCompare(String(bv ?? ""), "ja", { numeric: true });
-    return result * direction;
-  });
-}
-
-function toggleSortState(sortState, column) {
-  if (sortState.column === column) {
-    sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
-  } else {
-    sortState.column = column;
-    sortState.direction = "asc";
-  }
-}
-
-function sortIndicator(sortState, column) {
-  if (sortState?.column !== column) return "";
-  return sortState.direction === "desc" ? " ▼" : " ▲";
 }
 
 function isRootLikePreset(preset) {
@@ -895,58 +928,20 @@ function filteredChordPresets(filterText) {
   });
 }
 
-function slugifyIdPart(value) {
-  return String(value || "")
-    .trim()
-    .replace(/\s+/g, "_")
-    .replace(/[^0-9A-Za-z_:-]/g, "")
-    .toUpperCase();
-}
-
 function buildNoteId(octave, microStepInOctave) {
   return `note:${octave}:${microStepInOctave}`;
 }
 
-function buildProjectPayload() {
-  return {
-    app: "muChordbot",
-    specVersion: "1.2.0",
-    extensionType: "mcb",
-    exportType: "project",
-    payload: {
-      settings: state.settings,
-      pitchPresets: state.pitchPresets,
-      chordPresets: state.chordPresets,
-      progression: state.progression,
-      progressionEditor: state.progressionEditor
-    }
-  };
+function buildProjectPayloadForSave() {
+  return createProjectPayload(state);
 }
 
-function buildProgressionPayload() {
-  return {
-    app: "muChordbot",
-    specVersion: "1.2.0",
-    extensionType: "mcbp",
-    exportType: "progression",
-    payload: {
-      progression: state.progression,
-      progressionEditor: state.progressionEditor
-    }
-  };
+function buildProgressionPayloadForSave() {
+  return createProgressionPayload(state);
 }
 
-function buildLibraryPayload() {
-  return {
-    app: "muChordbot",
-    specVersion: "1.2.0",
-    extensionType: "mcbl",
-    exportType: "library",
-    payload: {
-      pitchPresets: state.pitchPresets,
-      chordPresets: state.chordPresets
-    }
-  };
+function buildLibraryPayloadForSave() {
+  return createLibraryPayload(state);
 }
 
 function findPitchPresetById(id) {
@@ -957,38 +952,8 @@ function findPitchPresetByMicroStep(microStep) {
   return state.pitchPresets.find((preset) => preset.microStep === microStep) || null;
 }
 
-function migratePitchScale() {
-  state.pitchPresets.forEach((preset) => {
-    if (Number.isFinite(Number(preset.cent))) {
-      preset.cent = Number(microStepToCent(centToMicroStep(preset.cent)));
-      preset.microStep = centToMicroStep(preset.cent);
-    }
-  });
-  state.activeNotes.forEach((note) => {
-    const cent = Number.isFinite(Number(note.cent)) ? Number(note.cent) : microStepToCent(note.microStepInOctave || 0);
-    const normalized = normalizePitch(note.octave || 0, centToMicroStep(cent));
-    note.octave = normalized.octave;
-    note.microStepInOctave = normalized.microStepInOctave;
-    note.cent = Number(microStepToCent(normalized.microStepInOctave));
-    note.id = buildNoteId(note.octave, note.microStepInOctave);
-  });
-  const migratePitchObject = (pitch) => {
-    if (!pitch || !Number.isFinite(Number(pitch.microStepInOctave))) return;
-    const legacyLikely = Math.abs(Number(pitch.microStepInOctave)) <= 3600 && OCTAVE_MICROSTEP > 3600;
-    if (!legacyLikely) return;
-    const normalized = normalizePitch(pitch.octave || 0, Math.round(Number(pitch.microStepInOctave) / 3 * 100));
-    pitch.octave = normalized.octave;
-    pitch.microStepInOctave = normalized.microStepInOctave;
-  };
-  state.chordPresets.forEach((chord) => migratePitchObject(chord.baseRoot));
-  state.progression.parts.forEach((part) => migratePitchObject(part.root));
-  migratePitchObject(state.pitchDraft);
-}
-
-function formatDecimal(value, maxFractionDigits = 2) {
-  const num = Math.round(Number(value) * 100) / 100;
-  if (!Number.isFinite(num)) return "";
-  return num.toFixed(maxFractionDigits).replace(/\.?0+$/, "");
+function migratePitchScaleInState() {
+  migratePitchScaleState(state, { microStepToCent, centToMicroStep, normalizePitch, OCTAVE_MICROSTEP });
 }
 
 function formatCent(value) {
@@ -1250,6 +1215,7 @@ function applySnapshot(snap) {
   state.chordPresets = snap.chordPresets ?? [];
   state.progression = snap.progression ?? state.progression;
   state.progressionEditor = snap.progressionEditor ?? state.progressionEditor;
+  bumpAllDataRevisions();
   pitchUi.lastTouchedNoteId = state.activeNotes[0]?.id || null;
   syncFormFromState();
   render();
@@ -1265,7 +1231,9 @@ function trackStateChange(type, label, before, after) {
     after,
     timestamp: new Date().toISOString()
   });
+  bumpDataRevisionForChange(type);
   updateHistoryButtons();
+  markProjectDirty();
 }
 
 function updateHistoryButtons() {
@@ -1371,6 +1339,8 @@ function setView(view) {
   }
   syncWorkspaceViewState(view);
   syncProgressionLayoutState();
+  invalidateRenderCache();
+  render();
 }
 
 function syncDraftFromCent(cent, octave) {
@@ -2123,7 +2093,7 @@ function paintProgressionGridReorderState() {
 }
 
 function exportProject() {
-  const payload = buildProjectPayload();
+  const payload = buildProjectPayloadForSave();
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -2133,7 +2103,7 @@ function exportProject() {
 }
 
 function exportLibrary() {
-  const payload = buildLibraryPayload();
+  const payload = buildLibraryPayloadForSave();
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -2143,7 +2113,7 @@ function exportLibrary() {
 }
 
 function exportProgressionProject() {
-  const payload = buildProgressionPayload();
+  const payload = buildProgressionPayloadForSave();
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -2163,15 +2133,6 @@ function mergeById(existingItems, incomingItems) {
     added += 1;
   }
   return { merged, added };
-}
-
-function ensureDefaultLibrary() {
-  if (!Array.isArray(state.pitchPresets) || state.pitchPresets.length === 0) {
-    state.pitchPresets = JSON.parse(JSON.stringify(DEFAULT_PITCH_PRESETS));
-  }
-  if (!Array.isArray(state.chordPresets) || state.chordPresets.length === 0) {
-    state.chordPresets = JSON.parse(JSON.stringify(DEFAULT_CHORD_PRESETS));
-  }
 }
 
 async function importDataFile(file) {
@@ -2232,7 +2193,7 @@ async function importDataFile(file) {
       }
       setStatus(els.manageStatus, "project を読込しました。", "success");
     }
-    migratePitchScale();
+    migratePitchScaleInState();
     const after = snapshotState();
     trackStateChange("json_import", "json import", before, after);
   } finally {
@@ -2941,11 +2902,6 @@ function parseChordTonesInput(value) {
   }).filter(Boolean);
 }
 
-function renderPitchPresets() {
-  renderPitchPresetsV2();
-}
-
-
 function renderPitchPresetsV2() {
   const container = els.pitchPresetList;
   container.innerHTML = "";
@@ -3092,11 +3048,6 @@ function normalizePitchPresetTableColumns() {
     nameCell.after(idCell);
   });
 }
-
-function renderChordPresets() {
-  renderChordPresetsV2();
-}
-
 
 function renderChordPresetsV2() {
   const container = els.chordPresetList;
@@ -3551,12 +3502,14 @@ function attachEvents() {
 
   els.undoBtn.addEventListener("click", () => {
     history.undo(applySnapshot);
+    markProjectDirty();
     render();
     updateHistoryButtons();
   });
 
   els.redoBtn.addEventListener("click", () => {
     history.redo(applySnapshot);
+    markProjectDirty();
     render();
     updateHistoryButtons();
   });
@@ -4660,11 +4613,6 @@ function syncFormFromState() {
   syncProgressionLayoutState();
 }
 
-function renderActiveNotes() {
-  renderActiveNotesV2();
-}
-
-
 function renderActiveNotesV2() {
   const container = els.activeNotesList;
   container.innerHTML = "";
@@ -5035,36 +4983,88 @@ async function loadChordIntoActiveNotes(chordId = els.recallChordSelect.value) {
 
 
 function render() {
-  const currentPreset = findPitchPresetByMicroStep(state.pitchDraft.microStepInOctave);
-  const parts = [`cent ${formatDecimal(state.pitchDraft.cent)}`];
-  if (currentPreset) parts.push(`named ${formatPresetDisplayName(currentPreset)}`);
-  els.lineReadout.textContent = parts.join(" / ");
-  renderLine();
-  renderActiveNotesV2();
-  renderPitchPresetsV2();
-  renderChordPresetsV2();
-  renderProgressionGrid();
-  renderProgressionSummary();
-  updateBulkBars();
-  renderProgressionChordButtons();
-  renderProgressionEditorButtons();
-  renderRecallSummary();
-  els.addProgPartBtn.textContent = state.progression.selectedPartId ? "後ろに挿入" : "追加";
-  if (els.addProgChunkBtn) els.addProgChunkBtn.disabled = !state.progressionEditor.chordId;
-  if (els.addProgSectionBtn) els.addProgSectionBtn.disabled = !state.progressionEditor.chordId;
-  els.deleteProgPartBtn.disabled = !state.progression.selectedPartId;
-  els.progPrevBtn.disabled = state.progression.parts.length === 0;
-  els.progNextBtn.disabled = state.progression.parts.length === 0;
-  els.playProgBtn.disabled = state.progression.parts.length === 0;
-  els.playProgBtn.textContent = state.progression.playingPartId ? "一時停止" : "再生";
-  els.stopProgBtn.disabled = !state.progression.playingPartId;
-  els.stopProgBtn.textContent = "??";
-  els.saveChordBtn.disabled = state.activeNotes.length === 0;
-  document.querySelectorAll("#waveformButtonGroup button").forEach((button) => {
-    if (button instanceof HTMLButtonElement) {
-      button.classList.toggle("active", button.dataset.waveform === state.settings.waveform);
-    }
+  const pitchVisible = isViewVisible("view-pitch");
+  const progressionVisible = isViewVisible("view-progression");
+
+  if (pitchVisible) {
+    const currentPreset = findPitchPresetByMicroStep(state.pitchDraft.microStepInOctave);
+    const parts = [`cent ${formatDecimal(state.pitchDraft.cent)}`];
+    if (currentPreset) parts.push(`named ${formatPresetDisplayName(currentPreset)}`);
+    const lineReadout = parts.join(" / ");
+    renderIfChanged("line", `${dataRevision.pitch}|${dataRevision.settings}|${lineReadout}`, () => {
+      els.lineReadout.textContent = lineReadout;
+      renderLine();
+    });
+
+    renderIfChanged(
+      "activeNotes",
+      `${dataRevision.pitch}|${els.activeNotesFilterInput?.value || ""}|${presetUi.activeSort.column}:${presetUi.activeSort.direction}|${selectionKey(presetUi.selectedActiveNoteIds)}|${state.pitchDraft.octave}`,
+      renderActiveNotesV2
+    );
+
+    renderIfChanged(
+      "pitchPresets",
+      `${dataRevision.pitch}|${els.pitchPresetFilterInput?.value || ""}|${presetUi.pitchSort.column}:${presetUi.pitchSort.direction}|${selectionKey(presetUi.selectedPitchPresetIds)}|${presetUi.editingPitchPresetId || ""}|${state.pitchDraft.octave}`,
+      renderPitchPresetsV2
+    );
+
+    renderIfChanged(
+      "chordPresets",
+      [
+        dataRevision.chord,
+        dataRevision.pitch,
+        els.chordTagFilterInput?.value || "",
+        `${presetUi.chordSort.column}:${presetUi.chordSort.direction}`,
+        selectionKey(presetUi.selectedChordPresetIds),
+        presetUi.editingChordPresetId || "",
+        els.recallRootTextInput?.value || "",
+        els.recallRootPresetSelect?.value || "",
+        els.chordNameInput?.value || "",
+        els.chordIdInput?.value || "",
+        els.chordTagsInput?.value || "",
+        els.chordLabelsInput?.value || "",
+        els.chordMemoInput?.value || ""
+      ].join("|"),
+      renderChordPresetsV2
+    );
+  }
+
+  if (progressionVisible) {
+    renderIfChanged("progressionGrid", `${dataRevision.progression}|${dataRevision.chord}|${state.settings.progressionCellWidth}`, renderProgressionGrid);
+
+    renderIfChanged("progressionSummary", `${dataRevision.progression}|${dataRevision.chord}|${dataRevision.pitch}`, renderProgressionSummary);
+
+    renderIfChanged("progressionEditor", `${dataRevision.progression}|${dataRevision.chord}|${dataRevision.pitch}|${els.progChordTagFilterInput?.value || ""}`, () => {
+      renderProgressionChordButtons();
+      renderProgressionEditorButtons();
+      renderRecallSummary();
+    });
+
+    renderIfChanged("progressionControls", `${dataRevision.progression}|${state.progression.playingPartId || ""}|${state.activeNotes.length}`, () => {
+      els.addProgPartBtn.textContent = state.progression.selectedPartId ? "後ろに挿入" : "追加";
+      if (els.addProgChunkBtn) els.addProgChunkBtn.disabled = !state.progressionEditor.chordId;
+      if (els.addProgSectionBtn) els.addProgSectionBtn.disabled = !state.progressionEditor.chordId;
+      els.deleteProgPartBtn.disabled = !state.progression.selectedPartId;
+      els.progPrevBtn.disabled = state.progression.parts.length === 0;
+      els.progNextBtn.disabled = state.progression.parts.length === 0;
+      els.playProgBtn.disabled = state.progression.parts.length === 0;
+      els.playProgBtn.textContent = state.progression.playingPartId ? "一時停止" : "再生";
+      els.stopProgBtn.disabled = !state.progression.playingPartId;
+      els.stopProgBtn.textContent = "停止";
+      els.saveChordBtn.disabled = state.activeNotes.length === 0;
+    });
+  }
+
+  renderIfChanged("bulkBars", `${selectionKey(presetUi.selectedPitchPresetIds)}|${selectionKey(presetUi.selectedChordPresetIds)}|${selectionKey(presetUi.selectedActiveNoteIds)}`, updateBulkBars);
+
+  renderIfChanged("waveformButtons", state.settings.waveform, () => {
+    document.querySelectorAll("#waveformButtonGroup button").forEach((button) => {
+      if (button instanceof HTMLButtonElement) {
+        button.classList.toggle("active", button.dataset.waveform === state.settings.waveform);
+      }
+    });
   });
+
   syncProgressionLayoutState();
 }
 
@@ -5093,13 +5093,24 @@ async function restoreFromStorage() {
     if (saved.payload.progressionEditor) {
       state.progressionEditor = { ...state.progressionEditor, ...saved.payload.progressionEditor };
     }
+    bumpAllDataRevisions();
   } catch {
     // keep defaults
   }
 }
 
-async function persistLoop() {
-  await saveProject(buildProjectPayload());
+async function persistLoop(force = false) {
+  if (!force && !persistDirty) return false;
+  try {
+    const changed = await saveProject(buildProjectPayloadForSave());
+    if (changed) {
+      persistDirty = false;
+    }
+    return changed;
+  } catch (error) {
+    persistDirty = true;
+    throw error;
+  }
 }
 
 async function init() {
@@ -5111,13 +5122,12 @@ async function init() {
     await resetDevelopmentCaches().catch(() => {});
   }
   await restoreFromStorage();
-  migratePitchScale();
-  ensureDefaultLibrary();
-  migratePitchScale();
+  migratePitchScaleInState();
+  ensureDefaultLibraryState(state, DEFAULT_PITCH_PRESETS, DEFAULT_CHORD_PRESETS);
+  migratePitchScaleInState();
   state.activeNotes = [];
   syncDraftFromCent(0, state.pitchDraft.octave);
   syncFormFromState();
-  render();
   attachEvents();
   setView("pitch");
   updateHistoryButtons();
@@ -5169,11 +5179,12 @@ async function init() {
   }
 
   window.addEventListener("beforeunload", () => {
-    persistLoop().catch(() => {});
+    if (persistTimerId) {
+      clearTimeout(persistTimerId);
+      persistTimerId = null;
+    }
+    persistLoop(true).catch(() => {});
   });
-  setInterval(() => {
-    persistLoop().catch(() => {});
-  }, 8000);
 }
 
 init().catch((err) => {

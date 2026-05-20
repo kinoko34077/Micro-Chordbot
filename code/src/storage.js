@@ -4,6 +4,7 @@ const KEY = "current";
 const DEFAULT_PROJECT_URL = "./default_project.mcb";
 const DEFAULT_PROJECT_SOURCE_ID = "project-7";
 const DB_TIMEOUT_MS = 900;
+let lastSavedSnapshot = "";
 
 function withTimeout(promise, ms, label) {
   return Promise.race([
@@ -32,6 +33,10 @@ export async function saveProject(stateWithoutHistory) {
   const storedValue = stateWithoutHistory?.app === "muChordbot"
     ? { ...stateWithoutHistory, defaultProjectSourceId: DEFAULT_PROJECT_SOURCE_ID }
     : stateWithoutHistory;
+  const nextSnapshot = JSON.stringify(storedValue);
+  if (nextSnapshot === lastSavedSnapshot) {
+    return false;
+  }
   const db = await openDb();
   await new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
@@ -40,6 +45,8 @@ export async function saveProject(stateWithoutHistory) {
     tx.onerror = () => reject(tx.error);
   });
   db.close();
+  lastSavedSnapshot = nextSnapshot;
+  return true;
 }
 
 async function loadDefaultProject() {
@@ -81,12 +88,14 @@ export async function loadProject() {
       await saveProject(defaultProject).catch(() => {});
       return defaultProject;
     }
+    lastSavedSnapshot = JSON.stringify(value);
     return value;
   }
 
   try {
     const defaultProject = await loadDefaultProject();
     await saveProject(defaultProject).catch(() => {});
+    lastSavedSnapshot = JSON.stringify(defaultProject);
     return defaultProject;
   } catch (error) {
     console.warn(error);
