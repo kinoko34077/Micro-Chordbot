@@ -42,6 +42,26 @@ const PROGRESSION_VOICE_PREFIX = "__prog__:";
 const PROGRESSION_PREVIEW_VOICE_PREFIX = "__prog_preview__:";
 const APP_BUILD = "2026-05-20-performance-refactor-1";
 const SEMITONE_MICROSTEP = centToMicroStep(100);
+const UNDO_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5"></path><path d="M20 18a7 7 0 0 0-7-7H4"></path></svg>';
+const REDO_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5"></path><path d="M4 18a7 7 0 0 1 7-7h9"></path></svg>';
+const DEFAULT_TABLE_COLUMN_WIDTHS = {
+  pitch_name: 5.8,
+  pitch_id: 3.9,
+  pitch_cent: 3.8,
+  pitch_tags: 5.8,
+  pitch_memo: 6.8,
+  active_name: 5.8,
+  active_id: 3.9,
+  active_cent: 3.8,
+  active_tags: 5.8,
+  active_memo: 6.8,
+  chord_name: 5.8,
+  chord_id: 3.9,
+  chord_root: 4.2,
+  chord_tones: 6.8,
+  chord_tags: 5.8,
+  chord_memo: 6.9
+};
 
 const state = {
   settings: {
@@ -57,16 +77,7 @@ const state = {
     dismissedRuntimeNotice: false,
     dismissedPwaNotice: false,
     progressionCellWidth: 124,
-    tableColumnWidths: {
-      name: 11,
-      id: 7,
-      cent: 5,
-      short: 5,
-      root: 6,
-      tones: 12,
-      tags: 8,
-      memo: 10
-    }
+    tableColumnWidths: { ...DEFAULT_TABLE_COLUMN_WIDTHS }
   },
   pitchDraft: {
     octave: 4,
@@ -281,6 +292,11 @@ function invalidateRenderCache() {
 }
 
 function renderIfChanged(slot, key, run) {
+  if (dragContext || progressionUi.reorderingPartId || progressionUi.pendingPointerId) {
+    renderCache[slot] = key;
+    run();
+    return;
+  }
   if (renderCache[slot] === key) return;
   renderCache[slot] = key;
   run();
@@ -352,6 +368,52 @@ function markProjectDirty() {
   }, 1200);
 }
 
+function tableWidthKey(kind, column) {
+  return `${kind}_${column}`;
+}
+
+function normalizeTableColumnWidths(widths) {
+  const normalized = { ...DEFAULT_TABLE_COLUMN_WIDTHS };
+  if (!widths || typeof widths !== "object") {
+    return normalized;
+  }
+
+  const legacyColumns = ["name", "id", "cent", "short", "root", "tones", "tags", "memo"];
+  if (legacyColumns.some((column) => Object.hasOwn(widths, column))) {
+    ["name", "cent", "tags", "memo"].forEach((column) => {
+      const value = Number(widths[column]);
+      if (!Number.isFinite(value)) return;
+      normalized[tableWidthKey("pitch", column)] = value;
+      normalized[tableWidthKey("active", column)] = value;
+    });
+    const idWidth = Number(widths.id);
+    const shortWidth = Number(widths.short);
+    const mergedIdWidth = Number.isFinite(idWidth) ? idWidth : shortWidth;
+    if (Number.isFinite(mergedIdWidth)) {
+      normalized.pitch_id = mergedIdWidth;
+      normalized.active_id = mergedIdWidth;
+      normalized.chord_id = mergedIdWidth;
+    }
+    const rootWidth = Number(widths.root);
+    if (Number.isFinite(rootWidth)) normalized.chord_root = rootWidth;
+    const tonesWidth = Number(widths.tones);
+    if (Number.isFinite(tonesWidth)) normalized.chord_tones = tonesWidth;
+  }
+
+  Object.entries(widths).forEach(([key, value]) => {
+    if (!Object.hasOwn(normalized, key)) return;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return;
+    normalized[key] = numeric;
+  });
+  return normalized;
+}
+
+function getTableColumnWidth(kind, column) {
+  const key = tableWidthKey(kind, column);
+  return state.settings.tableColumnWidths?.[key] ?? DEFAULT_TABLE_COLUMN_WIDTHS[key] ?? 6;
+}
+
 function setLabelLead(input, text) {
   const label = input?.closest("label");
   if (!label) return;
@@ -402,6 +464,9 @@ function ensureBulkBar(container, kind, fields) {
     <button type="button" data-bulk-action="clear" data-kind="${kind}">選択解除</button>
   `;
   bar.hidden = true;
+  bar.querySelector('[data-bulk-action="apply"]')?.replaceChildren(document.createTextNode("一括適用"));
+  bar.querySelector('[data-bulk-action="delete"]')?.replaceChildren(document.createTextNode("選択削除"));
+  bar.querySelector('[data-bulk-action="clear"]')?.remove();
   const anchor = container.querySelector(".preset-list, .scroll-list, #chordPresetList");
   if (anchor?.parentElement === container) {
     container.insertBefore(bar, anchor);
@@ -458,14 +523,40 @@ function ensureWorkspaceDom() {
     [...settingsView.children].forEach((child) => body.appendChild(child));
     settingsView.remove();
   }
+  const drawer = document.getElementById("settingsDrawer");
+  drawer?.querySelector('[data-menu-focus="settings"]')?.replaceChildren(document.createTextNode("設定"));
+  drawer?.querySelector('[data-menu-focus="help"]')?.replaceChildren(document.createTextNode("ヘルプ"));
+  drawer?.querySelector('[data-menu-focus="privacy"]')?.replaceChildren(document.createTextNode("プライバシーポリシー"));
+  const helpPanel = drawer?.querySelector('[data-menu-panel="help"]');
+  if (helpPanel instanceof HTMLElement) {
+    helpPanel.querySelector("h3")?.replaceChildren(document.createTextNode("ヘルプ"));
+    helpPanel.querySelector(".readout")?.replaceChildren(document.createTextNode("操作説明と仕様メモをここへ追加します。常設説明は置かず、必要な導線だけこの中へまとめます。"));
+  }
+  const privacyPanel = drawer?.querySelector('[data-menu-panel="privacy"]');
+  if (privacyPanel instanceof HTMLElement) {
+    privacyPanel.querySelector("h3")?.replaceChildren(document.createTextNode("プライバシーポリシー"));
+    privacyPanel.querySelector(".readout")?.replaceChildren(document.createTextNode("個人情報や保存データの扱いをここへ整理します。現状はローカル保存前提で、外部送信は行いません。"));
+  }
   els.undoBtn.setAttribute("aria-label", "undo");
   els.redoBtn.setAttribute("aria-label", "redo");
+  els.undoBtn.title = "元に戻す";
+  els.redoBtn.title = "やり直す";
   els.undoBtn.classList.add("icon-button");
   els.redoBtn.classList.add("icon-button");
+  els.undoBtn.innerHTML = UNDO_ICON_SVG;
+  els.redoBtn.innerHTML = REDO_ICON_SVG;
+  els.lineReadout?.remove();
   const masterIcon = document.querySelector(".master-volume-icon");
   if (masterIcon) {
     masterIcon.innerHTML = VOLUME_ICON_SVG;
   }
+  drawer?.querySelector('[data-menu-focus="settings"]')?.replaceChildren(document.createTextNode("\u8a2d\u5b9a"));
+  drawer?.querySelector('[data-menu-focus="help"]')?.replaceChildren(document.createTextNode("\u30d8\u30eb\u30d7"));
+  drawer?.querySelector('[data-menu-focus="privacy"]')?.replaceChildren(document.createTextNode("\u30d7\u30e9\u30a4\u30d0\u30b7\u30fc\u30dd\u30ea\u30b7\u30fc"));
+  helpPanel?.querySelector("h3")?.replaceChildren(document.createTextNode("\u30d8\u30eb\u30d7"));
+  helpPanel?.querySelector(".readout")?.replaceChildren(document.createTextNode("\u64cd\u4f5c\u8aac\u660e\u3068\u4ed5\u69d8\u30e1\u30e2\u3092\u3053\u3053\u3078\u8ffd\u52a0\u3057\u307e\u3059\u3002\u5e38\u8a2d\u8aac\u660e\u306f\u7f6e\u304b\u305a\u3001\u5fc5\u8981\u306a\u5c0e\u7dda\u3060\u3051\u3053\u306e\u4e2d\u3078\u307e\u3068\u3081\u307e\u3059\u3002"));
+  privacyPanel?.querySelector("h3")?.replaceChildren(document.createTextNode("\u30d7\u30e9\u30a4\u30d0\u30b7\u30fc\u30dd\u30ea\u30b7\u30fc"));
+  privacyPanel?.querySelector(".readout")?.replaceChildren(document.createTextNode("\u500b\u4eba\u60c5\u5831\u3084\u4fdd\u5b58\u30c7\u30fc\u30bf\u306e\u6271\u3044\u3092\u3053\u3053\u3078\u6574\u7406\u3057\u307e\u3059\u3002\u73fe\u72b6\u306f\u30ed\u30fc\u30ab\u30eb\u4fdd\u5b58\u524d\u63d0\u3067\u3001\u5916\u90e8\u9001\u4fe1\u306f\u884c\u3044\u307e\u305b\u3093\u3002"));
   setLabelLead(els.octaveInput, "oct");
   setLabelLead(els.snapCentInput, "snap ¢");
   setLabelLead(els.centInput, "¢");
@@ -474,11 +565,44 @@ function ensureWorkspaceDom() {
   const activeVolumeLabel = els.activeNotesVolumeInput?.closest("label");
   if (activeVolumeLabel) {
     activeVolumeLabel.classList.add("hover-volume", "active-notes-volume-inline", "icon-volume-inline");
-    activeVolumeLabel.title = "activeNotes volume";
+    activeVolumeLabel.title = "現音高 音量";
     setLabelLead(els.activeNotesVolumeInput, "");
     ensureInlineIcon(activeVolumeLabel, "inline-volume-icon", VOLUME_ICON_SVG);
   }
   const waveformLabel = els.waveformSelect?.closest("label");
+  const centRow = els.centInput?.parentElement;
+  if (centRow) {
+    centRow.className = "input-stepper";
+    const buttonStack = centRow.querySelector(".input-stepper-buttons") || document.createElement("span");
+    buttonStack.className = "input-stepper-buttons";
+    buttonStack.append(els.centUpBtn, els.centDownBtn);
+    centRow.replaceChildren(els.centInput, buttonStack);
+    const chevronUp = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 10.5 8 5.5l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const chevronDown = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 5.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    if (els.centUpBtn) {
+      els.centUpBtn.className = "stepper-button";
+      els.centUpBtn.innerHTML = chevronUp;
+      els.centUpBtn.setAttribute("aria-label", "cent up");
+    }
+    if (els.centDownBtn) {
+      els.centDownBtn.className = "stepper-button";
+      els.centDownBtn.innerHTML = chevronDown;
+      els.centDownBtn.setAttribute("aria-label", "cent down");
+    }
+  }
+  const sustainLabel = els.sustainModeInput?.closest("label");
+  if (sustainLabel) {
+    sustainLabel.querySelector("span")?.replaceChildren(document.createTextNode("持続"));
+    sustainLabel.querySelector('[aria-hidden="true"]')?.remove();
+    sustainLabel.title = `持続: ${els.sustainModeInput?.checked ? "ON" : "OFF"}`;
+  }
+  setLabelLead(els.octaveInput, "oct");
+  setLabelLead(els.snapCentInput, "snap ¢");
+  setLabelLead(els.centInput, "¢");
+  setLabelLead(els.roundUnitInput, "丸め ¢");
+  if (waveformLabel) {
+    setLabelLead(els.waveformSelect, "波形");
+  }
   if (els.waveformSelect && waveformLabel && !document.getElementById("waveformButtonGroup")) {
     const group = document.createElement("div");
     group.id = "waveformButtonGroup";
@@ -506,6 +630,20 @@ function ensureWorkspaceDom() {
   if (els.chordLibraryPanel && els.progressionView && els.chordLibraryPanel.parentElement !== els.progressionView) {
     els.progressionView.appendChild(els.chordLibraryPanel);
   }
+  document.querySelectorAll("#view-settings .panel-heading h3").forEach((node, index) => {
+    node.textContent = ["Runtime / PWA", "一覧幅", "丸め / 再生", "保存 / 読込"][index] || node.textContent;
+  });
+  document.querySelector(".active-notes-panel .library-block strong")?.replaceChildren(document.createTextNode("現音高"));
+  setLabelLead(els.presetNameWidthInput, "名前 rem");
+  setLabelLead(els.presetCentWidthInput, "¢ rem");
+  setLabelLead(els.presetShortWidthInput, "ID rem");
+  setLabelLead(els.presetTagWidthInput, "タグ rem");
+  setLabelLead(els.presetMemoWidthInput, "メモ rem");
+  setLabelLead(els.progressionCellWidthInput, "箱 px");
+  setLabelLead(els.a4HzInput, "A4 Hz");
+  setLabelLead(els.bpmInput, "BPM");
+  setLabelLead(els.roundUnitInput, "丸め ¢");
+  setLabelLead(els.roundingModeSelect, "丸め");
   const beatToken = els.progBeatsNumeratorInput?.closest(".beat-token");
   if (beatToken && els.progInversionPopover && beatToken.previousElementSibling !== els.progInversionPopover) {
     els.progInversionPopover.after(beatToken);
@@ -521,44 +659,18 @@ function ensureWorkspaceDom() {
       { name: "tags", placeholder: "タグ一括変更" },
       { name: "memo", placeholder: "メモ一括変更" }
     ]);
-    if (head && !document.getElementById("deleteSelectedPitchBtn")) {
-      const button = document.createElement("button");
-      button.id = "deleteSelectedPitchBtn";
-      button.type = "button";
-      button.className = "compact-danger";
-      button.textContent = "選択削除";
-      head.appendChild(button);
-    }
   }
   if (els.activeNotesFilterInput) {
     const activeBlock = els.activeNotesFilterInput.closest(".library-block");
-    const head = activeBlock?.querySelector(".library-block-head");
     ensureBulkBar(activeBlock, "active", [
       { name: "centDelta", placeholder: "¢ += 0.00", type: "number", step: "0.01", min: -1200, max: 1200 }
     ]);
-    if (head && !document.getElementById("deleteSelectedActiveBtn")) {
-      const button = document.createElement("button");
-      button.id = "deleteSelectedActiveBtn";
-      button.type = "button";
-      button.className = "compact-danger";
-      button.textContent = "選択削除";
-      head.appendChild(button);
-    }
   }
   if (els.chordTagFilterInput) {
-    const chordHead = els.chordLibraryPanel?.querySelector(".panel-heading-block");
     ensureBulkBar(els.chordLibraryPanel, "chord", [
       { name: "tags", placeholder: "タグ一括変更" },
       { name: "memo", placeholder: "メモ一括変更" }
     ]);
-    if (chordHead && !document.getElementById("deleteSelectedChordBtn")) {
-      const button = document.createElement("button");
-      button.id = "deleteSelectedChordBtn";
-      button.type = "button";
-      button.className = "compact-danger";
-      button.textContent = "選択削除";
-      chordHead.appendChild(button);
-    }
   }
   if (!els.workspaceMain) return;
   ["left", "right"].forEach((side) => {
@@ -656,7 +768,8 @@ function attachTableColumnResizers() {
     ev.preventDefault();
     ev.stopPropagation();
     const column = handle.dataset.column || "";
-    const cssVar = cssVarForTableColumn(column);
+    const tableKind = handle.dataset.tableKind || handle.closest("table")?.dataset.tableKind || "pitch";
+    const cssVar = cssVarForTableColumn(tableKind, column);
     if (!cssVar) return;
     const th = handle.closest("th");
     const startWidth = th?.getBoundingClientRect().width || 80;
@@ -673,7 +786,8 @@ function attachTableColumnResizers() {
       document.body.classList.remove("workspace-resizing");
       const px = parseCssPixel(getComputedStyle(document.documentElement).getPropertyValue(cssVar), startWidth);
       const rootFontSize = parseCssPixel(getComputedStyle(document.documentElement).fontSize, 16);
-      state.settings.tableColumnWidths[column] = Math.round((px / rootFontSize) * 10) / 10;
+      state.settings.tableColumnWidths[tableWidthKey(tableKind, column)] = Math.round((px / rootFontSize) * 10) / 10;
+      markProjectDirty();
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", cleanup);
@@ -740,15 +854,13 @@ function renderRuntimeInfo() {
 }
 
 function applyLayoutSettings() {
-  const widths = state.settings.tableColumnWidths || {};
-  document.documentElement.style.setProperty("--preset-name-col", `${widths.name || 11}rem`);
-  document.documentElement.style.setProperty("--preset-id-col", `${widths.id || 7}rem`);
-  document.documentElement.style.setProperty("--preset-cent-col", `${widths.cent || 5}rem`);
-  document.documentElement.style.setProperty("--preset-short-col", `${widths.short || 5}rem`);
-  document.documentElement.style.setProperty("--preset-root-col", `${widths.root || 6}rem`);
-  document.documentElement.style.setProperty("--preset-tones-col", `${widths.tones || 12}rem`);
-  document.documentElement.style.setProperty("--preset-tags-col", `${widths.tags || 8}rem`);
-  document.documentElement.style.setProperty("--preset-memo-col", `${widths.memo || 10}rem`);
+  ["pitch", "active", "chord"].forEach((kind) => {
+    ["name", "id", "cent", "short", "root", "tones", "tags", "memo"].forEach((column) => {
+      const key = tableWidthKey(kind, column);
+      if (!Object.hasOwn(DEFAULT_TABLE_COLUMN_WIDTHS, key)) return;
+      document.documentElement.style.setProperty(`--${kind}-${column}-col`, `${getTableColumnWidth(kind, column)}rem`);
+    });
+  });
   document.documentElement.style.setProperty("--progression-cell-width", `${state.settings.progressionCellWidth || 124}px`);
   document.documentElement.style.setProperty("--progression-columns", `${clamp(Number(state.progression.columns) || 4, 1, 12)}`);
 }
@@ -764,17 +876,20 @@ function buildPresetColGroup(columns) {
   return colgroup;
 }
 
-function enhancePresetTable(table) {
+function enhancePresetTable(table, kind) {
   if (!table) return;
   table.classList.add("data-table");
+  table.dataset.tableKind = kind;
   const cols = [...table.querySelectorAll("colgroup col")].map((col) => col.dataset.column || "");
   table.querySelectorAll("thead th").forEach((th, index) => {
     const column = cols[index];
     if (!column || th.querySelector(".column-resize-handle")) return;
     th.dataset.column = column;
+    th.dataset.tableKind = kind;
     const handle = document.createElement("span");
     handle.className = "column-resize-handle";
     handle.dataset.column = column;
+    handle.dataset.tableKind = kind;
     th.appendChild(handle);
   });
 }
@@ -788,18 +903,11 @@ function syncTableSelectAll(table, kind, selectedSet, visibleIds) {
   input.indeterminate = selectedCount > 0 && selectedCount < ids.length;
 }
 
-function cssVarForTableColumn(column) {
-  return {
-    select: "",
-    name: "--preset-name-col",
-    id: "--preset-id-col",
-    cent: "--preset-cent-col",
-    short: "--preset-short-col",
-    root: "--preset-root-col",
-    tones: "--preset-tones-col",
-    tags: "--preset-tags-col",
-    memo: "--preset-memo-col"
-  }[column] || "";
+function cssVarForTableColumn(kind, column) {
+  if (column === "select" || column === "remove" || column === "actions") return "";
+  const key = tableWidthKey(kind, column);
+  if (!Object.hasOwn(DEFAULT_TABLE_COLUMN_WIDTHS, key)) return "";
+  return `--${kind}-${column}-col`;
 }
 
 function isLocalhostHost(hostname) {
@@ -850,6 +958,26 @@ function isRootLikePreset(preset) {
   return tokens.includes("P1") || Number(preset.microStep) === 0;
 }
 
+function pitchPresetDisplayId(preset) {
+  if (!preset) return "";
+  const short = String(preset.shortName || "").trim();
+  if (short && !/^PITCH_/i.test(short)) return short;
+  const rawId = String(preset.id || "").trim();
+  const match = rawId.match(/^PITCH_([^_]+)/i);
+  if (match) return match[1];
+  return short || rawId;
+}
+
+function chordPresetDisplayId(chord) {
+  if (!chord) return "";
+  const short = String(chord.shortName || "").trim();
+  if (short && !/^CHORD_/i.test(short)) return short;
+  const rawId = String(chord.id || "").trim();
+  const match = rawId.match(/^CHORD_(.+)$/i);
+  if (match) return match[1];
+  return short || chord.name || rawId;
+}
+
 function defaultRootPreset() {
   return sortedPitchPresets().find(isRootLikePreset) || sortedPitchPresets()[0] || null;
 }
@@ -860,9 +988,8 @@ function defaultRootPresetId() {
 
 function sortedPitchPresets() {
   return sortByColumn(state.pitchPresets, presetUi.pitchSort, (preset, column) => {
-    if (column === "id") return preset.id || "";
+    if (column === "id") return pitchPresetDisplayId(preset);
     if (column === "cent") return Number(preset.cent) || 0;
-    if (column === "short") return preset.shortName || "";
     if (column === "tags") return (preset.tags || []).join(", ");
     if (column === "memo") return preset.memo || "";
     return preset.name || preset.id || "";
@@ -871,7 +998,7 @@ function sortedPitchPresets() {
 
 function sortedChordPresets() {
   return sortByColumn(state.chordPresets, presetUi.chordSort, (chord, column) => {
-    if (column === "id") return chord.id || "";
+    if (column === "id") return chordPresetDisplayId(chord);
     if (column === "root") return chord.baseRoot?.noteText || chord.baseRoot?.pitchPresetId || "";
     if (column === "tones") return (chord.tones || []).length;
     if (column === "tags") return (chord.tags || []).join(", ");
@@ -886,7 +1013,7 @@ function filteredPitchPresets(filterText) {
   if (!normalized) return presets;
   return presets.filter((preset) => {
     const tags = Array.isArray(preset.tags) ? preset.tags.join(" ").toLowerCase() : "";
-    const haystack = `${preset.id} ${preset.name} ${preset.shortName || ""} ${preset.memo || ""} ${tags}`.toLowerCase();
+    const haystack = `${preset.id} ${pitchPresetDisplayId(preset)} ${preset.name} ${preset.memo || ""} ${tags}`.toLowerCase();
     return haystack.includes(normalized);
   });
 }
@@ -895,8 +1022,8 @@ function filteredActiveNotes(filterText) {
   const normalized = normalizeFilterText(filterText);
   const notes = sortByColumn(state.activeNotes, presetUi.activeSort, (note, column) => {
     const preset = findPitchPresetByMicroStep(note.microStepInOctave);
+    if (column === "id") return preset?.id || "";
     if (column === "cent") return Number(note.cent) || 0;
-    if (column === "short") return preset?.shortName || "";
     if (column === "tags") return (preset?.tags || []).join(", ");
     if (column === "memo") return preset?.memo || "";
     return preset?.name || note.id || "";
@@ -909,7 +1036,7 @@ function filteredActiveNotes(filterText) {
       note.id,
       describeNoteTitle(note, index),
       preset?.name || "",
-      preset?.shortName || "",
+      pitchPresetDisplayId(preset),
       preset?.memo || "",
       tags
     ].join(" ").toLowerCase();
@@ -923,7 +1050,7 @@ function filteredChordPresets(filterText) {
   if (!normalized) return chords;
   return chords.filter((chord) => {
     const tags = Array.isArray(chord.tags) ? chord.tags.join(" ").toLowerCase() : "";
-    const haystack = `${chord.id} ${chord.name} ${chord.memo || ""} ${tags}`.toLowerCase();
+    const haystack = `${chord.id} ${chordPresetDisplayId(chord)} ${chord.name} ${chord.memo || ""} ${tags}`.toLowerCase();
     return haystack.includes(normalized);
   });
 }
@@ -966,7 +1093,7 @@ function formatMicroStep(value) {
 
 function formatPresetDisplayName(preset) {
   if (!preset) return "";
-  return preset.shortName || preset.name || preset.id;
+  return preset.name || pitchPresetDisplayId(preset) || preset.id || "";
 }
 
 function describeNoteTitle(note, index = 0) {
@@ -1201,6 +1328,24 @@ async function syncAudioToActiveNotes() {
     if (!activeIds.has(voiceId)) {
       audio.stopVoice(voiceId);
     }
+  }
+}
+
+async function refreshAudibleVoices() {
+  const playingId = state.progression.playingPartId;
+  const previewing = Boolean(progressionPreviewTimerId);
+  const selectedPart = state.progression.parts.find((part) => part.id === state.progression.selectedPartId) || null;
+  await syncAudioToActiveNotes();
+  if (playingId) {
+    const part = state.progression.parts.find((item) => item.id === playingId);
+    const partIndex = state.progression.parts.findIndex((item) => item.id === playingId);
+    if (part && partIndex >= 0) {
+      await playProgressionPart(part, partIndex);
+      return;
+    }
+  }
+  if (previewing && selectedPart) {
+    await previewProgressionPart(selectedPart);
   }
 }
 
@@ -1859,7 +2004,7 @@ function removeActiveNote(noteId) {
   }
   audio.stopVoice(noteId);
   const after = snapshotState();
-  trackStateChange("remove_active_note", "activeNotes を削除", before, after);
+  trackStateChange("remove_active_note", "現音高を削除", before, after);
   syncFormFromState();
   render();
 }
@@ -2211,7 +2356,6 @@ function savePitchPresetFromActiveNote(noteId) {
   const values = {
     id: li.querySelector('[data-field="id"]')?.value || "",
     name: li.querySelector('[data-field="name"]')?.value || "",
-    shortName: li.querySelector('[data-field="shortName"]')?.value || "",
     tags: li.querySelector('[data-field="tags"]')?.value || "",
     memo: li.querySelector('[data-field="memo"]')?.value || ""
   };
@@ -2392,11 +2536,28 @@ function selectProgressionPart(partId) {
   }
   progressionUi.isMenuOpen = false;
   progressionUi.isEditorExpanded = true;
+  invalidateRenderCache();
   syncFormFromState();
   render();
   if (part) {
     void previewProgressionPart(part);
   }
+}
+
+function normalizePitchPresetIdentity() {
+  state.pitchPresets.forEach((preset) => {
+    const normalizedShort = slugifyIdPart(pitchPresetDisplayId(preset) || preset.name || "");
+    if (normalizedShort) preset.shortName = normalizedShort;
+    if (!preset.id) preset.id = normalizedShort;
+  });
+}
+
+function normalizeChordPresetIdentity() {
+  state.chordPresets.forEach((chord) => {
+    const normalizedShort = slugifyIdPart(chordPresetDisplayId(chord) || chord.name || "");
+    if (normalizedShort) chord.shortName = normalizedShort;
+    if (!chord.id) chord.id = normalizedShort;
+  });
 }
 
 function deleteSelectedProgressionPart() {
@@ -2598,7 +2759,16 @@ async function applyDragPitch(finalize = false) {
     const deltaCent = dragContext.fine
       ? Math.round(rawDeltaCent / fineDragStepCent()) * fineDragStepCent()
       : rawDeltaCent;
-    const normalized = normalizePitch(0, dragContext.baseAbsoluteMicroStep + centToMicroStep(deltaCent));
+    const nextAbsoluteCentRaw = dragContext.baseAbsoluteCent + rawDeltaCent;
+    const nextAbsoluteCent = dragContext.fine
+      ? Math.round(nextAbsoluteCentRaw / fineDragStepCent()) * fineDragStepCent()
+      : (() => {
+        const coarseStep = Math.max(0, Number(state.settings.snapCent) || 0);
+        if (coarseStep <= 0) return nextAbsoluteCentRaw;
+        const quantizedDeltaCent = Math.round(rawDeltaCent / coarseStep) * coarseStep;
+        return dragContext.baseAbsoluteCent + quantizedDeltaCent;
+      })();
+    const normalized = normalizePitch(0, centToMicroStep(nextAbsoluteCent));
     note.octave = normalized.octave;
     note.microStepInOctave = normalized.microStepInOctave;
     note.cent = Number(microStepToCent(normalized.microStepInOctave));
@@ -2672,7 +2842,7 @@ async function toggleCurrentNote() {
   }
 
   const after = snapshotState();
-  trackStateChange("active_note_toggle", "activeNotes ??", before, after);
+  trackStateChange("active_note_toggle", "現音高を切替", before, after);
   syncFormFromState();
   render();
 }
@@ -2683,7 +2853,7 @@ async function clearAllActiveNotes() {
   state.activeNotes = [];
   pitchUi.lastTouchedNoteId = null;
   const after = snapshotState();
-  trackStateChange("clear_active_notes", "activeNotes を一括削除", before, after);
+  trackStateChange("clear_active_notes", "現音高を一括削除", before, after);
   render();
   await syncAudioToActiveNotes();
 }
@@ -2920,18 +3090,17 @@ function renderPitchPresetsV2() {
         <th data-sort="pitch:name">名前${sortIndicator(presetUi.pitchSort, "name")}</th>
         <th data-sort="pitch:id">ID${sortIndicator(presetUi.pitchSort, "id")}</th>
         <th data-sort="pitch:cent">¢${sortIndicator(presetUi.pitchSort, "cent")}</th>
-        <th data-sort="pitch:short">短名${sortIndicator(presetUi.pitchSort, "short")}</th>
         <th data-sort="pitch:tags">タグ${sortIndicator(presetUi.pitchSort, "tags")}</th>
         <th data-sort="pitch:memo">メモ${sortIndicator(presetUi.pitchSort, "memo")}</th>
       </tr>
     </thead>
   `;
-  table.prepend(buildPresetColGroup(["select", "name", "id", "cent", "short", "tags", "memo"]));
+  table.prepend(buildPresetColGroup(["select", "name", "id", "cent", "tags", "memo"]));
   const tbody = document.createElement("tbody");
 
   if (presets.length === 0) {
     const emptyRow = document.createElement("tr");
-    emptyRow.innerHTML = `<td colspan="7" class="composer-note">条件に合う音高プリセットがありません。</td>`;
+    emptyRow.innerHTML = `<td colspan="6" class="composer-note">条件に合う音高プリセットがありません。</td>`;
     tbody.appendChild(emptyRow);
   }
 
@@ -2953,7 +3122,7 @@ function renderPitchPresetsV2() {
       nameCell.appendChild(buildInlineInput(preset.name, "name"));
       row.appendChild(nameCell);
       const idCell = document.createElement("td");
-      idCell.appendChild(buildInlineInput(preset.id, "id"));
+      idCell.appendChild(buildInlineInput(pitchPresetDisplayId(preset), "id"));
       row.appendChild(idCell);
       const centCell = document.createElement("td");
       const centInput = buildInlineInput(formatDecimal(preset.cent), "cent");
@@ -2961,9 +3130,6 @@ function renderPitchPresetsV2() {
       centInput.step = String(state.settings.snapCent || 1);
       centCell.appendChild(centInput);
       row.appendChild(centCell);
-      const shortCell = document.createElement("td");
-      shortCell.appendChild(buildInlineInput(preset.shortName || "", "shortName"));
-      row.appendChild(shortCell);
       const tagsCell = document.createElement("td");
       tagsCell.appendChild(buildInlineInput((preset.tags || []).join(", "), "tags"));
       row.appendChild(tagsCell);
@@ -2983,14 +3149,11 @@ function renderPitchPresetsV2() {
       row.appendChild(nameCell);
       const idCell = document.createElement("td");
       idCell.className = "preset-id";
-      idCell.textContent = String(preset.id || "").toLowerCase();
+      idCell.textContent = pitchPresetDisplayId(preset);
       row.appendChild(idCell);
       const centCell = document.createElement("td");
       centCell.textContent = formatDecimal(preset.cent);
       row.appendChild(centCell);
-      const shortCell = document.createElement("td");
-      shortCell.textContent = preset.shortName || " ";
-      row.appendChild(shortCell);
       const tagsCell = document.createElement("td");
       tagsCell.appendChild(buildTagChips(preset.tags));
       row.appendChild(tagsCell);
@@ -3004,7 +3167,7 @@ function renderPitchPresetsV2() {
   table.appendChild(tbody);
   container.appendChild(table);
   syncTableSelectAll(table, "pitch", presetUi.selectedPitchPresetIds, presets.map((preset) => preset.id));
-  enhancePresetTable(table);
+  enhancePresetTable(table, "pitch");
 }
 
 
@@ -3105,7 +3268,7 @@ function renderChordPresetsV2() {
   const composerToneNote = document.createElement("div");
   composerToneNote.className = "composer-note";
   composerToneNote.textContent = state.activeNotes.length === 0
-    ? "activeNotes をコード化します"
+    ? "現音高をコード化します"
     : state.activeNotes
       .slice()
       .sort((a, b) => absoluteMicroStep(a) - absoluteMicroStep(b))
@@ -3166,7 +3329,7 @@ function renderChordPresetsV2() {
       row.appendChild(nameCell);
 
       const idCell = document.createElement("td");
-      idCell.appendChild(buildInlineInput(chord.id, "id"));
+      idCell.appendChild(buildInlineInput(chordPresetDisplayId(chord), "id"));
       row.appendChild(idCell);
 
       const rootCell = document.createElement("td");
@@ -3198,7 +3361,7 @@ function renderChordPresetsV2() {
 
       const idCell = document.createElement("td");
       idCell.className = "preset-id";
-      idCell.textContent = String(chord.id || "").toLowerCase();
+      idCell.textContent = chordPresetDisplayId(chord);
       row.appendChild(idCell);
 
       const rootCell = document.createElement("td");
@@ -3223,7 +3386,7 @@ function renderChordPresetsV2() {
   table.appendChild(tbody);
   container.appendChild(table);
   syncTableSelectAll(table, "chord", presetUi.selectedChordPresetIds, chords.map((chord) => chord.id));
-  enhancePresetTable(table);
+  enhancePresetTable(table, "chord");
 }
 
 function editPitchPreset(presetId) {
@@ -3241,14 +3404,13 @@ function editChordPreset(chordId) {
 function saveInlinePitchPreset(presetId, row) {
   const preset = findPitchPresetById(presetId);
   if (!preset || !(row instanceof HTMLElement)) return;
-  const nextId = slugifyIdPart(row.querySelector('[data-field="id"]')?.value || "") || preset.id;
+  const nextId = slugifyIdPart(row.querySelector('[data-field="id"]')?.value || "") || pitchPresetDisplayId(preset);
   const nextName = String(row.querySelector('[data-field="name"]')?.value || "").trim() || preset.name;
   const nextCent = Number(String(row.querySelector('[data-field="cent"]')?.value || "").replace(",", "."));
-  const nextShort = String(row.querySelector('[data-field="shortName"]')?.value || "").trim();
   const nextTags = parseCsvList(row.querySelector('[data-field="tags"]')?.value || "");
   const nextMemo = String(row.querySelector('[data-field="memo"]')?.value || "").trim();
 
-  if (nextId !== preset.id && state.pitchPresets.some((item) => item.id === nextId)) {
+  if (nextId !== pitchPresetDisplayId(preset) && state.pitchPresets.some((item) => pitchPresetDisplayId(item) === nextId)) {
     setStatus(els.pitchPresetStatus, `ID ${nextId} は既存プリセットと重複しています。`, "error");
     return;
   }
@@ -3258,9 +3420,8 @@ function saveInlinePitchPreset(presetId, row) {
     preset.cent = Number(microStepToCent(centToMicroStep(nextCent)));
     preset.microStep = centToMicroStep(nextCent);
   }
-  preset.id = nextId;
   preset.name = nextName;
-  preset.shortName = nextShort;
+  preset.shortName = nextId;
   preset.tags = nextTags;
   preset.memo = nextMemo;
   presetUi.editingPitchPresetId = null;
@@ -3273,13 +3434,13 @@ function saveInlinePitchPreset(presetId, row) {
 function saveInlineChordPreset(chordId, row) {
   const chord = state.chordPresets.find((item) => item.id === chordId);
   if (!chord || !(row instanceof HTMLElement)) return;
-  const nextId = slugifyIdPart(row.querySelector('[data-field="id"]')?.value || "") || chord.id;
+  const nextId = slugifyIdPart(row.querySelector('[data-field="id"]')?.value || "") || chordPresetDisplayId(chord);
   const nextName = String(row.querySelector('[data-field="name"]')?.value || "").trim() || chord.name;
   const nextTones = parseChordTonesInput(row.querySelector('[data-field="tones"]')?.value || "");
   const nextTags = parseCsvList(row.querySelector('[data-field="tags"]')?.value || "");
   const nextMemo = String(row.querySelector('[data-field="memo"]')?.value || "").trim();
 
-  if (nextId !== chord.id && state.chordPresets.some((item) => item.id === nextId)) {
+  if (nextId !== chordPresetDisplayId(chord) && state.chordPresets.some((item) => chordPresetDisplayId(item) === nextId)) {
     setStatus(els.chordStatus, `ID ${nextId} は既存プリセットと重複しています。`, "error");
     return;
   }
@@ -3289,8 +3450,8 @@ function saveInlineChordPreset(chordId, row) {
   }
 
   const before = snapshotState();
-  chord.id = nextId;
   chord.name = nextName;
+  chord.shortName = nextId;
   chord.tones = nextTones;
   chord.tags = nextTags;
   chord.memo = nextMemo;
@@ -3320,7 +3481,7 @@ function updateActiveNoteFromRow(noteId) {
   }
 
   const after = snapshotState();
-  trackStateChange("update_active_note", "activeNotes を更新", before, after);
+  trackStateChange("update_active_note", "現音高を更新", before, after);
   syncFormFromState();
   render();
   void syncAudioToActiveNotes();
@@ -3341,7 +3502,10 @@ function selectMenuPanel(panelName) {
     panel.hidden = panel.dataset.menuPanel !== panelName;
   });
   const settingsBody = drawer.querySelector("#settingsDrawerBody");
-  if (settingsBody) settingsBody.hidden = panelName !== "settings";
+  if (settingsBody) {
+    settingsBody.hidden = panelName !== "settings";
+    settingsBody.setAttribute("aria-hidden", settingsBody.hidden ? "true" : "false");
+  }
   drawer.querySelectorAll("[data-menu-focus]").forEach((button) => {
     button.classList.toggle("active", button.dataset.menuFocus === panelName);
   });
@@ -3422,7 +3586,7 @@ function applyBulkEdit(kind) {
     trackStateChange("bulk_edit_active_notes", "active note bulk edit", before, after);
     syncFormFromState();
     render();
-    void syncAudioToActiveNotes();
+    void refreshAudibleVoices();
   }
 }
 
@@ -3461,7 +3625,7 @@ function deleteSelectedActiveNotes() {
   });
   ids.clear();
   const after = snapshotState();
-  trackStateChange("delete_active_notes", "activeNotes を一括削除", before, after);
+  trackStateChange("delete_active_notes", "現音高を一括削除", before, after);
   render();
   void syncAudioToActiveNotes();
 }
@@ -3472,9 +3636,6 @@ function attachEvents() {
   selectMenuPanel("settings");
   document.getElementById("settingsMenuBtn")?.addEventListener("click", () => toggleSettingsDrawer());
   document.getElementById("settingsDrawerCloseBtn")?.addEventListener("click", () => toggleSettingsDrawer(false));
-  document.getElementById("deleteSelectedPitchBtn")?.addEventListener("click", deleteSelectedPitchPresets);
-  document.getElementById("deleteSelectedChordBtn")?.addEventListener("click", deleteSelectedChordPresets);
-  document.getElementById("deleteSelectedActiveBtn")?.addEventListener("click", deleteSelectedActiveNotes);
   document.getElementById("settingsDrawer")?.addEventListener("click", (ev) => {
     const target = ev.target;
     if (!(target instanceof HTMLElement)) return;
@@ -3484,7 +3645,9 @@ function attachEvents() {
     }
   });
   document.getElementById("waveformButtonGroup")?.addEventListener("click", (ev) => {
-    const target = ev.target;
+    const rawTarget = ev.target;
+    if (!(rawTarget instanceof Element)) return;
+    const target = rawTarget.closest("button");
     if (!(target instanceof HTMLButtonElement)) return;
     const waveform = target.dataset.waveform;
     if (!waveform) return;
@@ -3494,7 +3657,7 @@ function attachEvents() {
     const after = snapshotState();
     trackStateChange("update_waveform", "波形変更", before, after);
     render();
-    void syncAudioToActiveNotes();
+    void refreshAudibleVoices();
   });
   els.navButtons.forEach((btn) => {
     btn.addEventListener("click", () => setView(btn.dataset.view));
@@ -3659,7 +3822,7 @@ function attachEvents() {
     trackStateChange("update_cent", "¢ 変更", before, after);
     syncFormFromState();
     render();
-    void syncAudioToActiveNotes();
+    void refreshAudibleVoices();
   };
   els.centInput.addEventListener("change", centCommit);
 
@@ -3676,6 +3839,7 @@ function attachEvents() {
   els.sustainModeInput.addEventListener("change", () => {
     const before = snapshotState();
     state.settings.playMode = els.sustainModeInput.checked ? "toggle" : "momentary";
+    els.sustainModeInput.closest("label")?.setAttribute("title", `\u6301\u7d9a: ${els.sustainModeInput.checked ? "ON" : "OFF"}`);
     audio.stopVoice(MOMENTARY_VOICE_ID);
     audio.stopVoice(DRAG_PREVIEW_VOICE_ID);
     const after = snapshotState();
@@ -3687,8 +3851,9 @@ function attachEvents() {
     const before = snapshotState();
     state.settings.waveform = els.waveformSelect.value;
     const after = snapshotState();
-    trackStateChange("update_waveform", "髮主桁・ｽ・｢髯溷私・ｽ・｢髯樊ｺｽ蛻､陝ｲ・ｩ", before, after);
-    void syncAudioToActiveNotes();
+    trackStateChange("update_waveform", "波形変更", before, after);
+    render();
+    void refreshAudibleVoices();
   });
 
   els.masterVolumeInput.addEventListener("input", () => {
@@ -3702,8 +3867,9 @@ function attachEvents() {
   els.activeNotesVolumeInput.addEventListener("input", () => {
     const before = snapshotState();
     state.settings.activeNotesVolume = Number(els.activeNotesVolumeInput.value);
+    els.activeNotesVolumeInput.closest("label")?.setAttribute("title", `現音高 音量 ${Math.round(state.settings.activeNotesVolume * 100)}%`);
     const after = snapshotState();
-    trackStateChange("update_active_gain", "activeNotes 音量変更", before, after);
+    trackStateChange("update_active_gain", "現音高 音量変更", before, after);
     applyActiveNoteGain();
   });
 
@@ -3987,21 +4153,26 @@ function attachEvents() {
     render();
   });
 
-  const bindWidthInput = (input, key, min, max, fallback) => {
+  const bindWidthInput = (input, key, min, max, fallback, kinds = ["pitch"]) => {
     input?.addEventListener("input", () => {
-      state.settings.tableColumnWidths[key] = clamp(Number(input.value) || fallback, min, max);
+      const next = clamp(Number(input.value) || fallback, min, max);
+      kinds.forEach((kind) => {
+        state.settings.tableColumnWidths[tableWidthKey(kind, key)] = next;
+      });
       applyLayoutSettings();
+      markProjectDirty();
       render();
     });
   };
-  bindWidthInput(els.presetNameWidthInput, "name", 5, 24, 11);
-  bindWidthInput(els.presetCentWidthInput, "cent", 3, 10, 5);
-  bindWidthInput(els.presetShortWidthInput, "short", 3, 12, 5);
-  bindWidthInput(els.presetTagWidthInput, "tags", 4, 18, 8);
-  bindWidthInput(els.presetMemoWidthInput, "memo", 5, 20, 10);
+  bindWidthInput(els.presetNameWidthInput, "name", 3.8, 24, DEFAULT_TABLE_COLUMN_WIDTHS.pitch_name, ["pitch", "active"]);
+  bindWidthInput(els.presetCentWidthInput, "cent", 3.2, 10, DEFAULT_TABLE_COLUMN_WIDTHS.pitch_cent, ["pitch", "active"]);
+  bindWidthInput(els.presetShortWidthInput, "id", 3.2, 12, DEFAULT_TABLE_COLUMN_WIDTHS.pitch_id, ["pitch", "active"]);
+  bindWidthInput(els.presetTagWidthInput, "tags", 3.8, 18, DEFAULT_TABLE_COLUMN_WIDTHS.pitch_tags, ["pitch", "active"]);
+  bindWidthInput(els.presetMemoWidthInput, "memo", 4.2, 20, DEFAULT_TABLE_COLUMN_WIDTHS.pitch_memo, ["pitch", "active"]);
   els.progressionCellWidthInput?.addEventListener("input", () => {
     state.settings.progressionCellWidth = clamp(Number(els.progressionCellWidthInput.value) || 124, 88, 220);
     applyLayoutSettings();
+    markProjectDirty();
     render();
   });
   els.activeNotesList.addEventListener("click", (ev) => {
@@ -4313,7 +4484,9 @@ function attachEvents() {
         mode: "active-note",
         before: snapshotState(),
         noteId: hitNote.id,
-        baseAbsoluteMicroStep: absoluteMicroStep(hitNote),
+        baseAbsoluteCent: ev.ctrlKey || ev.metaKey
+          ? Math.round(microStepToCent(absoluteMicroStep(hitNote)) / fineDragStepCent()) * fineDragStepCent()
+          : snapCent(microStepToCent(absoluteMicroStep(hitNote)), state.settings.snapCent),
         pointerStartX: x,
         virtualX: x,
         lastCanvasX: x,
@@ -4360,7 +4533,7 @@ function attachEvents() {
     await applyDragPitch(true);
     if (dragContext.mode === "active-note") {
       const after = snapshotState();
-      trackStateChange("active_note_drag", "activeNotes ドラッグ", dragContext.before, after);
+      trackStateChange("active_note_drag", "現音高ドラッグ", dragContext.before, after);
       await syncAudioToActiveNotes();
     } else if (state.settings.playMode === "momentary") {
       audio.stopVoice(MOMENTARY_VOICE_ID);
@@ -4526,17 +4699,9 @@ async function forceRefreshApplication() {
 }
 
 function syncFormFromState() {
-  state.settings.tableColumnWidths = {
-    name: 11,
-    id: 7,
-    cent: 5,
-    short: 5,
-    root: 6,
-    tones: 12,
-    tags: 8,
-    memo: 10,
-    ...(state.settings.tableColumnWidths || {})
-  };
+  state.settings.tableColumnWidths = normalizeTableColumnWidths(state.settings.tableColumnWidths);
+  normalizePitchPresetIdentity();
+  normalizeChordPresetIdentity();
   state.settings.progressionCellWidth = Number(state.settings.progressionCellWidth) || 124;
   state.settings.dismissedRuntimeNotice = Boolean(state.settings.dismissedRuntimeNotice);
   state.settings.dismissedPwaNotice = Boolean(state.settings.dismissedPwaNotice);
@@ -4547,9 +4712,11 @@ function syncFormFromState() {
   els.centInput.value = formatDecimal(state.pitchDraft.cent);
   els.microStepInput.value = state.pitchDraft.microStepInOctave;
   els.sustainModeInput.checked = state.settings.playMode === "toggle";
+  els.sustainModeInput.closest("label")?.setAttribute("title", `\u6301\u7d9a: ${els.sustainModeInput.checked ? "ON" : "OFF"}`);
   els.waveformSelect.value = state.settings.waveform;
   els.masterVolumeInput.value = state.settings.masterVolume;
   els.activeNotesVolumeInput.value = state.settings.activeNotesVolume;
+  els.activeNotesVolumeInput.closest("label")?.setAttribute("title", `現音高 音量 ${Math.round(state.settings.activeNotesVolume * 100)}%`);
   els.a4HzInput.value = state.settings.a4Hz;
   els.bpmInput.value = state.settings.bpm;
   els.roundUnitInput.value = formatDecimal(state.settings.roundUnitCent);
@@ -4585,11 +4752,11 @@ function syncFormFromState() {
   els.progLoopInput.checked = state.progression.loop;
   if (els.progSectionNameInput) els.progSectionNameInput.value = state.progressionEditor.sectionName;
   if (els.runtimeInfoText) renderRuntimeInfo();
-  if (els.presetNameWidthInput) els.presetNameWidthInput.value = state.settings.tableColumnWidths.name;
-  if (els.presetCentWidthInput) els.presetCentWidthInput.value = state.settings.tableColumnWidths.cent;
-  if (els.presetShortWidthInput) els.presetShortWidthInput.value = state.settings.tableColumnWidths.short;
-  if (els.presetTagWidthInput) els.presetTagWidthInput.value = state.settings.tableColumnWidths.tags;
-  if (els.presetMemoWidthInput) els.presetMemoWidthInput.value = state.settings.tableColumnWidths.memo;
+  if (els.presetNameWidthInput) els.presetNameWidthInput.value = getTableColumnWidth("pitch", "name");
+  if (els.presetCentWidthInput) els.presetCentWidthInput.value = getTableColumnWidth("pitch", "cent");
+  if (els.presetShortWidthInput) els.presetShortWidthInput.value = getTableColumnWidth("pitch", "id");
+  if (els.presetTagWidthInput) els.presetTagWidthInput.value = getTableColumnWidth("pitch", "tags");
+  if (els.presetMemoWidthInput) els.presetMemoWidthInput.value = getTableColumnWidth("pitch", "memo");
   if (els.progressionCellWidthInput) els.progressionCellWidthInput.value = state.settings.progressionCellWidth;
   renderProgressionChordButtons();
   renderProgressionEditorButtons();
@@ -4603,7 +4770,7 @@ function syncFormFromState() {
   els.playProgBtn.disabled = state.progression.parts.length === 0;
   els.playProgBtn.textContent = state.progression.playingPartId ? "一時停止" : "再生";
   els.stopProgBtn.disabled = !state.progression.playingPartId;
-  els.stopProgBtn.textContent = "??";
+  els.stopProgBtn.textContent = "停止";
   els.saveChordBtn.disabled = state.activeNotes.length === 0;
   document.querySelectorAll("#waveformButtonGroup button").forEach((button) => {
     if (button instanceof HTMLButtonElement) {
@@ -4617,7 +4784,7 @@ function renderActiveNotesV2() {
   const container = els.activeNotesList;
   container.innerHTML = "";
   if (state.activeNotes.length === 0) {
-    renderPresetTableEmpty(container, "activeNotes はまだありません。");
+    renderPresetTableEmpty(container, "現音高はまだありません。");
     els.activeNotesSummary.textContent = "数直線か音高プリセットから追加してください。";
     return;
   }
@@ -4631,20 +4798,20 @@ function renderActiveNotesV2() {
         <th><input type="checkbox" data-select-all="active" aria-label="select all active notes"></th>
         <th></th>
         <th data-sort="active:name">名前${sortIndicator(presetUi.activeSort, "name")}</th>
+        <th data-sort="active:id">ID${sortIndicator(presetUi.activeSort, "id")}</th>
         <th data-sort="active:cent">¢${sortIndicator(presetUi.activeSort, "cent")}</th>
-        <th data-sort="active:short">短名${sortIndicator(presetUi.activeSort, "short")}</th>
         <th data-sort="active:tags">タグ${sortIndicator(presetUi.activeSort, "tags")}</th>
         <th data-sort="active:memo">メモ${sortIndicator(presetUi.activeSort, "memo")}</th>
         <th></th>
       </tr>
     </thead>
   `;
-  table.prepend(buildPresetColGroup(["select", "remove", "name", "cent", "short", "tags", "memo", "actions"]));
+  table.prepend(buildPresetColGroup(["select", "remove", "name", "id", "cent", "tags", "memo", "actions"]));
   const tbody = document.createElement("tbody");
   const notes = filteredActiveNotes(els.activeNotesFilterInput?.value);
   if (notes.length === 0) {
     const emptyRow = document.createElement("tr");
-    emptyRow.innerHTML = `<td colspan="8" class="composer-note">条件に合う activeNotes はありません。</td>`;
+    emptyRow.innerHTML = `<td colspan="8" class="composer-note">条件に合う現音高はありません。</td>`;
     tbody.appendChild(emptyRow);
   }
   notes.forEach((note, index) => {
@@ -4656,7 +4823,7 @@ function renderActiveNotesV2() {
     selectCell.querySelector("input").checked = presetUi.selectedActiveNoteIds.has(note.id);
     row.appendChild(selectCell);
     const removeCell = document.createElement("td");
-    removeCell.innerHTML = `<button type="button" class="danger-button active-note-remove" data-note-id="${escapeHtml(note.id)}" aria-label="削除">x</button>`;
+    removeCell.innerHTML = `<button type="button" class="danger-button active-note-remove" data-note-id="${escapeHtml(note.id)}" aria-label="削除">×</button>`;
     row.appendChild(removeCell);
     const labelCell = document.createElement("td");
     const resolvedName = preset?.name || describeNoteTitle(note, index);
@@ -4669,9 +4836,13 @@ function renderActiveNotesV2() {
     const hiddenId = document.createElement("input");
     hiddenId.type = "hidden";
     hiddenId.dataset.field = "id";
-    hiddenId.value = preset?.id || "";
+    hiddenId.value = pitchPresetDisplayId(preset);
     labelCell.appendChild(hiddenId);
     row.appendChild(labelCell);
+    const idCell = document.createElement("td");
+    idCell.className = "preset-id";
+    idCell.textContent = pitchPresetDisplayId(preset) || " ";
+    row.appendChild(idCell);
     const centCell = document.createElement("td");
     const centInput = document.createElement("input");
     centInput.type = "number";
@@ -4681,14 +4852,13 @@ function renderActiveNotesV2() {
     centInput.dataset.field = "cent";
     centCell.appendChild(centInput);
     row.appendChild(centCell);
-    [["shortName", "短名"], ["tags", "タグ"], ["memo", "メモ"]].forEach(([field, placeholder]) => {
+    [["tags", "タグ"], ["memo", "メモ"]].forEach(([field, placeholder]) => {
       const td = document.createElement("td");
       const input = document.createElement("input");
       input.type = "text";
       input.className = "preset-inline-input";
       input.placeholder = placeholder;
       input.dataset.field = field;
-      if (field === "shortName") input.value = preset?.shortName || "";
       if (field === "tags") input.value = (preset?.tags || []).join(", ");
       if (field === "memo") input.value = preset?.memo || "";
       td.appendChild(input);
@@ -4702,7 +4872,7 @@ function renderActiveNotesV2() {
   table.appendChild(tbody);
   container.appendChild(table);
   syncTableSelectAll(table, "active", presetUi.selectedActiveNoteIds, notes.map((note) => note.id));
-  enhancePresetTable(table);
+  enhancePresetTable(table, "active");
   els.activeNotesSummary.textContent = `${state.activeNotes.length} 音を保持中`;
 }
 
@@ -4714,7 +4884,7 @@ function populateChordBaseRootOptions() {
   if (state.activeNotes.length === 0) {
     const option = document.createElement("option");
     option.value = "";
-    option.textContent = "activeNotes がありません";
+    option.textContent = "現音高がありません";
     select.appendChild(option);
     select.disabled = true;
     return;
@@ -4760,17 +4930,15 @@ function saveCurrentPitchPreset(source = null) {
   const values = source?.values || {
     id: els.pitchPresetIdInput.value,
     name: els.pitchPresetNameInput.value,
-    shortName: els.pitchPresetShortNameInput.value,
     tags: els.pitchPresetTagsInput.value,
     memo: els.pitchPresetMemoInput.value
   };
   const before = snapshotState();
-  const generatedId = `PITCH_${slugifyIdPart(values.shortName || values.name || note.microStepInOctave)}_${note.microStepInOctave}`;
-  const pitchId = slugifyIdPart(values.id) || generatedId;
+  const displayId = slugifyIdPart(values.id || values.name || note.microStepInOctave) || `p${note.microStepInOctave}`;
+  const generatedId = `PITCH_${displayId}_${note.microStepInOctave}`;
   const pitchName = values.name.trim() || `音高 ${formatDecimal(note.cent)}`;
-  const shortName = values.shortName.trim();
-  if (state.pitchPresets.some((preset) => preset.id === pitchId)) {
-    setStatus(els.pitchPresetStatus, `ID ${pitchId} は既存プリセットと重複しています。`, "error");
+  if (state.pitchPresets.some((preset) => pitchPresetDisplayId(preset) === displayId)) {
+    setStatus(els.pitchPresetStatus, `ID ${displayId} は既存プリセットと重複しています。`, "error");
     return;
   }
   if (state.pitchPresets.some((preset) => preset.name === pitchName)) {
@@ -4778,9 +4946,9 @@ function saveCurrentPitchPreset(source = null) {
     return;
   }
   state.pitchPresets.push({
-    id: pitchId,
+    id: generatedId,
     name: pitchName,
-    shortName,
+    shortName: displayId,
     cent: Number(note.cent),
     microStep: note.microStepInOctave,
     symbolRuleKey: "default",
@@ -4838,7 +5006,7 @@ function resolveRecallRoot() {
 function renderRecallSummary() {
   const chord = state.chordPresets.find((item) => item.id === els.recallChordSelect.value) || null;
   if (!chord) {
-    els.recallChordSummary.textContent = "保存済みコードを選ぶと activeNotes に展開できます。";
+    els.recallChordSummary.textContent = "保存済みコードを選ぶと現音高へ展開できます。";
     els.loadChordBtn.disabled = true;
     return;
   }
@@ -4885,7 +5053,7 @@ function renderProgressionSummary() {
 
 function saveChordFromActiveNotes() {
   if (state.activeNotes.length === 0) {
-    setStatus(els.chordStatus, "activeNotes がありません。", "error");
+    setStatus(els.chordStatus, "現音高がありません。", "error");
     return;
   }
   const root = resolveRecallRoot();
@@ -4895,8 +5063,9 @@ function saveChordFromActiveNotes() {
   }
   const before = snapshotState();
   const rawName = els.chordNameInput.value.trim();
-  const generatedId = `CHORD_${slugifyIdPart(rawName || "AUTO")}_${state.chordPresets.length + 1}`;
-  const chordId = slugifyIdPart(els.chordIdInput.value) || generatedId;
+  const displayId = slugifyIdPart(els.chordIdInput.value || rawName || "AUTO") || `chord_${state.chordPresets.length + 1}`;
+  const generatedId = `CHORD_${displayId}_${state.chordPresets.length + 1}`;
+  const chordId = generatedId;
   const userLabels = parseCsvList(els.chordLabelsInput.value);
   const rootAbsolute = (root.octave * OCTAVE_MICROSTEP) + root.microStepInOctave;
   const orderedNotes = [...state.activeNotes.slice().sort((a, b) => (absoluteMicroStep(a) - rootAbsolute) - (absoluteMicroStep(b) - rootAbsolute))];
@@ -4913,12 +5082,13 @@ function saveChordFromActiveNotes() {
     };
   });
   const chordName = rawName || deriveChordName(userLabels, tones);
-  if (state.chordPresets.some((preset) => preset.id === chordId)) {
-    setStatus(els.chordStatus, `ID ${chordId} は既存プリセットと重複しています。`, "error");
+  if (state.chordPresets.some((preset) => chordPresetDisplayId(preset) === displayId)) {
+    setStatus(els.chordStatus, `ID ${displayId} は既存プリセットと重複しています。`, "error");
     return;
   }
   state.chordPresets.push({
     id: chordId,
+    shortName: displayId,
     name: chordName,
     baseRoot: { octave: root.octave, microStepInOctave: root.microStepInOctave, pitchPresetId: root.pitchPresetId || null, noteText: root.noteText || "" },
     tones,
@@ -4974,7 +5144,7 @@ async function loadChordIntoActiveNotes(chordId = els.recallChordSelect.value) {
   pitchUi.lastTouchedNoteId = state.activeNotes[0]?.id || null;
   syncDraftFromCent(microStepToCent(root.microStepInOctave), root.octave);
   const after = snapshotState();
-  trackStateChange("load_chord_preset", "コードを activeNotes へ展開", before, after);
+  trackStateChange("load_chord_preset", "コードを現音高へ展開", before, after);
   syncFormFromState();
   render();
   await syncAudioToActiveNotes();
@@ -4987,14 +5157,7 @@ function render() {
   const progressionVisible = isViewVisible("view-progression");
 
   if (pitchVisible) {
-    const currentPreset = findPitchPresetByMicroStep(state.pitchDraft.microStepInOctave);
-    const parts = [`cent ${formatDecimal(state.pitchDraft.cent)}`];
-    if (currentPreset) parts.push(`named ${formatPresetDisplayName(currentPreset)}`);
-    const lineReadout = parts.join(" / ");
-    renderIfChanged("line", `${dataRevision.pitch}|${dataRevision.settings}|${lineReadout}`, () => {
-      els.lineReadout.textContent = lineReadout;
-      renderLine();
-    });
+    renderIfChanged("line", `${dataRevision.pitch}|${dataRevision.settings}`, renderLine);
 
     renderIfChanged(
       "activeNotes",
@@ -5030,17 +5193,40 @@ function render() {
   }
 
   if (progressionVisible) {
-    renderIfChanged("progressionGrid", `${dataRevision.progression}|${dataRevision.chord}|${state.settings.progressionCellWidth}`, renderProgressionGrid);
+    renderIfChanged(
+      "progressionGrid",
+      `${dataRevision.progression}|${dataRevision.chord}|${state.settings.progressionCellWidth}|${state.progression.selectedPartId || ""}|${state.progression.playingPartId || ""}|${progressionUi.draggingPartId || ""}|${progressionUi.dragOverPartId || ""}|${progressionUi.dragPlacement || ""}`,
+      renderProgressionGrid
+    );
 
-    renderIfChanged("progressionSummary", `${dataRevision.progression}|${dataRevision.chord}|${dataRevision.pitch}`, renderProgressionSummary);
+    renderIfChanged(
+      "progressionSummary",
+      [
+        dataRevision.progression,
+        dataRevision.chord,
+        dataRevision.pitch,
+        state.progression.selectedPartId || "",
+        state.progression.playingPartId || "",
+        state.progressionEditor.chordId || "",
+        state.progressionEditor.rootNoteText || "",
+        state.progressionEditor.sectionName || "",
+        state.progressionEditor.beats || "",
+        state.progressionEditor.beatUnit || "",
+        state.progressionEditor.bassMode || "",
+        state.progressionEditor.bassValue || "",
+        state.progressionEditor.inversionStep || "",
+        state.progressionEditor.voicingOctave || ""
+      ].join("|"),
+      renderProgressionSummary
+    );
 
-    renderIfChanged("progressionEditor", `${dataRevision.progression}|${dataRevision.chord}|${dataRevision.pitch}|${els.progChordTagFilterInput?.value || ""}`, () => {
+    renderIfChanged("progressionEditor", `${dataRevision.progression}|${dataRevision.chord}|${dataRevision.pitch}|${state.progression.selectedPartId || ""}|${els.progChordTagFilterInput?.value || ""}`, () => {
       renderProgressionChordButtons();
       renderProgressionEditorButtons();
       renderRecallSummary();
     });
 
-    renderIfChanged("progressionControls", `${dataRevision.progression}|${state.progression.playingPartId || ""}|${state.activeNotes.length}`, () => {
+    renderIfChanged("progressionControls", `${dataRevision.progression}|${state.progression.selectedPartId || ""}|${state.progression.playingPartId || ""}|${state.activeNotes.length}`, () => {
       els.addProgPartBtn.textContent = state.progression.selectedPartId ? "後ろに挿入" : "追加";
       if (els.addProgChunkBtn) els.addProgChunkBtn.disabled = !state.progressionEditor.chordId;
       if (els.addProgSectionBtn) els.addProgSectionBtn.disabled = !state.progressionEditor.chordId;
