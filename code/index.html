@@ -35,7 +35,7 @@
     <div class="history-buttons">
       <button id="undoBtn" type="button">元に戻す</button>
       <button id="redoBtn" type="button">やり直す</button>
-      <label class="master-volume-inline" title="Master Vol.">
+      <label class="master-volume-inline" title="Master 音量">
         <span class="master-volume-icon" aria-hidden="true">Vol</span>
         <input id="masterVolumeInput" type="range" min="0" max="1" step="0.01" value="0.3" aria-label="Master Volume">
       </label>
@@ -77,7 +77,7 @@
               <option value="sawtooth">sawtooth</option>
             </select>
           </label>
-          <label>activeNotes 音量
+          <label>現音高 音量
             <input id="activeNotesVolumeInput" type="range" min="0" max="1" step="0.01" value="0.5">
           </label>
         </div>
@@ -85,7 +85,6 @@
 
       <div class="line-wrap">
         <canvas id="pitchLine" width="1000" height="80" aria-label="pitch line"></canvas>
-        <p id="lineReadout" class="readout">cent 0</p>
       </div>
 
       <section class="panel unified-panel active-notes-panel">
@@ -102,7 +101,7 @@
         <div class="library-stack">
           <section class="library-block">
             <div class="library-block-head">
-              <strong>activeNotes</strong>
+              <strong>現音高</strong>
               <input id="activeNotesFilterInput" type="text" class="table-filter-input" placeholder="名前 / ID / タグで絞り込み">
             </div>
             <div id="activeNotesList" class="preset-list scroll-list"></div>
@@ -110,7 +109,6 @@
           <section class="library-block">
             <div class="library-block-head">
               <strong>音高プリセット</strong>
-              <span class="panel-note">クリックで追加、ダブルクリックで編集</span>
             </div>
             <input id="pitchPresetFilterInput" type="text" class="table-filter-input" placeholder="名前 / ID / タグで絞り込み">
             <div class="visually-hidden">
@@ -170,10 +168,10 @@
             <option value="preset" selected>preset</option>
           </select>
           <input id="recallRootOctaveInput" type="number" value="4">
-          <button id="loadChordBtn" type="button">activeNotes に展開</button>
+          <button id="loadChordBtn" type="button">現音高に展開</button>
         </div>
         <div class="inline-row library-actions visually-hidden">
-          <button id="saveChordBtn" type="button">activeNotes から保存</button>
+          <button id="saveChordBtn" type="button">現音高から保存</button>
         </div>
         <div id="chordPresetList" class="preset-list scroll-list"></div>
       </section>
@@ -321,19 +319,19 @@
         </div>
         <div class="controls-grid compact-grid">
           <label>名前列 rem
-            <input id="presetNameWidthInput" type="number" min="5" max="24" step="0.5" value="11">
+            <input id="presetNameWidthInput" type="number" min="3.8" max="24" step="0.1" value="5.8">
           </label>
           <label>cent 列 rem
-            <input id="presetCentWidthInput" type="number" min="3" max="10" step="0.5" value="5">
+            <input id="presetCentWidthInput" type="number" min="3.2" max="10" step="0.1" value="3.8">
           </label>
-          <label>短名列 rem
-            <input id="presetShortWidthInput" type="number" min="3" max="12" step="0.5" value="5">
+          <label>ID 列 rem
+            <input id="presetShortWidthInput" type="number" min="3.2" max="12" step="0.1" value="3.9">
           </label>
           <label>タグ列 rem
-            <input id="presetTagWidthInput" type="number" min="4" max="18" step="0.5" value="8">
+            <input id="presetTagWidthInput" type="number" min="3.8" max="18" step="0.1" value="5.8">
           </label>
           <label>メモ列 rem
-            <input id="presetMemoWidthInput" type="number" min="5" max="20" step="0.5" value="10">
+            <input id="presetMemoWidthInput" type="number" min="4.2" max="20" step="0.1" value="6.8">
           </label>
           <label>コード箱 px
             <input id="progressionCellWidthInput" type="number" min="88" max="220" step="4" value="124">

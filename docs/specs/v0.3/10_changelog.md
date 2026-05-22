@@ -50,3 +50,8 @@
 - 実装先行の修正でも、仕様上の意味があるものは roadmap と合わせて更新する。
 
 Roadmap link: [09_status_roadmap.md](./09_status_roadmap.md)
+
+## 2026-05-20 (continued)
+- UI follow-up: quantized active-note drag on the pitch line, compact in-field cent stepper, line readout removal, drawer panel exclusivity, per-table column-width separation, and page-scroll lock with internal scroll regions.
+- Regression follow-up: restored visible updates during pitch drag and chunk switching by widening progression render keys, stabilized waveform changes, restored undo/redo icon buttons, moved volume sliders to icon-anchored hover popdowns, reduced sublabel sizing, renamed `activeNotes` display to `現音高`, and merged visible `ID / 短名` table treatment into `ID` 중심 columns.
+- Follow-up fix: waveform icon clicks now react even when the SVG child is tapped, dragged existing notes now move in snap-cent increments from a snapped base, and visible preset `ID` values are driven by short names such as `P5` and `m7` while internal reference ids remain stable.
