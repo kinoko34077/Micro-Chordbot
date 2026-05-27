@@ -1485,6 +1485,26 @@ body.workspace-combined .chord-library-panel .panel-note {
 }
 
 @media (max-width: 640px) {
+  html,
+  body {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  body {
+    display: block;
+    min-height: 100dvh;
+  }
+  main {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    padding-bottom: 24px;
+  }
+  .view.active {
+    overflow: visible;
+  }
   .topbar { flex-direction: column; align-items: flex-start; gap: 8px; }
   .brand-nav { width: 100%; }
   .view-nav { width: 100%; }

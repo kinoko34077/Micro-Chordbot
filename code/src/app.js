@@ -74,6 +74,7 @@ const state = {
     snapCent: 16.666,
     playMode: "toggle",
     waveform: "sine",
+    phaseMode: "reset",
     dismissedRuntimeNotice: false,
     dismissedPwaNotice: false,
     progressionCellWidth: 124,
@@ -213,6 +214,7 @@ const els = {
   progSectionNameInput: document.getElementById("progSectionNameInput"),
   a4HzInput: document.getElementById("a4HzInput"),
   bpmInput: document.getElementById("bpmInput"),
+  phaseModeSelect: document.getElementById("phaseModeSelect"),
   roundUnitInput: document.getElementById("roundUnitInput"),
   roundingModeSelect: document.getElementById("roundingModeSelect"),
   runtimeInfoText: document.getElementById("runtimeInfoText"),
@@ -292,7 +294,7 @@ function invalidateRenderCache() {
 }
 
 function renderIfChanged(slot, key, run) {
-  if (dragContext || progressionUi.reorderingPartId || progressionUi.pendingPointerId) {
+  if (progressionUi.draggingPartId || progressionUi.pendingPointerId) {
     renderCache[slot] = key;
     run();
     return;
@@ -323,38 +325,46 @@ function bumpDataRevisionForChange(type) {
     return;
   }
 
-  if (
+  const isProgressionChange =
     type.startsWith("update_progression_") ||
     type.startsWith("add_progression_") ||
     type.startsWith("rename_progression_") ||
     type.startsWith("delete_progression_") ||
-    type.startsWith("reorder_progression_")
-  ) {
+    type.startsWith("reorder_progression_");
+
+  const isPitchChange =
+    type.includes("pitch") ||
+    type.includes("active_note") ||
+    [
+      "clear_active_notes",
+      "remove_active_note",
+      "delete_active_notes",
+      "load_chord_preset",
+      "update_cent",
+      "update_octave"
+    ].includes(type);
+
+  const isChordChange =
+    type.includes("chord") ||
+    type === "load_chord_preset";
+
+  const isSettingsChange =
+    type.startsWith("update_") ||
+    type === "update_mode";
+
+  if (isProgressionChange) {
     dataRevision.progression += 1;
   }
 
-  if (
-    type.includes("pitch") ||
-    type.includes("active_note") ||
-    type === "clear_active_notes" ||
-    type === "remove_active_note" ||
-    type === "delete_active_notes" ||
-    type === "load_chord_preset"
-  ) {
+  if (isPitchChange) {
     dataRevision.pitch += 1;
   }
 
-  if (
-    type.includes("chord") ||
-    type === "load_chord_preset"
-  ) {
+  if (isChordChange) {
     dataRevision.chord += 1;
   }
 
-  if (
-    type.startsWith("update_") ||
-    type === "update_mode"
-  ) {
+  if (isSettingsChange) {
     dataRevision.settings += 1;
   }
 }
@@ -642,6 +652,7 @@ function ensureWorkspaceDom() {
   setLabelLead(els.progressionCellWidthInput, "箱 px");
   setLabelLead(els.a4HzInput, "A4 Hz");
   setLabelLead(els.bpmInput, "BPM");
+  setLabelLead(els.phaseModeSelect, "位相");
   setLabelLead(els.roundUnitInput, "丸め ¢");
   setLabelLead(els.roundingModeSelect, "丸め");
   const beatToken = els.progBeatsNumeratorInput?.closest(".beat-token");
@@ -1258,6 +1269,37 @@ function fineDragStepCent() {
   return Math.max(0.01, snap > 0 ? snap / 10 : 0.01);
 }
 
+function coarseDragStepCent() {
+  return Math.max(0, Number(state.settings.snapCent) || 0);
+}
+
+function quantizeCent(value, step) {
+  const unit = Math.max(0, Number(step) || 0);
+  if (unit <= 0) return Number(value) || 0;
+  return Math.round((Number(value) || 0) / unit) * unit;
+}
+
+function quantizeDraggedAbsoluteCent(baseAbsoluteCent, rawDeltaCent, fine = false) {
+  const step = fine ? fineDragStepCent() : coarseDragStepCent();
+  return quantizeCent(Number(baseAbsoluteCent) + Number(rawDeltaCent), step);
+}
+
+function pitchTransientRenderKey() {
+  return [
+    state.pitchDraft.octave,
+    state.pitchDraft.microStepInOctave,
+    pitchUi.lastTouchedNoteId || ""
+  ].join("|");
+}
+
+function pitchLineRenderKey() {
+  return [
+    pitchTransientRenderKey(),
+    audio.hasVoice(MOMENTARY_VOICE_ID) ? 1 : 0,
+    audio.hasVoice(DRAG_PREVIEW_VOICE_ID) ? 1 : 0
+  ].join("|");
+}
+
 function openProgressionPopover(name) {
   popoverUi.active = name;
   renderProgressionPopovers();
@@ -1309,6 +1351,53 @@ function currentDraftFrequency() {
   );
 }
 
+function syncPitchControlsFromState() {
+  els.octaveInput.value = state.pitchDraft.octave;
+  els.snapCentInput.value = formatDecimal(state.settings.snapCent);
+  els.centInput.value = formatDecimal(state.pitchDraft.cent);
+  els.microStepInput.value = state.pitchDraft.microStepInOctave;
+}
+
+function renderPitchDuringInteraction() {
+  syncPitchControlsFromState();
+  renderLine();
+}
+
+function syncProgressionFormFromState() {
+  state.progression.columns = clamp(Number(state.progression.columns) || 4, 1, 12);
+  const rootParts = rootEditorParts();
+  els.progRootNoteInput.value = `${rootParts.letter}${rootParts.accidental}`;
+  if (els.progRootOctaveInput) els.progRootOctaveInput.value = rootParts.octave;
+  els.progColumnsSelect.value = String(state.progression.columns);
+  if (els.progChunkSelect) {
+    const current = chunkContextForPartId(currentProgressionAnchorId());
+    els.progChunkSelect.innerHTML = "";
+    progressionChunks().forEach((chunk, index) => {
+      const option = document.createElement("option");
+      option.value = chunk.id;
+      option.textContent = `${String(index + 1).padStart(2, "0")} ${chunk.name}`;
+      els.progChunkSelect.appendChild(option);
+    });
+    els.progChunkSelect.value = current.chunk?.id || progressionChunks()[0]?.id || "";
+    els.progChunkSelect.disabled = progressionChunks().length === 0;
+  }
+  els.progLoopInput.checked = state.progression.loop;
+  if (els.progSectionNameInput) els.progSectionNameInput.value = state.progressionEditor.sectionName || "";
+  renderProgressionChordButtons();
+  renderProgressionEditorButtons();
+  els.addProgPartBtn.textContent = state.progression.selectedPartId ? "後ろに挿入" : "追加";
+  if (els.addProgChunkBtn) els.addProgChunkBtn.disabled = !state.progressionEditor.chordId;
+  if (els.addProgSectionBtn) els.addProgSectionBtn.disabled = !state.progressionEditor.chordId;
+  els.deleteProgPartBtn.disabled = !state.progression.selectedPartId;
+  els.progPrevBtn.disabled = state.progression.parts.length === 0;
+  els.progNextBtn.disabled = state.progression.parts.length === 0;
+  els.playProgBtn.disabled = state.progression.parts.length === 0;
+  els.playProgBtn.textContent = state.progression.playingPartId ? "一時停止" : "再生";
+  els.stopProgBtn.disabled = !state.progression.playingPartId;
+  els.stopProgBtn.textContent = "停止";
+  syncProgressionLayoutState();
+}
+
 async function syncAudioToActiveNotes() {
   audio.stopVoice(MOMENTARY_VOICE_ID);
   audio.stopVoice(DRAG_PREVIEW_VOICE_ID);
@@ -1347,6 +1436,26 @@ async function refreshAudibleVoices() {
   if (previewing && selectedPart) {
     await previewProgressionPart(selectedPart);
   }
+}
+
+async function updateWaveformSetting(nextWaveform) {
+  const waveform = String(nextWaveform || "").trim();
+  if (!waveform) return;
+  const previousWaveform = state.settings.waveform;
+  const before = snapshotState();
+  state.settings.waveform = waveform;
+  if (els.waveformSelect) {
+    els.waveformSelect.value = waveform;
+  }
+  const after = snapshotState();
+  if (previousWaveform !== waveform) {
+    trackStateChange("update_waveform", "波形変更", before, after);
+  } else {
+    dataRevision.settings += 1;
+  }
+  render();
+  await refreshAudibleVoices();
+  render();
 }
 
 function applySnapshot(snap) {
@@ -1593,6 +1702,10 @@ function rootEditorParts() {
 
 function currentProgressionSelectionIndex() {
   return state.progression.parts.findIndex((part) => part.id === state.progression.selectedPartId);
+}
+
+function currentProgressionAnchorId() {
+  return state.progression.selectedPartId || state.progression.parts[0]?.id || "";
 }
 
 function progressionToneSpecs(chord) {
@@ -1847,6 +1960,13 @@ function chunkContextForPartId(partId) {
   };
 }
 
+function chunkPartsForPartId(partId) {
+  const context = chunkContextForPartId(partId);
+  if (!context.chunk) return [];
+  const partById = new Map(state.progression.parts.map((part) => [part.id, part]));
+  return context.chunk.partIds.map((id) => partById.get(id)).filter(Boolean);
+}
+
 function currentChunkId() {
   const selected = state.progression.parts.find((part) => part.id === state.progression.selectedPartId);
   if (selected?.chunkId) return selected.chunkId;
@@ -1854,7 +1974,7 @@ function currentChunkId() {
 }
 
 function currentChunkName() {
-  const current = chunkContextForPartId(state.progression.selectedPartId || state.progression.parts[0]?.id || "");
+  const current = chunkContextForPartId(currentProgressionAnchorId());
   return current.chunk?.name || "chunk 1";
 }
 
@@ -1882,6 +2002,49 @@ function stopProgressionPreview(shouldRender = true) {
   }
 }
 
+function stopScopedVoices(prefix) {
+  for (const [voiceId] of audio.voices) {
+    if (voiceId.startsWith(prefix)) {
+      audio.stopVoice(voiceId);
+    }
+  }
+}
+
+function hasScopedVoices(prefix) {
+  for (const [voiceId] of audio.voices) {
+    if (voiceId.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
+async function syncScopedVoiceSpecs(prefix, specs, preservePhase = false) {
+  const activeIds = new Set(specs.map((spec) => spec.id));
+  const hadScopedVoices = hasScopedVoices(prefix);
+  if (!preservePhase) {
+    stopScopedVoices(prefix);
+  } else {
+    for (const [voiceId] of audio.voices) {
+      if (voiceId.startsWith(prefix) && !activeIds.has(voiceId)) {
+        audio.stopVoice(voiceId);
+      }
+    }
+  }
+  await Promise.all(
+    specs.map((spec) =>
+      audio.startVoice(
+        spec.id,
+        spec.freq,
+        state.settings.waveform,
+        state.settings.activeNotesVolume,
+        {
+          phaseKey: spec.phaseKey || spec.id,
+          phaseStartMode: preservePhase && !hadScopedVoices ? "random" : "stored"
+        }
+      )
+    )
+  );
+}
+
 function progressionPartVoiceSpecs(part, voicePrefix) {
   const chord = state.chordPresets.find((item) => item.id === part.chordId);
   if (!chord) return [];
@@ -1900,7 +2063,8 @@ function progressionPartVoiceSpecs(part, voicePrefix) {
     const normalized = normalizePitch(0, absolute);
     const rounded = roundPitchPosition(normalized.octave, normalized.microStepInOctave);
     specs.push({
-      id: `${voicePrefix}${part.id}:${tone.toneIndex}`,
+      id: `${voicePrefix}tone:${specs.length}`,
+      phaseKey: `prog:tone:${specs.length}`,
       freq: frequencyFromPitch(state.settings.a4Hz, rounded.octave, rounded.microStepInOctave)
     });
   });
@@ -1909,7 +2073,8 @@ function progressionPartVoiceSpecs(part, voicePrefix) {
   if (bassPosition) {
     const roundedBass = roundPitchPosition(bassPosition.octave, bassPosition.microStepInOctave);
     specs.push({
-      id: `${voicePrefix}${part.id}:bass`,
+      id: `${voicePrefix}bass`,
+      phaseKey: "prog:bass",
       freq: frequencyFromPitch(state.settings.a4Hz, roundedBass.octave, roundedBass.microStepInOctave)
     });
   }
@@ -1919,13 +2084,15 @@ function progressionPartVoiceSpecs(part, voicePrefix) {
 
 async function previewProgressionPart(part, durationMs = 700) {
   if (!part || state.progression.playingPartId) return;
-  stopProgressionPreview(false);
+  if (progressionPreviewTimerId) {
+    clearTimeout(progressionPreviewTimerId);
+    progressionPreviewTimerId = null;
+  }
+  if (state.settings.phaseMode !== "continue") {
+    stopScopedVoices(PROGRESSION_PREVIEW_VOICE_PREFIX);
+  }
   const specs = progressionPartVoiceSpecs(part, PROGRESSION_PREVIEW_VOICE_PREFIX);
-  await Promise.all(
-    specs.map((spec) =>
-      audio.startVoice(spec.id, spec.freq, state.settings.waveform, state.settings.activeNotesVolume)
-    )
-  );
+  await syncScopedVoiceSpecs(PROGRESSION_PREVIEW_VOICE_PREFIX, specs, state.settings.phaseMode === "continue");
   progressionPreviewTimerId = setTimeout(() => {
     stopProgressionPreview();
     render();
@@ -1933,25 +2100,28 @@ async function previewProgressionPart(part, durationMs = 700) {
   render();
 }
 
-function stopProgressionPlayback(shouldRender = true) {
+function clearProgressionPlaybackTimer() {
   if (progressionPlayback.timerId) {
     clearTimeout(progressionPlayback.timerId);
     progressionPlayback.timerId = null;
   }
+}
+
+function stopProgressionPlayback(shouldRender = true) {
+  clearProgressionPlaybackTimer();
   progressionPlayback.partIndex = -1;
   state.progression.playingPartId = null;
-  for (const [voiceId] of audio.voices) {
-    if (voiceId.startsWith(PROGRESSION_VOICE_PREFIX)) {
-      audio.stopVoice(voiceId);
-    }
-  }
+  stopScopedVoices(PROGRESSION_VOICE_PREFIX);
   if (shouldRender) {
     render();
   }
 }
 
 async function playProgressionPart(part, partIndex) {
-  stopProgressionPlayback(false);
+  clearProgressionPlaybackTimer();
+  if (state.settings.phaseMode !== "continue") {
+    stopScopedVoices(PROGRESSION_VOICE_PREFIX);
+  }
   stopProgressionPreview(false);
   state.progression.playingPartId = part.id;
   progressionPlayback.partIndex = partIndex;
@@ -1961,21 +2131,12 @@ async function playProgressionPart(part, partIndex) {
     return;
   }
 
-  await Promise.all(
-    specs.map((spec) =>
-      audio.startVoice(spec.id, spec.freq, state.settings.waveform, state.settings.activeNotesVolume)
-    )
-  );
+  await syncScopedVoiceSpecs(PROGRESSION_VOICE_PREFIX, specs, state.settings.phaseMode === "continue");
   render();
 
   const beatMs = (60_000 / clamp(state.settings.bpm, 5, 300)) * part.beats * (4 / clamp(Number(part.beatUnit) || 4, 1, 32));
   progressionPlayback.timerId = setTimeout(() => {
-    const chunkInfo = chunkContextForPartId(part.id);
-    const chunkParts = chunkInfo.chunk
-      ? chunkInfo.chunk.partIds
-          .map((id) => state.progression.parts.find((item) => item.id === id))
-          .filter(Boolean)
-      : [];
+    const chunkParts = chunkPartsForPartId(part.id);
     const currentChunkIndex = chunkParts.findIndex((item) => item.id === part.id);
     const nextIndex = currentChunkIndex + 1;
     if (nextIndex < chunkParts.length) {
@@ -2155,9 +2316,11 @@ function renderProgressionGrid() {
     return;
   }
 
-  const current = chunkContextForPartId(state.progression.selectedPartId || state.progression.parts[0]?.id || "");
+  const current = chunkContextForPartId(currentProgressionAnchorId());
   const chunk = current.chunk || progressionChunks()[0];
   if (!chunk) return;
+  const partById = new Map(state.progression.parts.map((part) => [part.id, part]));
+  const indexById = new Map(state.progression.parts.map((part, index) => [part.id, index]));
 
   const chunkWrap = document.createElement("section");
   chunkWrap.className = "progression-chunk";
@@ -2174,20 +2337,20 @@ function renderProgressionGrid() {
   chunkGrid.className = "progression-chunk-grid";
 
   chunk.partIds.forEach((partId) => {
-    const index = state.progression.parts.findIndex((item) => item.id === partId);
-    const part = state.progression.parts[index];
+    const part = partById.get(partId);
+    const index = indexById.get(partId) ?? -1;
     if (!part) return;
     const { title: cellLabel, meta: metaLabel, detail: detailLabel, sectionName } = progressionPartLabel(part);
 
-      if (sectionName) {
-        const sectionBreak = document.createElement("div");
-        sectionBreak.className = "progression-section-break";
-        sectionBreak.textContent = sectionName;
-        sectionBreak.dataset.partId = part.id;
-        sectionBreak.dataset.sectionName = sectionName;
-        sectionBreak.title = "ダブルクリックでセクション名を編集";
-        chunkGrid.appendChild(sectionBreak);
-      }
+    if (sectionName) {
+      const sectionBreak = document.createElement("div");
+      sectionBreak.className = "progression-section-break";
+      sectionBreak.textContent = sectionName;
+      sectionBreak.dataset.partId = part.id;
+      sectionBreak.dataset.sectionName = sectionName;
+      sectionBreak.title = "ダブルクリックでセクション名を編集";
+      chunkGrid.appendChild(sectionBreak);
+    }
 
     const button = document.createElement("button");
     button.type = "button";
@@ -2442,7 +2605,7 @@ function addProgressionPart() {
   }
   const after = snapshotState();
   trackStateChange("add_progression_part", "進行セルを追加", before, after);
-  syncFormFromState();
+  syncProgressionFormFromState();
   render();
   setStatus(els.progStatus, "進行セルを追加しました。", "success");
 }
@@ -2464,7 +2627,7 @@ function addProgressionSection() {
   state.progression.selectedPartId = partId;
   const after = snapshotState();
   trackStateChange("add_progression_section", "Section を追加", before, after);
-  syncFormFromState();
+  syncProgressionFormFromState();
   render();
   setStatus(els.progStatus, "Section を追加しました。", "success");
 }
@@ -2491,7 +2654,7 @@ function addProgressionChunk() {
   state.progression.selectedPartId = partId;
   const after = snapshotState();
   trackStateChange("add_progression_chunk", "チャンクを追加", before, after);
-  syncFormFromState();
+  syncProgressionFormFromState();
   render();
   setStatus(els.progStatus, "チャンクを追加しました。", "success");
 }
@@ -2506,7 +2669,7 @@ function renameChunk(chunkId, nextName) {
   );
   const after = snapshotState();
   trackStateChange("rename_progression_chunk", "チャンク名を変更", before, after);
-  syncFormFromState();
+  syncProgressionFormFromState();
   render();
 }
 
@@ -2523,7 +2686,7 @@ function renameSection(partId, nextName) {
   }
   const after = snapshotState();
   trackStateChange("rename_progression_section", "Section 名を変更", before, after);
-  syncFormFromState();
+  syncProgressionFormFromState();
   render();
 }
 
@@ -2537,7 +2700,7 @@ function selectProgressionPart(partId) {
   progressionUi.isMenuOpen = false;
   progressionUi.isEditorExpanded = true;
   invalidateRenderCache();
-  syncFormFromState();
+  syncProgressionFormFromState();
   render();
   if (part) {
     void previewProgressionPart(part);
@@ -2582,7 +2745,7 @@ function deleteSelectedProgressionPart() {
   }
   const after = snapshotState();
   trackStateChange("delete_progression_part", "進行セルを削除", before, after);
-  syncFormFromState();
+  syncProgressionFormFromState();
   render();
   setStatus(els.progStatus, "選択セルを削除しました。", "success");
 }
@@ -2591,7 +2754,7 @@ function deleteSelectedProgressionPart() {
 function syncProgressionSelectionFromEditor(changeLabel, preview = false) {
   const selectedId = state.progression.selectedPartId;
   if (!selectedId) {
-    syncFormFromState();
+    syncProgressionFormFromState();
     render();
     return;
   }
@@ -2600,7 +2763,7 @@ function syncProgressionSelectionFromEditor(changeLabel, preview = false) {
 
   const root = resolveProgressionRootInput();
   if (!root || !state.progressionEditor.chordId) {
-    syncFormFromState();
+    syncProgressionFormFromState();
     render();
     return;
   }
@@ -2618,7 +2781,7 @@ function syncProgressionSelectionFromEditor(changeLabel, preview = false) {
   };
   const after = snapshotState();
   trackStateChange("update_progression_part", changeLabel, before, after);
-  syncFormFromState();
+  syncProgressionFormFromState();
   render();
   setStatus(els.progStatus, "選択セルへ反映しました。", "success");
   if (preview) {
@@ -2644,7 +2807,7 @@ function setProgressionEditorRoot({ letter, accidental, octave }) {
 }
 
 function stepSelectedProgressionPart(direction) {
-  const current = chunkContextForPartId(state.progression.selectedPartId || state.progression.parts[0]?.id || "");
+  const current = chunkContextForPartId(currentProgressionAnchorId());
   if (!current.chunk || current.chunks.length === 0) return;
   const nextIndex = clamp(current.index + direction, 0, current.chunks.length - 1);
   selectProgressionPart(current.chunks[nextIndex].partIds[0]);
@@ -2668,7 +2831,7 @@ function beginProgressionReorder(partId) {
   progressionUi.isEditorExpanded = true;
   state.progression.selectedPartId = partId;
   loadProgressionEditorFromPart(part);
-  syncFormFromState();
+  syncProgressionFormFromState();
   render();
   setStatus(els.progStatus, "移動先セルをタップ、またはドラッグして並び替え", "success");
 }
@@ -2745,6 +2908,37 @@ function canvasXFromPointerEvent(canvas, ev) {
   return ev.clientX - rect.left;
 }
 
+function updateDraggedActiveNoteVoice(note, previousVoiceId = "") {
+  const playback = activeNotePlaybackPosition(note);
+  if (previousVoiceId && previousVoiceId !== note.id) {
+    audio.stopVoice(previousVoiceId);
+  }
+  void audio.startVoice(
+    note.id,
+    frequencyFromPitch(state.settings.a4Hz, playback.octave, playback.microStepInOctave),
+    state.settings.waveform,
+    state.settings.activeNotesVolume
+  );
+}
+
+function previewDraftPitchVoice() {
+  if (state.settings.playMode === "momentary") {
+    void audio.startVoice(
+      MOMENTARY_VOICE_ID,
+      currentDraftFrequency(),
+      state.settings.waveform,
+      state.settings.activeNotesVolume
+    );
+    return;
+  }
+  void audio.startVoice(
+    DRAG_PREVIEW_VOICE_ID,
+    currentDraftFrequency(),
+    state.settings.waveform,
+    state.settings.activeNotesVolume
+  );
+}
+
 async function applyDragPitch(finalize = false) {
   const canvas = els.lineCanvas;
   if (!dragContext) return;
@@ -2756,19 +2950,9 @@ async function applyDragPitch(finalize = false) {
     const deltaX = dragContext.virtualX - dragContext.pointerStartX;
     const speedFactor = dragContext.fine ? 8 : 1;
     const rawDeltaCent = (deltaX / width) * 1200 / speedFactor;
-    const deltaCent = dragContext.fine
-      ? Math.round(rawDeltaCent / fineDragStepCent()) * fineDragStepCent()
-      : rawDeltaCent;
-    const nextAbsoluteCentRaw = dragContext.baseAbsoluteCent + rawDeltaCent;
-    const nextAbsoluteCent = dragContext.fine
-      ? Math.round(nextAbsoluteCentRaw / fineDragStepCent()) * fineDragStepCent()
-      : (() => {
-        const coarseStep = Math.max(0, Number(state.settings.snapCent) || 0);
-        if (coarseStep <= 0) return nextAbsoluteCentRaw;
-        const quantizedDeltaCent = Math.round(rawDeltaCent / coarseStep) * coarseStep;
-        return dragContext.baseAbsoluteCent + quantizedDeltaCent;
-      })();
+    const nextAbsoluteCent = quantizeDraggedAbsoluteCent(dragContext.baseAbsoluteCent, rawDeltaCent, dragContext.fine);
     const normalized = normalizePitch(0, centToMicroStep(nextAbsoluteCent));
+    const previousVoiceId = note.id;
     note.octave = normalized.octave;
     note.microStepInOctave = normalized.microStepInOctave;
     note.cent = Number(microStepToCent(normalized.microStepInOctave));
@@ -2776,9 +2960,8 @@ async function applyDragPitch(finalize = false) {
     dragContext.noteId = note.id;
     dedupeActiveNotes(note);
     syncDraftFromNote(note);
-    syncFormFromState();
-    render();
-    await syncAudioToActiveNotes();
+    renderPitchDuringInteraction();
+    updateDraggedActiveNoteVoice(note, previousVoiceId);
     return;
   }
   const virtualX = dragContext.virtualX;
@@ -2788,25 +2971,8 @@ async function applyDragPitch(finalize = false) {
   const targetOctave = dragContext.baseOctave + octaveDelta;
 
   syncDraftFromCent(cent, targetOctave);
-  syncFormFromState();
-  render();
-
-  if (state.settings.playMode === "momentary") {
-    await audio.startVoice(
-      MOMENTARY_VOICE_ID,
-      currentDraftFrequency(),
-      state.settings.waveform,
-      state.settings.activeNotesVolume
-    );
-  } else {
-    await audio.startVoice(
-      DRAG_PREVIEW_VOICE_ID,
-      currentDraftFrequency(),
-      state.settings.waveform,
-      state.settings.activeNotesVolume
-    );
-  }
-  render();
+  renderPitchDuringInteraction();
+  previewDraftPitchVoice();
 
   if (finalize && state.settings.playMode === "toggle") {
     audio.stopVoice(DRAG_PREVIEW_VOICE_ID);
@@ -2818,10 +2984,11 @@ async function toggleCurrentNote() {
   const noteId = buildNoteId(state.pitchDraft.octave, state.pitchDraft.microStepInOctave);
   const index = findActiveNoteIndex(noteId);
   const before = snapshotState();
+  audio.stopVoice(MOMENTARY_VOICE_ID);
+  audio.stopVoice(DRAG_PREVIEW_VOICE_ID);
 
   if (index >= 0) {
     state.activeNotes.splice(index, 1);
-    audio.stopVoice(noteId);
     if (pitchUi.lastTouchedNoteId === noteId) {
       pitchUi.lastTouchedNoteId = state.activeNotes[0]?.id || null;
     }
@@ -2833,18 +3000,13 @@ async function toggleCurrentNote() {
       cent: Number(state.pitchDraft.cent)
     });
     rememberActiveNote(noteId);
-    await audio.startVoice(
-      noteId,
-      currentDraftFrequency(),
-      state.settings.waveform,
-      state.settings.activeNotesVolume
-    );
   }
 
   const after = snapshotState();
   trackStateChange("active_note_toggle", "現音高を切替", before, after);
   syncFormFromState();
   render();
+  await syncAudioToActiveNotes();
 }
 
 async function clearAllActiveNotes() {
@@ -2875,6 +3037,8 @@ async function addPitchPresetToActiveNotes(presetId) {
   syncDraftFromCent(microStepToCent(preset.microStep), state.pitchDraft.octave);
   const after = snapshotState();
   trackStateChange("add_pitch_preset_note", "音高プリセットを追加", before, after);
+  audio.stopVoice(MOMENTARY_VOICE_ID);
+  audio.stopVoice(DRAG_PREVIEW_VOICE_ID);
   syncFormFromState();
   render();
   await syncAudioToActiveNotes();
@@ -3651,13 +3815,7 @@ function attachEvents() {
     if (!(target instanceof HTMLButtonElement)) return;
     const waveform = target.dataset.waveform;
     if (!waveform) return;
-    const before = snapshotState();
-    state.settings.waveform = waveform;
-    els.waveformSelect.value = waveform;
-    const after = snapshotState();
-    trackStateChange("update_waveform", "波形変更", before, after);
-    render();
-    void refreshAudibleVoices();
+    void updateWaveformSetting(waveform);
   });
   els.navButtons.forEach((btn) => {
     btn.addEventListener("click", () => setView(btn.dataset.view));
@@ -3848,12 +4006,7 @@ function attachEvents() {
   });
 
   els.waveformSelect.addEventListener("change", () => {
-    const before = snapshotState();
-    state.settings.waveform = els.waveformSelect.value;
-    const after = snapshotState();
-    trackStateChange("update_waveform", "波形変更", before, after);
-    render();
-    void refreshAudibleVoices();
+    void updateWaveformSetting(els.waveformSelect.value);
   });
 
   els.masterVolumeInput.addEventListener("input", () => {
@@ -3887,6 +4040,15 @@ function attachEvents() {
     const after = snapshotState();
     trackStateChange("update_bpm", "BPM 変更", before, after);
     syncFormFromState();
+  });
+
+  els.phaseModeSelect?.addEventListener("change", () => {
+    const before = snapshotState();
+    state.settings.phaseMode = els.phaseModeSelect.value === "continue" ? "continue" : "reset";
+    const after = snapshotState();
+    trackStateChange("update_phase_mode", "位相モード変更", before, after);
+    syncFormFromState();
+    void refreshAudibleVoices();
   });
 
   els.roundUnitInput.addEventListener("change", () => {
@@ -4480,13 +4642,12 @@ function attachEvents() {
     if (hitNote) {
       syncDraftFromNote(hitNote);
       rememberActiveNote(hitNote.id);
+      const baseAbsoluteCent = microStepToCent(absoluteMicroStep(hitNote));
       dragContext = {
         mode: "active-note",
         before: snapshotState(),
         noteId: hitNote.id,
-        baseAbsoluteCent: ev.ctrlKey || ev.metaKey
-          ? Math.round(microStepToCent(absoluteMicroStep(hitNote)) / fineDragStepCent()) * fineDragStepCent()
-          : snapCent(microStepToCent(absoluteMicroStep(hitNote)), state.settings.snapCent),
+        baseAbsoluteCent: quantizeCent(baseAbsoluteCent, ev.ctrlKey || ev.metaKey ? fineDragStepCent() : coarseDragStepCent()),
         pointerStartX: x,
         virtualX: x,
         lastCanvasX: x,
@@ -4534,14 +4695,20 @@ function attachEvents() {
     if (dragContext.mode === "active-note") {
       const after = snapshotState();
       trackStateChange("active_note_drag", "現音高ドラッグ", dragContext.before, after);
+      syncFormFromState();
+      render();
       await syncAudioToActiveNotes();
     } else if (state.settings.playMode === "momentary") {
       audio.stopVoice(MOMENTARY_VOICE_ID);
       const after = snapshotState();
       trackStateChange("pitch_drag_commit", "音高ドラッグ確定", dragContext.before, after);
+      syncFormFromState();
+      render();
+    } else {
+      syncFormFromState();
+      render();
     }
     dragContext = null;
-    render();
   });
 
   canvas.addEventListener("pointercancel", () => {
@@ -4560,6 +4727,7 @@ function attachEvents() {
   window.addEventListener("resize", () => {
     syncWorkspaceViewState();
     syncProgressionLayoutState();
+    invalidateRenderCache();
     render();
   });
 
@@ -4703,14 +4871,16 @@ function syncFormFromState() {
   normalizePitchPresetIdentity();
   normalizeChordPresetIdentity();
   state.settings.progressionCellWidth = Number(state.settings.progressionCellWidth) || 124;
+  state.settings.phaseMode = state.settings.phaseMode === "continue" ? "continue" : "reset";
   state.settings.dismissedRuntimeNotice = Boolean(state.settings.dismissedRuntimeNotice);
   state.settings.dismissedPwaNotice = Boolean(state.settings.dismissedPwaNotice);
-  state.progression.columns = clamp(Number(state.progression.columns) || 4, 1, 12);
   applyLayoutSettings();
-  els.octaveInput.value = state.pitchDraft.octave;
-  els.snapCentInput.value = formatDecimal(state.settings.snapCent);
-  els.centInput.value = formatDecimal(state.pitchDraft.cent);
-  els.microStepInput.value = state.pitchDraft.microStepInOctave;
+  if (typeof audio.setPhaseMode === "function") {
+    audio.setPhaseMode(state.settings.phaseMode);
+  } else {
+    audio.phaseMode = state.settings.phaseMode;
+  }
+  syncPitchControlsFromState();
   els.sustainModeInput.checked = state.settings.playMode === "toggle";
   els.sustainModeInput.closest("label")?.setAttribute("title", `\u6301\u7d9a: ${els.sustainModeInput.checked ? "ON" : "OFF"}`);
   els.waveformSelect.value = state.settings.waveform;
@@ -4719,6 +4889,7 @@ function syncFormFromState() {
   els.activeNotesVolumeInput.closest("label")?.setAttribute("title", `現音高 音量 ${Math.round(state.settings.activeNotesVolume * 100)}%`);
   els.a4HzInput.value = state.settings.a4Hz;
   els.bpmInput.value = state.settings.bpm;
+  if (els.phaseModeSelect) els.phaseModeSelect.value = state.settings.phaseMode;
   els.roundUnitInput.value = formatDecimal(state.settings.roundUnitCent);
   els.roundingModeSelect.value = state.settings.roundingMode;
   populateChordBaseRootOptions();
@@ -4733,24 +4904,6 @@ function syncFormFromState() {
   if (!state.progressionEditor.sectionName) {
     state.progressionEditor.sectionName = "";
   }
-  const rootParts = rootEditorParts();
-  els.progRootNoteInput.value = `${rootParts.letter}${rootParts.accidental}`;
-  if (els.progRootOctaveInput) els.progRootOctaveInput.value = rootParts.octave;
-  els.progColumnsSelect.value = String(state.progression.columns);
-  if (els.progChunkSelect) {
-    const current = chunkContextForPartId(state.progression.selectedPartId || state.progression.parts[0]?.id || "");
-    els.progChunkSelect.innerHTML = "";
-    progressionChunks().forEach((chunk, index) => {
-      const option = document.createElement("option");
-      option.value = chunk.id;
-      option.textContent = `${String(index + 1).padStart(2, "0")} ${chunk.name}`;
-      els.progChunkSelect.appendChild(option);
-    });
-    els.progChunkSelect.value = current.chunk?.id || progressionChunks()[0]?.id || "";
-    els.progChunkSelect.disabled = progressionChunks().length === 0;
-  }
-  els.progLoopInput.checked = state.progression.loop;
-  if (els.progSectionNameInput) els.progSectionNameInput.value = state.progressionEditor.sectionName;
   if (els.runtimeInfoText) renderRuntimeInfo();
   if (els.presetNameWidthInput) els.presetNameWidthInput.value = getTableColumnWidth("pitch", "name");
   if (els.presetCentWidthInput) els.presetCentWidthInput.value = getTableColumnWidth("pitch", "cent");
@@ -4758,26 +4911,14 @@ function syncFormFromState() {
   if (els.presetTagWidthInput) els.presetTagWidthInput.value = getTableColumnWidth("pitch", "tags");
   if (els.presetMemoWidthInput) els.presetMemoWidthInput.value = getTableColumnWidth("pitch", "memo");
   if (els.progressionCellWidthInput) els.progressionCellWidthInput.value = state.settings.progressionCellWidth;
-  renderProgressionChordButtons();
-  renderProgressionEditorButtons();
+  syncProgressionFormFromState();
   renderRecallSummary();
-  els.addProgPartBtn.textContent = state.progression.selectedPartId ? "後ろに挿入" : "追加";
-  if (els.addProgChunkBtn) els.addProgChunkBtn.disabled = !state.progressionEditor.chordId;
-  if (els.addProgSectionBtn) els.addProgSectionBtn.disabled = !state.progressionEditor.chordId;
-  els.deleteProgPartBtn.disabled = !state.progression.selectedPartId;
-  els.progPrevBtn.disabled = state.progression.parts.length === 0;
-  els.progNextBtn.disabled = state.progression.parts.length === 0;
-  els.playProgBtn.disabled = state.progression.parts.length === 0;
-  els.playProgBtn.textContent = state.progression.playingPartId ? "一時停止" : "再生";
-  els.stopProgBtn.disabled = !state.progression.playingPartId;
-  els.stopProgBtn.textContent = "停止";
   els.saveChordBtn.disabled = state.activeNotes.length === 0;
   document.querySelectorAll("#waveformButtonGroup button").forEach((button) => {
     if (button instanceof HTMLButtonElement) {
       button.classList.toggle("active", button.dataset.waveform === state.settings.waveform);
     }
   });
-  syncProgressionLayoutState();
 }
 
 function renderActiveNotesV2() {
@@ -5035,7 +5176,7 @@ function syncChordComposerInputsFromRow(row) {
 
 function renderProgressionSummary() {
   const selectedIndex = currentProgressionSelectionIndex();
-  const chunkInfo = chunkContextForPartId(state.progression.selectedPartId || state.progression.parts[0]?.id || "");
+  const chunkInfo = chunkContextForPartId(currentProgressionAnchorId());
   const current = chunkInfo.index >= 0 ? String(chunkInfo.index + 1).padStart(2, "0") : "00";
   const total = String(chunkInfo.chunks.length).padStart(2, "0");
   els.progCounter.textContent = `${current}/${total}`;
@@ -5157,17 +5298,17 @@ function render() {
   const progressionVisible = isViewVisible("view-progression");
 
   if (pitchVisible) {
-    renderIfChanged("line", `${dataRevision.pitch}|${dataRevision.settings}`, renderLine);
+    renderIfChanged("line", `${dataRevision.pitch}|${dataRevision.settings}|${pitchLineRenderKey()}`, renderLine);
 
     renderIfChanged(
       "activeNotes",
-      `${dataRevision.pitch}|${els.activeNotesFilterInput?.value || ""}|${presetUi.activeSort.column}:${presetUi.activeSort.direction}|${selectionKey(presetUi.selectedActiveNoteIds)}|${state.pitchDraft.octave}`,
+      `${dataRevision.pitch}|${dataRevision.settings}|${els.activeNotesFilterInput?.value || ""}|${presetUi.activeSort.column}:${presetUi.activeSort.direction}|${selectionKey(presetUi.selectedActiveNoteIds)}|${pitchTransientRenderKey()}`,
       renderActiveNotesV2
     );
 
     renderIfChanged(
       "pitchPresets",
-      `${dataRevision.pitch}|${els.pitchPresetFilterInput?.value || ""}|${presetUi.pitchSort.column}:${presetUi.pitchSort.direction}|${selectionKey(presetUi.selectedPitchPresetIds)}|${presetUi.editingPitchPresetId || ""}|${state.pitchDraft.octave}`,
+      `${dataRevision.pitch}|${dataRevision.settings}|${els.pitchPresetFilterInput?.value || ""}|${presetUi.pitchSort.column}:${presetUi.pitchSort.direction}|${selectionKey(presetUi.selectedPitchPresetIds)}|${presetUi.editingPitchPresetId || ""}|${pitchTransientRenderKey()}`,
       renderPitchPresetsV2
     );
 
