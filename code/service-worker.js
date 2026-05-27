@@ -1,4 +1,4 @@
-const CACHE_NAME = "mu-chordbot-v5";
+const CACHE_NAME = "mu-chordbot-v6";
 const ASSETS = [
   "./",
   "./index.html",

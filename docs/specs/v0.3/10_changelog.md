@@ -55,3 +55,30 @@ Roadmap link: [09_status_roadmap.md](./09_status_roadmap.md)
 - UI follow-up: quantized active-note drag on the pitch line, compact in-field cent stepper, line readout removal, drawer panel exclusivity, per-table column-width separation, and page-scroll lock with internal scroll regions.
 - Regression follow-up: restored visible updates during pitch drag and chunk switching by widening progression render keys, stabilized waveform changes, restored undo/redo icon buttons, moved volume sliders to icon-anchored hover popdowns, reduced sublabel sizing, renamed `activeNotes` display to `現音高`, and merged visible `ID / 短名` table treatment into `ID` 중심 columns.
 - Follow-up fix: waveform icon clicks now react even when the SVG child is tapped, dragged existing notes now move in snap-cent increments from a snapped base, and visible preset `ID` values are driven by short names such as `P5` and `m7` while internal reference ids remain stable.
+
+## 2026-05-22
+- `docs/specs/v0.3/09_status_roadmap.md` を現状基準で再整理。
+- 各エリアの `Blocking issues` と `Notes` を、直近の実装変更と実機上の不安定要素に合わせて更新。
+- roadmap の `Current focus` を優先順位付きへ再編し、次に潰すべき論点を `音高編集 -> 進行編集/再生 -> 表 UI/ID 方針 -> レイアウト密度 -> 保存/PWA` の順で固定。
+- `Current assessment` と `Next checkpoints` を追加し、「何が進んでいて」「どこがまだ揺れているか」を一目で追える形にした。
+- `Pitch workspace` の再整理として、数直線再描画キーを transient state まで含めて見直し、`resize` 時は render cache を明示的に無効化するよう修正。
+- 既存音ドラッグの cent 量子化は helper 化し、基準 cent と coarse/fine step を分離して計算経路を単純化。
+- 波形変更は button/select の両経路を共通 helper へ統一し、表示更新だけでなく可聴中 voice の再同期まで同じ処理で通すよう整理。
+- `update_cent` と `update_octave` が pitch revision を進めないままだったため、revision 判定を明示的な分類へ整理して描画更新漏れを減らした。
+- 音高ドラッグ中は `syncFormFromState()` と全 voice 再同期を毎フレームで走らせず、上部 pitch 入力欄と数直線だけを軽量更新する経路へ分離。
+- 既存音ドラッグ時の音声は、全 `activeNotes` の再構築ではなく、動かしている note の voice だけを即時更新する形に変更。
+- `renderIfChanged()` の drag 中全スロット強制再描画をやめ、progression の並び替え系以外では render key 判定を維持するよう整理。
+- progression 側の操作で毎回 `syncFormFromState()` を踏んでいた経路を見直し、`syncProgressionFormFromState()` を追加してチャンク選択、セル選択、Section/Chunk 追加、削除、editor 反映を局所更新へ寄せた。
+- progression grid と chunk 再生は `currentProgressionAnchorId()` / `chunkPartsForPartId()` を使う形へ寄せ、現在チャンクの解決と次セル探索の重複計算を削減。
+- progression grid 描画は `partById` / `indexById` を先に構築して `find` / `findIndex` の繰り返しを避けるよう整理した。
+- `toggleCurrentNote()` と `addPitchPresetToActiveNotes()` は preview voice を先に止め、最終的な active note state から `syncAudioToActiveNotes()` で鳴らし直す形へ整理し、最後に追加した音だけが二重に大きくなる経路を抑制。
+- `AudioEngine` に位相モード `reset / continue` を追加し、設定から「毎回頭固定」か「現在位相に合わせる」かを切り替えられるようにした。
+- `continue` モードでは新規 oscillator を現在時刻由来の位相で開始し、既存 voice へは waveform が変わったときだけ再適用するよう整理。
+- mobile (`max-width: 640px`) では `html/body/main/view` の scroll lock を解除し、ページ全体を縦スクロールできるように調整。
+- `audio.setPhaseMode is not a function` 対策として、`app.js` 側に後方互換ガードを追加し、古い `audio.js` を掴んでも init で停止しないよう修正。
+- service worker cache 名を `mu-chordbot-v6` へ更新し、`app.js` と `audio.js` の不整合が残りにくいようにした。
+- progression / chord 再生も位相継続モードへ対応し、セルごとに voice を stop/start するのではなく、継続モード時は tone slot ごとの stable id を frequency 更新で使い回す形へ変更。
+- progression preview / playback は `syncScopedVoiceSpecs()` を使って scoped voice を同期し、継続モード時だけ既存 voice を残しつつ不要 voice を止める形へ整理。
+- 位相継続の内部実装は `currentTime * freq` の単純再計算ではなく、`AudioEngine.phaseState` による slot ごとの accumulated phase 保持へ変更。
+- progression の tone/bass は `phaseKey` を preview / playback 横断で共有し、単クリック preview でも再生中でも同じ global-like 位相が継続する方向へ寄せた。
+- さらに単発 preview の頭固定感を減らすため、継続モードでも scoped voice が無音から立ち上がる初回だけは `phaseStartMode: random` を使い、slot 継続中だけ stored phase を使う混合方式へ調整。
