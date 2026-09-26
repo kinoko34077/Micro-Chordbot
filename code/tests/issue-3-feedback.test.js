@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  detectImportKind,
   getAudioFailureMessage,
   getImportFailureMessage,
   getPersistenceStatus
@@ -40,5 +41,20 @@ test("audio failure keeps a user-facing retry message without changing state", (
   assert.equal(
     getAudioFailureMessage(new Error("AudioContext blocked")),
     "音声を開始できませんでした。再試行してください。 (AudioContext blocked)"
+  );
+});
+
+test("malformed import documents are rejected before state mutation", () => {
+  assert.throws(
+    () => detectImportKind({ app: "muChordbot", extensionType: "mcb", payload: {} }),
+    /project データが不完全/
+  );
+  assert.equal(
+    detectImportKind({
+      app: "muChordbot",
+      extensionType: "mcbl",
+      payload: { pitchPresets: [], chordPresets: [] }
+    }),
+    "library"
   );
 });
