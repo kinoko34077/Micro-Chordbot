@@ -289,6 +289,7 @@ const dataRevision = {
 };
 let persistDirty = false;
 let persistTimerId = null;
+let audioFailureVisible = false;
 const ROOT_BASS_TOKEN = "__root__";
 const WORKSPACE_COLUMNS_STORAGE_KEY = "uchordbot.workspaceColumns.v1";
 const VOLUME_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"></path><path d="M16 9.5c1.2 1.2 1.2 3.8 0 5"></path><path d="M18.5 7c2.4 2.6 2.4 7.4 0 10"></path></svg>';
@@ -972,6 +973,7 @@ function setPersistenceStatus(status, error = null) {
 }
 
 function setAudioFailure(error) {
+  audioFailureVisible = true;
   setStatus(els.manageStatus, getAudioFailureMessage(error), "error");
   if (els.retryAudioBtn) {
     els.retryAudioBtn.hidden = false;
@@ -979,12 +981,12 @@ function setAudioFailure(error) {
 }
 
 function clearAudioFailure() {
+  if (!audioFailureVisible) return;
+  audioFailureVisible = false;
   if (els.retryAudioBtn) {
     els.retryAudioBtn.hidden = true;
   }
-  if (els.manageStatus?.dataset.tone === "error") {
-    setStatus(els.manageStatus, "音声を再生できる状態です。", "success");
-  }
+  setStatus(els.manageStatus, "音声を再生できる状態です。", "success");
 }
 
 async function startVoiceWithFeedback(...args) {
@@ -2093,6 +2095,7 @@ async function syncScopedVoiceSpecs(prefix, specs, preservePhase = false) {
     clearAudioFailure();
     return true;
   }
+  stopScopedVoices(prefix);
   return false;
 }
 
