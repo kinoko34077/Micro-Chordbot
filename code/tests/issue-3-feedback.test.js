@@ -49,6 +49,14 @@ test("malformed import documents are rejected before state mutation", () => {
     () => detectImportKind({ app: "muChordbot", extensionType: "mcb", payload: {} }),
     /project データが不完全/
   );
+  assert.throws(
+    () => detectImportKind({
+      app: "muChordbot",
+      extensionType: "mcbl",
+      payload: { pitchPresets: [{}], chordPresets: [] }
+    }),
+    /library データが不完全/
+  );
   assert.equal(
     detectImportKind({
       app: "muChordbot",
