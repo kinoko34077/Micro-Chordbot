@@ -60,16 +60,23 @@ export function detectImportKind(parsed) {
   const isLibrary = extensionType === "mcbl" || parsed.exportType === "library";
   const isProgression = extensionType === "mcbp" || parsed.exportType === "progression";
   const isProject = extensionType === "mcb" || parsed.exportType === "project";
+  const isIdentifiedObjectArray = (value) =>
+    Array.isArray(value) &&
+    value.every((item) => item && typeof item === "object" && typeof item.id === "string" && item.id.trim());
 
   if (isLibrary) {
-    if (!Array.isArray(parsed.payload.pitchPresets) || !Array.isArray(parsed.payload.chordPresets)) {
+    if (!isIdentifiedObjectArray(parsed.payload.pitchPresets) || !isIdentifiedObjectArray(parsed.payload.chordPresets)) {
       throw new Error("library データが不完全です。");
     }
     return "library";
   }
 
   if (isProgression) {
-    if (!parsed.payload.progression || !Array.isArray(parsed.payload.progression.parts)) {
+    if (
+      !parsed.payload.progression ||
+      typeof parsed.payload.progression !== "object" ||
+      !isIdentifiedObjectArray(parsed.payload.progression.parts)
+    ) {
       throw new Error("progression データが不完全です。");
     }
     return "progression";
@@ -78,10 +85,12 @@ export function detectImportKind(parsed) {
   if (isProject) {
     if (
       !parsed.payload.settings ||
-      !Array.isArray(parsed.payload.pitchPresets) ||
-      !Array.isArray(parsed.payload.chordPresets) ||
+      typeof parsed.payload.settings !== "object" ||
+      !isIdentifiedObjectArray(parsed.payload.pitchPresets) ||
+      !isIdentifiedObjectArray(parsed.payload.chordPresets) ||
       !parsed.payload.progression ||
-      !Array.isArray(parsed.payload.progression.parts)
+      typeof parsed.payload.progression !== "object" ||
+      !isIdentifiedObjectArray(parsed.payload.progression.parts)
     ) {
       throw new Error("project データが不完全です。");
     }
