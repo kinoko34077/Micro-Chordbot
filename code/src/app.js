@@ -11,6 +11,12 @@ import {
 } from "./pitch.js";
 import { loadProject, saveProject } from "./storage.js";
 import {
+  detectImportKind,
+  getAudioFailureMessage,
+  getImportFailureMessage,
+  getPersistenceStatus
+} from "./operation-feedback.js";
+import {
   DEFAULT_CHORD_PRESETS,
   DEFAULT_PITCH_PRESETS,
   ROOT_ACCIDENTAL_OPTIONS,
@@ -227,8 +233,9 @@ const els = {
   progressionCellWidthInput: document.getElementById("progressionCellWidthInput"),
   exportBtn: document.getElementById("exportBtn"),
   exportLibraryBtn: document.getElementById("exportLibraryBtn"),
-  importFileInput: document.getElementById("importFileInput")
-  ,
+  importFileInput: document.getElementById("importFileInput"),
+  retryPersistBtn: document.getElementById("retryPersistBtn"),
+  retryAudioBtn: document.getElementById("retryAudioBtn"),
   manageStatus: document.getElementById("manageStatus")
 };
 
@@ -371,6 +378,7 @@ function bumpDataRevisionForChange(type) {
 
 function markProjectDirty() {
   persistDirty = true;
+  setPersistenceStatus("dirty");
   if (persistTimerId) clearTimeout(persistTimerId);
   persistTimerId = window.setTimeout(() => {
     persistTimerId = null;
@@ -955,6 +963,40 @@ function setStatus(el, message, tone = "") {
   }
 }
 
+function setPersistenceStatus(status, error = null) {
+  const view = getPersistenceStatus(status, error);
+  setStatus(els.manageStatus, view.message, view.tone);
+  if (els.retryPersistBtn) {
+    els.retryPersistBtn.hidden = !view.retry;
+  }
+}
+
+function setAudioFailure(error) {
+  setStatus(els.manageStatus, getAudioFailureMessage(error), "error");
+  if (els.retryAudioBtn) {
+    els.retryAudioBtn.hidden = false;
+  }
+}
+
+function clearAudioFailure() {
+  if (els.retryAudioBtn) {
+    els.retryAudioBtn.hidden = true;
+  }
+  if (els.manageStatus?.dataset.tone === "error") {
+    setStatus(els.manageStatus, "音声を再生できる状態です。", "success");
+  }
+}
+
+async function startVoiceWithFeedback(...args) {
+  try {
+    await audio.startVoice(...args);
+    return true;
+  } catch (error) {
+    setAudioFailure(error);
+    return false;
+  }
+}
+
 function absoluteMicroStep(note) {
   return (note.octave * OCTAVE_MICROSTEP) + note.microStepInOctave;
 }
@@ -1405,12 +1447,13 @@ async function syncAudioToActiveNotes() {
   const activeIds = new Set(state.activeNotes.map((note) => note.id));
   for (const note of state.activeNotes) {
     const playback = activeNotePlaybackPosition(note);
-    await audio.startVoice(
+    const started = await startVoiceWithFeedback(
       note.id,
       frequencyFromPitch(state.settings.a4Hz, playback.octave, playback.microStepInOctave),
       state.settings.waveform,
       state.settings.activeNotesVolume
     );
+    if (!started) return false;
   }
 
   for (const [voiceId] of audio.voices) {
@@ -1418,24 +1461,27 @@ async function syncAudioToActiveNotes() {
       audio.stopVoice(voiceId);
     }
   }
+  clearAudioFailure();
+  return true;
 }
 
 async function refreshAudibleVoices() {
   const playingId = state.progression.playingPartId;
   const previewing = Boolean(progressionPreviewTimerId);
   const selectedPart = state.progression.parts.find((part) => part.id === state.progression.selectedPartId) || null;
-  await syncAudioToActiveNotes();
+  const synced = await syncAudioToActiveNotes();
+  if (!synced) return false;
   if (playingId) {
     const part = state.progression.parts.find((item) => item.id === playingId);
     const partIndex = state.progression.parts.findIndex((item) => item.id === playingId);
     if (part && partIndex >= 0) {
-      await playProgressionPart(part, partIndex);
-      return;
+      return playProgressionPart(part, partIndex);
     }
   }
   if (previewing && selectedPart) {
-    await previewProgressionPart(selectedPart);
+    return previewProgressionPart(selectedPart);
   }
+  return true;
 }
 
 async function updateWaveformSetting(nextWaveform) {
@@ -2029,9 +2075,9 @@ async function syncScopedVoiceSpecs(prefix, specs, preservePhase = false) {
       }
     }
   }
-  await Promise.all(
+  const results = await Promise.all(
     specs.map((spec) =>
-      audio.startVoice(
+      startVoiceWithFeedback(
         spec.id,
         spec.freq,
         state.settings.waveform,
@@ -2043,6 +2089,11 @@ async function syncScopedVoiceSpecs(prefix, specs, preservePhase = false) {
       )
     )
   );
+  if (results.every(Boolean)) {
+    clearAudioFailure();
+    return true;
+  }
+  return false;
 }
 
 function progressionPartVoiceSpecs(part, voicePrefix) {
@@ -2092,12 +2143,14 @@ async function previewProgressionPart(part, durationMs = 700) {
     stopScopedVoices(PROGRESSION_PREVIEW_VOICE_PREFIX);
   }
   const specs = progressionPartVoiceSpecs(part, PROGRESSION_PREVIEW_VOICE_PREFIX);
-  await syncScopedVoiceSpecs(PROGRESSION_PREVIEW_VOICE_PREFIX, specs, state.settings.phaseMode === "continue");
+  const started = await syncScopedVoiceSpecs(PROGRESSION_PREVIEW_VOICE_PREFIX, specs, state.settings.phaseMode === "continue");
+  if (!started) return false;
   progressionPreviewTimerId = setTimeout(() => {
     stopProgressionPreview();
     render();
   }, durationMs);
   render();
+  return true;
 }
 
 function clearProgressionPlaybackTimer() {
@@ -2131,7 +2184,11 @@ async function playProgressionPart(part, partIndex) {
     return;
   }
 
-  await syncScopedVoiceSpecs(PROGRESSION_VOICE_PREFIX, specs, state.settings.phaseMode === "continue");
+  const started = await syncScopedVoiceSpecs(PROGRESSION_VOICE_PREFIX, specs, state.settings.phaseMode === "continue");
+  if (!started) {
+    stopProgressionPlayback();
+    return false;
+  }
   render();
 
   const beatMs = (60_000 / clamp(state.settings.bpm, 5, 300)) * part.beats * (4 / clamp(Number(part.beatUnit) || 4, 1, 32));
@@ -2153,6 +2210,7 @@ async function playProgressionPart(part, partIndex) {
     }
     stopProgressionPlayback();
   }, beatMs);
+  return true;
 }
 
 function removeActiveNote(noteId) {
@@ -2443,16 +2501,20 @@ function mergeById(existingItems, incomingItems) {
   return { merged, added };
 }
 
+function validateImportDocument(parsed) {
+  return detectImportKind(parsed);
+}
+
 async function importDataFile(file) {
   const text = await file.text();
   const parsed = JSON.parse(text);
+  const importKind = validateImportDocument(parsed);
   const before = snapshotState();
   history.beginGroup("json import");
   try {
-    const extensionType = parsed?.extensionType;
-    if (extensionType === "mcbl" || parsed?.exportType === "library") {
-      const incomingPitchPresets = Array.isArray(parsed?.payload?.pitchPresets) ? parsed.payload.pitchPresets : [];
-      const incomingChordPresets = Array.isArray(parsed?.payload?.chordPresets) ? parsed.payload.chordPresets : [];
+    if (importKind === "library") {
+      const incomingPitchPresets = parsed.payload.pitchPresets;
+      const incomingChordPresets = parsed.payload.chordPresets;
       const pitchMerge = mergeById(state.pitchPresets, incomingPitchPresets);
       const chordMerge = mergeById(state.chordPresets, incomingChordPresets);
       state.pitchPresets = pitchMerge.merged;
@@ -2462,15 +2524,13 @@ async function importDataFile(file) {
         `library を読込: pitch +${pitchMerge.added}, chord +${chordMerge.added}`,
         "success"
       );
-    } else if (extensionType === "mcbp" || parsed?.exportType === "progression") {
-      if (parsed?.payload?.progression) {
-        state.progression = {
-          ...state.progression,
-          ...parsed.payload.progression,
-          parts: Array.isArray(parsed.payload.progression.parts) ? parsed.payload.progression.parts : []
-        };
-      }
-      if (parsed?.payload?.progressionEditor) {
+    } else if (importKind === "progression") {
+      state.progression = {
+        ...state.progression,
+        ...parsed.payload.progression,
+        parts: parsed.payload.progression.parts
+      };
+      if (parsed.payload.progressionEditor) {
         state.progressionEditor = { ...state.progressionEditor, ...parsed.payload.progressionEditor };
       }
       setStatus(
@@ -2479,24 +2539,16 @@ async function importDataFile(file) {
         "success"
       );
     } else {
-      if (parsed?.payload?.settings) {
-        state.settings = { ...state.settings, ...parsed.payload.settings };
-      }
+      state.settings = { ...state.settings, ...parsed.payload.settings };
       state.activeNotes = [];
-      if (Array.isArray(parsed?.payload?.pitchPresets)) {
-        state.pitchPresets = parsed.payload.pitchPresets;
-      }
-      if (Array.isArray(parsed?.payload?.chordPresets)) {
-        state.chordPresets = parsed.payload.chordPresets;
-      }
-      if (parsed?.payload?.progression) {
-        state.progression = {
-          ...state.progression,
-          ...parsed.payload.progression,
-          parts: Array.isArray(parsed.payload.progression.parts) ? parsed.payload.progression.parts : []
-        };
-      }
-      if (parsed?.payload?.progressionEditor) {
+      state.pitchPresets = parsed.payload.pitchPresets;
+      state.chordPresets = parsed.payload.chordPresets;
+      state.progression = {
+        ...state.progression,
+        ...parsed.payload.progression,
+        parts: parsed.payload.progression.parts
+      };
+      if (parsed.payload.progressionEditor) {
         state.progressionEditor = { ...state.progressionEditor, ...parsed.payload.progressionEditor };
       }
       setStatus(els.manageStatus, "project を読込しました。", "success");
@@ -2510,6 +2562,18 @@ async function importDataFile(file) {
   syncFormFromState();
   render();
   await syncAudioToActiveNotes();
+}
+
+async function handleImportFileInput(input) {
+  const file = input?.files?.[0];
+  if (!file) return;
+  try {
+    await importDataFile(file);
+  } catch (error) {
+    setStatus(els.manageStatus, getImportFailureMessage(error), "error");
+  } finally {
+    input.value = "";
+  }
 }
 
 function savePitchPresetFromActiveNote(noteId) {
@@ -2913,7 +2977,7 @@ function updateDraggedActiveNoteVoice(note, previousVoiceId = "") {
   if (previousVoiceId && previousVoiceId !== note.id) {
     audio.stopVoice(previousVoiceId);
   }
-  void audio.startVoice(
+  void startVoiceWithFeedback(
     note.id,
     frequencyFromPitch(state.settings.a4Hz, playback.octave, playback.microStepInOctave),
     state.settings.waveform,
@@ -2923,7 +2987,7 @@ function updateDraggedActiveNoteVoice(note, previousVoiceId = "") {
 
 function previewDraftPitchVoice() {
   if (state.settings.playMode === "momentary") {
-    void audio.startVoice(
+    void startVoiceWithFeedback(
       MOMENTARY_VOICE_ID,
       currentDraftFrequency(),
       state.settings.waveform,
@@ -2931,7 +2995,7 @@ function previewDraftPitchVoice() {
     );
     return;
   }
-  void audio.startVoice(
+  void startVoiceWithFeedback(
     DRAG_PREVIEW_VOICE_ID,
     currentDraftFrequency(),
     state.settings.waveform,
@@ -4734,21 +4798,23 @@ function attachEvents() {
   els.exportBtn.addEventListener("click", exportProject);
   els.exportLibraryBtn.addEventListener("click", exportLibrary);
   els.progExportBtn?.addEventListener("click", exportProgressionProject);
-  els.progImportFileInput?.addEventListener("change", async () => {
-    const file = els.progImportFileInput.files?.[0];
-    if (!file) return;
-    await importDataFile(file);
-    els.progImportFileInput.value = "";
+  els.progImportFileInput?.addEventListener("change", () => {
+    void handleImportFileInput(els.progImportFileInput);
   });
   els.runtimeRefreshBtn?.addEventListener("click", () => {
     showRuntimeNotice("キャッシュを更新中です。完了後に自動で再読込される場合があります。", "info");
     void forceRefreshApplication();
   });
-  els.importFileInput.addEventListener("change", async () => {
-    const file = els.importFileInput.files?.[0];
-    if (!file) return;
-    await importDataFile(file);
-    els.importFileInput.value = "";
+  els.importFileInput.addEventListener("change", () => {
+    void handleImportFileInput(els.importFileInput);
+  });
+  els.retryPersistBtn?.addEventListener("click", () => {
+    void persistLoop(true).catch(() => {});
+  });
+  els.retryAudioBtn?.addEventListener("click", () => {
+    void refreshAudibleVoices().catch((error) => {
+      setAudioFailure(error);
+    });
   });
 }
 
@@ -5428,14 +5494,19 @@ async function restoreFromStorage() {
 
 async function persistLoop(force = false) {
   if (!force && !persistDirty) return false;
+  setPersistenceStatus("saving");
   try {
     const changed = await saveProject(buildProjectPayloadForSave());
     if (changed) {
       persistDirty = false;
+      setPersistenceStatus("saved");
+    } else {
+      setPersistenceStatus("unchanged");
     }
     return changed;
   } catch (error) {
     persistDirty = true;
+    setPersistenceStatus("error", error);
     throw error;
   }
 }
