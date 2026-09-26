@@ -51,6 +51,46 @@ export function getPersistenceStatus(status, error = null) {
   }
 }
 
+export function detectImportKind(parsed) {
+  if (!parsed || typeof parsed !== "object" || parsed.app !== "muChordbot" || !parsed.payload || typeof parsed.payload !== "object") {
+    throw new Error("対応していないデータ形式です。");
+  }
+
+  const extensionType = parsed.extensionType;
+  const isLibrary = extensionType === "mcbl" || parsed.exportType === "library";
+  const isProgression = extensionType === "mcbp" || parsed.exportType === "progression";
+  const isProject = extensionType === "mcb" || parsed.exportType === "project";
+
+  if (isLibrary) {
+    if (!Array.isArray(parsed.payload.pitchPresets) || !Array.isArray(parsed.payload.chordPresets)) {
+      throw new Error("library データが不完全です。");
+    }
+    return "library";
+  }
+
+  if (isProgression) {
+    if (!parsed.payload.progression || !Array.isArray(parsed.payload.progression.parts)) {
+      throw new Error("progression データが不完全です。");
+    }
+    return "progression";
+  }
+
+  if (isProject) {
+    if (
+      !parsed.payload.settings ||
+      !Array.isArray(parsed.payload.pitchPresets) ||
+      !Array.isArray(parsed.payload.chordPresets) ||
+      !parsed.payload.progression ||
+      !Array.isArray(parsed.payload.progression.parts)
+    ) {
+      throw new Error("project データが不完全です。");
+    }
+    return "project";
+  }
+
+  throw new Error("対応していないデータ形式です。");
+}
+
 export function getImportFailureMessage(error) {
   return formatFailureMessage("読み込みに失敗しました。データは変更していません。", error);
 }
