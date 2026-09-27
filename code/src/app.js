@@ -12,6 +12,7 @@ import {
 import { loadProject, saveProject } from "./storage.js";
 import {
   detectImportKind,
+  getActiveVoiceIdsForFailureCleanup,
   getAudioFailureMessage,
   getImportFailureMessage,
   getPersistenceStatus,
@@ -237,6 +238,7 @@ const els = {
   importFileInput: document.getElementById("importFileInput"),
   retryPersistBtn: document.getElementById("retryPersistBtn"),
   retryAudioBtn: document.getElementById("retryAudioBtn"),
+  persistenceStatus: document.getElementById("persistenceStatus"),
   manageStatus: document.getElementById("manageStatus")
 };
 
@@ -967,15 +969,17 @@ function setStatus(el, message, tone = "") {
 
 function setPersistenceStatus(status, error = null) {
   const view = getPersistenceStatus(status, error);
-  setStatus(els.manageStatus, view.message, view.tone);
+  setStatus(els.persistenceStatus, view.message, view.tone);
   if (els.retryPersistBtn) {
     els.retryPersistBtn.hidden = !view.retry;
   }
 }
 
 function setAudioFailure(error) {
+  if (!audioFailureVisible) {
+    setStatus(els.manageStatus, getAudioFailureMessage(error), "error");
+  }
   audioFailureVisible = true;
-  setStatus(els.manageStatus, getAudioFailureMessage(error), "error");
   if (els.retryAudioBtn) {
     els.retryAudioBtn.hidden = false;
   }
@@ -1456,7 +1460,10 @@ async function syncAudioToActiveNotes() {
       state.settings.waveform,
       state.settings.activeNotesVolume
     );
-    if (!started) return false;
+    if (!started) {
+      getActiveVoiceIdsForFailureCleanup(state.activeNotes).forEach((voiceId) => audio.stopVoice(voiceId));
+      return false;
+    }
   }
 
   for (const [voiceId] of audio.voices) {

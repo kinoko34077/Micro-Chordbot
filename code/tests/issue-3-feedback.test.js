@@ -1,12 +1,30 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   detectImportKind,
   getAudioFailureMessage,
   getImportFailureMessage,
   getPersistenceStatus,
-  resolvePersistenceSaveResult
+  resolvePersistenceSaveResult,
+  getActiveVoiceIdsForFailureCleanup
 } from "../src/operation-feedback.js";
+
+
+const APP_SOURCE = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+const INDEX_HTML = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+
+test("persistence feedback uses a dedicated status surface", () => {
+  assert.match(INDEX_HTML, /id="persistenceStatus"/);
+  assert.match(APP_SOURCE, /persistenceStatus:\s*document\.getElementById\("persistenceStatus"\)/);
+});
+
+test("audio sync failure cleanup covers every active-note voice", () => {
+  assert.deepEqual(
+    getActiveVoiceIdsForFailureCleanup([{ id: "a" }, { id: "b" }, { id: "a" }, {}]),
+    ["a", "b"]
+  );
+});
 
 test("persistence status exposes waiting, saving, saved, and retry states", () => {
   assert.deepEqual(getPersistenceStatus("dirty"), {
@@ -48,6 +66,18 @@ test("audio failure keeps a user-facing retry message without changing state", (
 test("successful persistence clears dirty state even when snapshot is unchanged", () => {
   assert.deepEqual(resolvePersistenceSaveResult(true), { dirty: false, status: "saved" });
   assert.deepEqual(resolvePersistenceSaveResult(false), { dirty: false, status: "unchanged" });
+});
+
+test("repository-known exported files remain accepted by import validation", () => {
+  const cases = [
+    [new URL("../default_project.mcb", import.meta.url), "project"],
+    [new URL("../../project (2).mcb", import.meta.url), "project"],
+    [new URL("../../default_library.mcbl", import.meta.url), "library"]
+  ];
+  for (const [url, expected] of cases) {
+    const parsed = JSON.parse(readFileSync(url, "utf8"));
+    assert.equal(detectImportKind(parsed), expected);
+  }
 });
 
 test("malformed import documents are rejected before state mutation", () => {

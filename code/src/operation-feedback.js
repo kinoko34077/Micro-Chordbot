@@ -51,6 +51,13 @@ export function getPersistenceStatus(status, error = null) {
   }
 }
 
+export function getActiveVoiceIdsForFailureCleanup(activeNotes) {
+  const ids = (Array.isArray(activeNotes) ? activeNotes : [])
+    .map((note) => note?.id)
+    .filter((id) => typeof id === "string" && id);
+  return [...new Set(ids)];
+}
+
 export function resolvePersistenceSaveResult(changed) {
   return {
     dirty: false,
