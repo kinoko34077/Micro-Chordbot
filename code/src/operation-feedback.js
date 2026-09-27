@@ -51,6 +51,13 @@ export function getPersistenceStatus(status, error = null) {
   }
 }
 
+export function resolvePersistenceSaveResult(changed) {
+  return {
+    dirty: false,
+    status: changed ? "saved" : "unchanged"
+  };
+}
+
 export function detectImportKind(parsed) {
   if (!parsed || typeof parsed !== "object" || parsed.app !== "muChordbot" || !parsed.payload || typeof parsed.payload !== "object") {
     throw new Error("対応していないデータ形式です。");

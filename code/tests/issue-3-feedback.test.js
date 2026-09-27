@@ -4,7 +4,8 @@ import {
   detectImportKind,
   getAudioFailureMessage,
   getImportFailureMessage,
-  getPersistenceStatus
+  getPersistenceStatus,
+  resolvePersistenceSaveResult
 } from "../src/operation-feedback.js";
 
 test("persistence status exposes waiting, saving, saved, and retry states", () => {
@@ -42,6 +43,11 @@ test("audio failure keeps a user-facing retry message without changing state", (
     getAudioFailureMessage(new Error("AudioContext blocked")),
     "音声を開始できませんでした。再試行してください。 (AudioContext blocked)"
   );
+});
+
+test("successful persistence clears dirty state even when snapshot is unchanged", () => {
+  assert.deepEqual(resolvePersistenceSaveResult(true), { dirty: false, status: "saved" });
+  assert.deepEqual(resolvePersistenceSaveResult(false), { dirty: false, status: "unchanged" });
 });
 
 test("malformed import documents are rejected before state mutation", () => {

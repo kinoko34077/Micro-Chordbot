@@ -14,7 +14,8 @@ import {
   detectImportKind,
   getAudioFailureMessage,
   getImportFailureMessage,
-  getPersistenceStatus
+  getPersistenceStatus,
+  resolvePersistenceSaveResult
 } from "./operation-feedback.js";
 import {
   DEFAULT_CHORD_PRESETS,
@@ -5500,12 +5501,9 @@ async function persistLoop(force = false) {
   setPersistenceStatus("saving");
   try {
     const changed = await saveProject(buildProjectPayloadForSave());
-    if (changed) {
-      persistDirty = false;
-      setPersistenceStatus("saved");
-    } else {
-      setPersistenceStatus("unchanged");
-    }
+    const result = resolvePersistenceSaveResult(changed);
+    persistDirty = result.dirty;
+    setPersistenceStatus(result.status);
     return changed;
   } catch (error) {
     persistDirty = true;
