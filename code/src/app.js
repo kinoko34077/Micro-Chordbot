@@ -16,6 +16,7 @@ import {
   getAudioFailureMessage,
   getImportFailureMessage,
   getPersistenceStatus,
+  getPersistenceRecoveryAction,
   resolvePersistenceSaveResult
 } from "./operation-feedback.js";
 import {
@@ -5531,23 +5532,25 @@ async function retryProjectLoad() {
   }
 
   persistenceLoadError = null;
-  if (result.status === "loaded" && persistDirty) {
+  const recoveryAction = getPersistenceRecoveryAction(result.status, persistDirty);
+  if (recoveryAction === "conflict") {
     persistenceAuthorityReady = false;
     setPersistenceStatus("load-conflict");
     return false;
   }
 
   persistenceAuthorityReady = true;
+  if (recoveryAction === "persist-current") {
+    await persistLoop(true);
+    return true;
+  }
+
   applyProjectFromStorage(result.project);
   syncDraftFromCent(state.pitchDraft.cent, state.pitchDraft.octave);
   syncFormFromState();
   invalidateRenderCache();
   render();
-  if (persistDirty) {
-    await persistLoop(true);
-  } else {
-    setPersistenceStatus(result.status === "initialized" ? "saved" : "unchanged");
-  }
+  setPersistenceStatus(result.status === "initialized" ? "saved" : "unchanged");
   return true;
 }
 
