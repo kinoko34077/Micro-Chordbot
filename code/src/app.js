@@ -9,7 +9,7 @@ import {
   clamp,
   OCTAVE_MICROSTEP
 } from "./pitch.js";
-import { loadProject, saveProject } from "./storage.js";
+import { loadProjectResult, saveProject } from "./storage.js";
 import {
   detectImportKind,
   getActiveVoiceIdsForFailureCleanup,
@@ -292,6 +292,8 @@ const dataRevision = {
 };
 let persistDirty = false;
 let persistTimerId = null;
+let persistenceAuthorityReady = false;
+let persistenceLoadError = null;
 let audioFailureVisible = false;
 const ROOT_BASS_TOKEN = "__root__";
 const WORKSPACE_COLUMNS_STORAGE_KEY = "uchordbot.workspaceColumns.v1";
@@ -382,6 +384,10 @@ function bumpDataRevisionForChange(type) {
 
 function markProjectDirty() {
   persistDirty = true;
+  if (!persistenceAuthorityReady) {
+    setPersistenceStatus(persistenceLoadError ? "load-error" : "load-conflict", persistenceLoadError);
+    return;
+  }
   setPersistenceStatus("dirty");
   if (persistTimerId) clearTimeout(persistTimerId);
   persistTimerId = window.setTimeout(() => {
@@ -4820,7 +4826,7 @@ function attachEvents() {
     void handleImportFileInput(els.importFileInput);
   });
   els.retryPersistBtn?.addEventListener("click", () => {
-    void persistLoop(true).catch(() => {});
+    void retryPersistence().catch(() => {});
   });
   els.retryAudioBtn?.addEventListener("click", () => {
     void refreshAudibleVoices().catch((error) => {
@@ -5473,37 +5479,90 @@ function render() {
 }
 
 
+function applyProjectFromStorage(saved) {
+  if (!saved?.payload) return false;
+  if (saved.payload.settings) {
+    state.settings = { ...state.settings, ...saved.payload.settings };
+  }
+  state.activeNotes = [];
+  if (Array.isArray(saved.payload.pitchPresets)) {
+    state.pitchPresets = saved.payload.pitchPresets;
+  }
+  if (Array.isArray(saved.payload.chordPresets)) {
+    state.chordPresets = saved.payload.chordPresets;
+  }
+  if (saved.payload.progression) {
+    state.progression = {
+      ...state.progression,
+      ...saved.payload.progression,
+      parts: Array.isArray(saved.payload.progression.parts) ? saved.payload.progression.parts : []
+    };
+  }
+  if (saved.payload.progressionEditor) {
+    state.progressionEditor = { ...state.progressionEditor, ...saved.payload.progressionEditor };
+  }
+  bumpAllDataRevisions();
+  return true;
+}
+
 async function restoreFromStorage() {
   try {
-    const saved = await loadProject();
-    if (!saved?.payload) return;
-    if (saved.payload.settings) {
-      state.settings = { ...state.settings, ...saved.payload.settings };
+    const result = await loadProjectResult();
+    persistenceAuthorityReady = result.status !== "read_failed";
+    persistenceLoadError = result.status === "read_failed" ? result.error : null;
+    applyProjectFromStorage(result.project);
+    if (!persistenceAuthorityReady) {
+      setPersistenceStatus("load-error", persistenceLoadError);
     }
-    state.activeNotes = [];
-    if (Array.isArray(saved.payload.pitchPresets)) {
-      state.pitchPresets = saved.payload.pitchPresets;
-    }
-    if (Array.isArray(saved.payload.chordPresets)) {
-      state.chordPresets = saved.payload.chordPresets;
-    }
-    if (saved.payload.progression) {
-      state.progression = {
-        ...state.progression,
-        ...saved.payload.progression,
-        parts: Array.isArray(saved.payload.progression.parts) ? saved.payload.progression.parts : []
-      };
-    }
-    if (saved.payload.progressionEditor) {
-      state.progressionEditor = { ...state.progressionEditor, ...saved.payload.progressionEditor };
-    }
-    bumpAllDataRevisions();
-  } catch {
-    // keep defaults
+  } catch (error) {
+    persistenceAuthorityReady = false;
+    persistenceLoadError = error instanceof Error ? error : new Error(String(error || "Project load failed"));
+    setPersistenceStatus("load-error", persistenceLoadError);
   }
 }
 
+async function retryProjectLoad() {
+  const result = await loadProjectResult();
+  if (result.status === "read_failed") {
+    persistenceAuthorityReady = false;
+    persistenceLoadError = result.error;
+    setPersistenceStatus("load-error", result.error);
+    return false;
+  }
+
+  persistenceLoadError = null;
+  if (result.status === "loaded" && persistDirty) {
+    persistenceAuthorityReady = false;
+    setPersistenceStatus("load-conflict");
+    return false;
+  }
+
+  persistenceAuthorityReady = true;
+  applyProjectFromStorage(result.project);
+  syncDraftFromCent(state.pitchDraft.cent, state.pitchDraft.octave);
+  syncFormFromState();
+  invalidateRenderCache();
+  render();
+  if (persistDirty) {
+    await persistLoop(true);
+  } else {
+    setPersistenceStatus(result.status === "initialized" ? "saved" : "unchanged");
+  }
+  return true;
+}
+
+async function retryPersistence() {
+  if (!persistenceAuthorityReady) {
+    return retryProjectLoad();
+  }
+  return persistLoop(true);
+}
+
 async function persistLoop(force = false) {
+  if (!persistenceAuthorityReady) {
+    setPersistenceStatus(persistenceLoadError ? "load-error" : "load-conflict", persistenceLoadError);
+    return false;
+  }
   if (!force && !persistDirty) return false;
   setPersistenceStatus("saving");
   try {
