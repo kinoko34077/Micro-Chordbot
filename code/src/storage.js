@@ -28,7 +28,6 @@ function openDb() {
     req.onerror = () => reject(req.error);
   });
 }
-
 export async function saveProject(stateWithoutHistory) {
   const storedValue = stateWithoutHistory?.app === "muChordbot"
     ? { ...stateWithoutHistory, defaultProjectSourceId: DEFAULT_PROJECT_SOURCE_ID }
@@ -59,46 +58,59 @@ async function loadDefaultProject() {
   if (!payload || projectFile?.app !== "muChordbot" || projectFile?.extensionType !== "mcb") {
     throw new Error("Default project file is invalid.");
   }
-  return {
-    ...projectFile,
-    defaultProjectSourceId: DEFAULT_PROJECT_SOURCE_ID
-  };
+  return { ...projectFile, defaultProjectSourceId: DEFAULT_PROJECT_SOURCE_ID };
 }
-
-export async function loadProject() {
+async function readStoredProject() {
   let db = null;
-  let value = null;
   try {
     db = await withTimeout(openDb(), DB_TIMEOUT_MS, "Project DB open");
-    value = await withTimeout(new Promise((resolve, reject) => {
+    const value = await withTimeout(new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readonly");
       const req = tx.objectStore(STORE_NAME).get(KEY);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => reject(req.error || new Error("Project DB read failed"));
     }), DB_TIMEOUT_MS, "Project DB read");
+    return { status: value == null ? "absent" : "loaded", value };
   } catch (error) {
-    console.warn("Project DB load failed. Falling back to default project.", error);
+    return {
+      status: "read_failed",
+      error: error instanceof Error ? error : new Error(String(error || "Project DB read failed"))
+    };
   } finally {
     db?.close();
   }
+}
 
-  if (value) {
-    if (value?.defaultProjectSourceId !== DEFAULT_PROJECT_SOURCE_ID) {
-      const defaultProject = await loadDefaultProject();
-      await saveProject(defaultProject).catch(() => {});
-      return defaultProject;
+export async function loadProjectResult() {
+  const readResult = await readStoredProject();
+
+  if (readResult.status === "read_failed") {
+    console.warn("Project DB load failed. Using an in-memory fallback without persisting it.", readResult.error);
+    try {
+      const project = await loadDefaultProject();
+      return { status: "read_failed", project, error: readResult.error };
+    } catch (fallbackError) {
+      return { status: "read_failed", project: null, error: readResult.error, fallbackError };
     }
-    lastSavedSnapshot = JSON.stringify(value);
-    return value;
+  }
+  if (readResult.status === "loaded") {
+    const project = readResult.value;
+    if (project?.defaultProjectSourceId !== DEFAULT_PROJECT_SOURCE_ID) {
+      const defaultProject = await loadDefaultProject();
+      await saveProject(defaultProject);
+      return { status: "initialized", project: defaultProject };
+    }
+    lastSavedSnapshot = JSON.stringify(project);
+    return { status: "loaded", project };
   }
 
-  try {
-    const defaultProject = await loadDefaultProject();
-    await saveProject(defaultProject).catch(() => {});
-    lastSavedSnapshot = JSON.stringify(defaultProject);
-    return defaultProject;
-  } catch (error) {
-    console.warn(error);
-    return null;
-  }
+  const defaultProject = await loadDefaultProject();
+  await saveProject(defaultProject);
+  lastSavedSnapshot = JSON.stringify(defaultProject);
+  return { status: "initialized", project: defaultProject };
+}
+
+export async function loadProject() {
+  const result = await loadProjectResult();
+  return result.project;
 }
