@@ -36,6 +36,18 @@ export function getPersistenceStatus(status, error = null) {
         tone: "info",
         retry: false
       };
+    case "load-error":
+      return {
+        message: formatFailureMessage("保存済みデータを確認できません。現在の内容は自動保存せず、読込を再試行できます。", error),
+        tone: "error",
+        retry: true
+      };
+    case "load-conflict":
+      return {
+        message: "保存済みデータを再確認しましたが、この起動中の変更と競合しています。自動保存は停止しています。必要な内容をエクスポートしてから再読込してください。",
+        tone: "error",
+        retry: false
+      };
     case "error":
       return {
         message: formatFailureMessage("保存に失敗しました。再試行してください。", error),
@@ -56,6 +68,13 @@ export function getActiveVoiceIdsForFailureCleanup(activeNotes) {
     .map((note) => note?.id)
     .filter((id) => typeof id === "string" && id);
   return [...new Set(ids)];
+}
+
+export function getPersistenceRecoveryAction(loadStatus, dirty) {
+  if (loadStatus === "read_failed") return "retry-read";
+  if (dirty && loadStatus === "loaded") return "conflict";
+  if (dirty && loadStatus === "initialized") return "persist-current";
+  return "apply-loaded";
 }
 
 export function resolvePersistenceSaveResult(changed) {
