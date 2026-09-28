@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { getPersistenceStatus } from "../src/operation-feedback.js";
+import { getPersistenceRecoveryAction, getPersistenceStatus } from "../src/operation-feedback.js";
 
 const DEFAULT_PROJECT = JSON.parse(
   readFileSync(new URL("../default_project.mcb", import.meta.url), "utf8")
@@ -142,4 +142,11 @@ test("uncertain startup state exposes a retry warning and pauses autosave", () =
   assert.equal(view.retry, true);
   assert.ok(view.message.length > 10);
   assert.match(APP_SOURCE, /async function persistLoop[\s\S]{0,180}if \(!persistenceAuthorityReady\)/);
+});
+
+
+test("retry policy preserves edits once an uncertain read proves the store was empty", () => {
+  assert.equal(getPersistenceRecoveryAction("initialized", true), "persist-current");
+  assert.equal(getPersistenceRecoveryAction("loaded", true), "conflict");
+  assert.equal(getPersistenceRecoveryAction("loaded", false), "apply-loaded");
 });

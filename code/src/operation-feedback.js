@@ -70,6 +70,13 @@ export function getActiveVoiceIdsForFailureCleanup(activeNotes) {
   return [...new Set(ids)];
 }
 
+export function getPersistenceRecoveryAction(loadStatus, dirty) {
+  if (loadStatus === "read_failed") return "retry-read";
+  if (dirty && loadStatus === "loaded") return "conflict";
+  if (dirty && loadStatus === "initialized") return "persist-current";
+  return "apply-loaded";
+}
+
 export function resolvePersistenceSaveResult(changed) {
   return {
     dirty: false,
