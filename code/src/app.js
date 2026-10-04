@@ -5509,11 +5509,16 @@ function applyProjectFromStorage(saved) {
 async function restoreFromStorage() {
   try {
     const result = await loadProjectResult();
-    persistenceAuthorityReady = result.status !== "read_failed";
-    persistenceLoadError = result.status === "read_failed" ? result.error : null;
+    const authorityUnavailable =
+      result.status === "read_failed" || result.status === "recovery_required";
+    persistenceAuthorityReady = !authorityUnavailable;
+    persistenceLoadError = authorityUnavailable ? result.error : null;
     applyProjectFromStorage(result.project);
     if (!persistenceAuthorityReady) {
-      setPersistenceStatus("load-error", persistenceLoadError);
+      setPersistenceStatus(
+        result.status === "recovery_required" ? "recovery-required" : "load-error",
+        persistenceLoadError
+      );
     }
   } catch (error) {
     persistenceAuthorityReady = false;
@@ -5524,10 +5529,13 @@ async function restoreFromStorage() {
 
 async function retryProjectLoad() {
   const result = await loadProjectResult();
-  if (result.status === "read_failed") {
+  if (result.status === "read_failed" || result.status === "recovery_required") {
     persistenceAuthorityReady = false;
     persistenceLoadError = result.error;
-    setPersistenceStatus("load-error", result.error);
+    setPersistenceStatus(
+      result.status === "recovery_required" ? "recovery-required" : "load-error",
+      result.error
+    );
     return false;
   }
 
