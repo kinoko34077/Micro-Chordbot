@@ -28,6 +28,62 @@ function openDb() {
     req.onerror = () => reject(req.error);
   });
 }
+
+function isRecord(value) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function isIdentifiedObjectArray(value) {
+  return Array.isArray(value) && value.every(
+    (item) => isRecord(item) && typeof item.id === "string" && item.id.trim()
+  );
+}
+
+function isRecognizedProjectPayload(payload) {
+  return Boolean(
+    isRecord(payload) &&
+    isRecord(payload.settings) &&
+    isIdentifiedObjectArray(payload.pitchPresets) &&
+    isIdentifiedObjectArray(payload.chordPresets) &&
+    isRecord(payload.progression) &&
+    isIdentifiedObjectArray(payload.progression.parts) &&
+    isRecord(payload.progressionEditor)
+  );
+}
+
+function isHistoricalUserProjectEnvelope(value) {
+  return Boolean(
+    isRecord(value) &&
+    !Object.hasOwn(value, "defaultProjectSourceId") &&
+    value.app === "muChordbot" &&
+    typeof value.specVersion === "string" &&
+    value.specVersion.trim() &&
+    value.extensionType === "mcb" &&
+    value.exportType === "project" &&
+    isRecognizedProjectPayload(value.payload)
+  );
+}
+
+function isHistoricalGeneratedDefaultPayload(value) {
+  return Boolean(
+    isRecord(value) &&
+    !Object.hasOwn(value, "defaultProjectSourceId") &&
+    !Object.hasOwn(value, "app") &&
+    !Object.hasOwn(value, "specVersion") &&
+    !Object.hasOwn(value, "extensionType") &&
+    !Object.hasOwn(value, "exportType") &&
+    isRecognizedProjectPayload(value)
+  );
+}
+
+function recoveryRequired(reason) {
+  return {
+    status: "recovery_required",
+    project: null,
+    error: new Error(reason)
+  };
+}
+
 export async function saveProject(stateWithoutHistory) {
   const storedValue = stateWithoutHistory?.app === "muChordbot"
     ? { ...stateWithoutHistory, defaultProjectSourceId: DEFAULT_PROJECT_SOURCE_ID }
@@ -60,6 +116,7 @@ async function loadDefaultProject() {
   }
   return { ...projectFile, defaultProjectSourceId: DEFAULT_PROJECT_SOURCE_ID };
 }
+
 async function readStoredProject() {
   let db = null;
   try {
@@ -93,15 +150,41 @@ export async function loadProjectResult() {
       return { status: "read_failed", project: null, error: readResult.error, fallbackError };
     }
   }
+
   if (readResult.status === "loaded") {
     const project = readResult.value;
-    if (project?.defaultProjectSourceId !== DEFAULT_PROJECT_SOURCE_ID) {
+
+    if (project?.defaultProjectSourceId === DEFAULT_PROJECT_SOURCE_ID) {
+      lastSavedSnapshot = JSON.stringify(project);
+      return { status: "loaded", project };
+    }
+
+    if (Object.hasOwn(project || {}, "defaultProjectSourceId")) {
+      return recoveryRequired(
+        "保存済みプロジェクトの出所マーカーを安全に判定できません。IndexedDB の muChordbotDB/project/current を退避してから再試行してください。"
+      );
+    }
+
+    if (isHistoricalUserProjectEnvelope(project)) {
+      const migratedProject = {
+        ...project,
+        defaultProjectSourceId: DEFAULT_PROJECT_SOURCE_ID
+      };
+      await saveProject(migratedProject);
+      lastSavedSnapshot = JSON.stringify(migratedProject);
+      return { status: "loaded", project: migratedProject, migrated: true };
+    }
+
+    if (isHistoricalGeneratedDefaultPayload(project)) {
       const defaultProject = await loadDefaultProject();
       await saveProject(defaultProject);
+      lastSavedSnapshot = JSON.stringify(defaultProject);
       return { status: "initialized", project: defaultProject };
     }
-    lastSavedSnapshot = JSON.stringify(project);
-    return { status: "loaded", project };
+
+    return recoveryRequired(
+      "保存済みプロジェクトを安全に移行できません。自動保存せず、IndexedDB の muChordbotDB/project/current を退避してから再試行してください。"
+    );
   }
 
   const defaultProject = await loadDefaultProject();
