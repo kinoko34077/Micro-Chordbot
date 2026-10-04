@@ -75,3 +75,21 @@ IndexedDB の起動時読込では、保存状態を次の3種類として区別
 読込不能中に利用者が編集し、その後の再試行で既存の保存済みプロジェクトが見つかった場合は、どちらかを自動上書きしない。autosave を停止したまま競合を通知し、必要な内容をエクスポートしてから再読込できる状態を保つ。
 
 原則: **保存データを読めなかったことは、保存データが存在しない証拠ではない。**
+
+### Pre-marker project migration
+
+`defaultProjectSourceId` が存在しないことだけを、既定プロジェクトへ置換してよい根拠にしてはならない。
+
+履歴上、source marker 導入前には次の2種類が同じ `muChordbotDB / project / current` に保存されていた。
+
+1. 利用者の通常autosave: `app=muChordbot`, `extensionType=mcb`, `exportType=project`, `payload` を持つ完全なproject envelope。
+2. 旧default初期化: default projectの `payload` だけを保存したmarkerless object。
+
+起動時は次の順序で扱う。
+
+- 現行 `defaultProjectSourceId=project-7`: 現行保存としてそのままLOADED。
+- markerlessで、履歴上の完全なproject envelopeとして必要fieldを検証できるもの: 利用者データとして保持し、内容を変えずに現行source markerだけを付与して1回だけ保存する。次回以降は通常LOADEDとなり、移行はidempotentでなければならない。
+- markerlessで、履歴上のpayload-only default初期化shapeとして検証できるもの: 旧生成defaultとして現行defaultへ更新してよい。
+- 未知source marker、field不足、または上記いずれにも安全に分類できないshape: `RECOVERY_REQUIRED` としてfail closedする。既定値や別projectで上書きせずautosaveを停止し、元のIndexedDB recordを退避してから再試行する案内を表示する。
+
+原則: **source markerの欠如は「利用者データではない」証拠ではない。既知の履歴shapeとして積極的に識別できた場合だけ自動移行する。**
