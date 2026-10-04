@@ -46,3 +46,24 @@
 - Known gaps: 導線とラベル整理が未完
 
 Roadmap link: [09_status_roadmap.md](./09_status_roadmap.md)
+
+## PWA offline/update cache contract
+
+### Intent
+初回オンライン利用後のオフライン起動で、アプリ本体の静的 ES module graph が欠けないこと、および配布既定 project の更新が古い cache に固定されないことを保証する。
+
+### Contract
+- deployable static runtime asset list は手書きの部分列挙を正本にしない。
+- `code/tools/generate-pwa-cache.mjs` が `code/src/**/*.js` と固定 shell asset から deterministic manifest を生成する。
+- cache version は、実際に配布する `index.html`, CSS, manifest, icons, `default_project.mcb`, runtime modules の内容から生成する。
+- Pages deploy は `project (2).mcb` を `code/default_project.mcb` へ反映した**後**に manifest/version を再生成する。
+- `pwa-version.js` の version を Service Worker registration URL に含める。既定 project だけが変化した場合でも次のオンライン更新確認で新 worker を取得できる。
+- 新 worker install は current version の全 asset を `cache: "reload"` で取得してから offline-ready とし、activate で旧 `mu-chordbot-*` cache のみを削除する。
+- IndexedDB project/library data は Service Worker cache lifecycle の対象外であり、cache version 更新を理由に削除・初期化してはならない。
+
+### Acceptance
+- 全 runtime module が generated precache manifest に含まれる。
+- clean-profile の online install 後、必要 module graph を network なしで解決できる。
+- `default_project.mcb` の内容だけを変えても generated version が変わる。
+- Pages artifact upload 前に同じ contract regression が成功する。
+- cache 更新は IndexedDB state を変更しない。
