@@ -1,29 +1,45 @@
-const CACHE_NAME = "mu-chordbot-v6";
-const ASSETS = [
-  "./",
-  "./index.html",
-  "./styles.css",
-  "./manifest.webmanifest",
-  "./default_project.mcb",
-  "./icons/icon-192.svg",
-  "./icons/icon-512.svg",
-  "./src/app.js",
-  "./src/audio.js",
-  "./src/history.js",
-  "./src/pitch.js",
-  "./src/storage.js"
-];
+importScripts("./pwa-cache-manifest.js");
+
+const manifest = self.__MU_CHORDBOT_PWA_CACHE__;
+if (!manifest || typeof manifest.version !== "string" || !Array.isArray(manifest.assets)) {
+  throw new Error("invalid PWA cache manifest");
+}
+
+const CACHE_PREFIX = "mu-chordbot-";
+const CACHE_NAME = `${CACHE_PREFIX}${manifest.version}`;
+const ASSETS = manifest.assets;
+
+async function fetchFreshAsset(asset) {
+  const request = new Request(asset, {cache: "reload"});
+  const response = await fetch(request);
+  if (!response || !response.ok) {
+    throw new Error(`precache failed: ${asset}`);
+  }
+  return {request, response};
+}
+
+async function precacheCurrentVersion() {
+  const cache = await caches.open(CACHE_NAME);
+  for (const asset of ASSETS) {
+    const {request, response} = await fetchFreshAsset(asset);
+    await cache.put(request, response);
+  }
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+    precacheCurrentVersion().then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
+      Promise.all(
+        keys
+          .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
+      )
     ).then(() => self.clients.claim())
   );
 });
@@ -38,6 +54,7 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const requestUrl = new URL(event.request.url);
   if (requestUrl.origin !== self.location.origin) return;
+
   const isShellAsset =
     requestUrl.pathname.endsWith("/") ||
     requestUrl.pathname.endsWith("/index.html") ||
@@ -47,27 +64,28 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith(
     (async () => {
+      const cache = await caches.open(CACHE_NAME);
+
       if (isShellAsset) {
         try {
-          const fresh = await fetch(event.request, { cache: "no-store" });
+          const fresh = await fetch(event.request, {cache: "no-store"});
           if (fresh && fresh.status === 200 && fresh.type === "basic") {
-            const cloned = fresh.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
+            await cache.put(event.request, fresh.clone());
           }
           return fresh;
         } catch {
-          const cached = await caches.match(event.request);
+          const cached = await cache.match(event.request);
           if (cached) return cached;
           throw new Error(`offline and no cache: ${event.request.url}`);
         }
       }
 
-      const cached = await caches.match(event.request);
+      const cached = await cache.match(event.request);
       if (cached) return cached;
-      const response = await fetch(event.request);
+
+      const response = await fetch(event.request, {cache: "no-store"});
       if (response && response.status === 200 && response.type === "basic") {
-        const cloned = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
+        await cache.put(event.request, response.clone());
       }
       return response;
     })()
