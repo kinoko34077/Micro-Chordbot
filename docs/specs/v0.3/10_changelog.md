@@ -82,3 +82,11 @@ Roadmap link: [09_status_roadmap.md](./09_status_roadmap.md)
 - 位相継続の内部実装は `currentTime * freq` の単純再計算ではなく、`AudioEngine.phaseState` による slot ごとの accumulated phase 保持へ変更。
 - progression の tone/bass は `phaseKey` を preview / playback 横断で共有し、単クリック preview でも再生中でも同じ global-like 位相が継続する方向へ寄せた。
 - さらに単発 preview の頭固定感を減らすため、継続モードでも scoped voice が無音から立ち上がる初回だけは `phaseStartMode: random` を使い、slot 継続中だけ stored phase を使う混合方式へ調整。
+
+## 2026-10-05
+- Issue #10: PWA cache contract を、部分的な手書き `ASSETS` から content-addressed generated manifest へ変更。
+- `code/src/**/*.js` を自動列挙し、初回 offline launch に必要な static ES module graph 全体を precache 対象にした。
+- Pages deploy では `project (2).mcb` を配布用 `default_project.mcb` へ反映後に cache version を再生成するため、default project 単独更新でも Service Worker update identity が変化する。
+- registration URL は generated PWA version を使用し、install は `cache: "reload"` で current asset を取得する。
+- 旧 cache の削除対象は `mu-chordbot-*` Cache Storage のみに限定し、IndexedDB user data は維持する。
+- PWA cache contract 専用 regression と Pages artifact upload 前の verification を追加。
