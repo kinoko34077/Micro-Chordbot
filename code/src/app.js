@@ -5623,7 +5623,8 @@ async function init() {
   });
 
   if ("serviceWorker" in navigator && runtimeState.swAllowed && runtimeState.mode === "https") {
-    navigator.serviceWorker.register(`./service-worker.js?build=${encodeURIComponent(APP_BUILD)}`, {
+    const pwaVersion = window.__MU_CHORDBOT_PWA_VERSION__ || APP_BUILD;
+    navigator.serviceWorker.register(`./service-worker.js?version=${encodeURIComponent(pwaVersion)}`, {
       updateViaCache: "none"
     }).then(async (registration) => {
       let reloading = false;
