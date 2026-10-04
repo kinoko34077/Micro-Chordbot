@@ -42,6 +42,12 @@ export function getPersistenceStatus(status, error = null) {
         tone: "error",
         retry: true
       };
+    case "recovery-required":
+      return {
+        message: formatFailureMessage("保存済みデータを安全に移行できません。自動保存を停止しています。元の IndexedDB データを退避してから再試行してください。", error),
+        tone: "error",
+        retry: true
+      };
     case "load-conflict":
       return {
         message: "保存済みデータを再確認しましたが、この起動中の変更と競合しています。自動保存は停止しています。必要な内容をエクスポートしてから再読込してください。",
@@ -71,7 +77,7 @@ export function getActiveVoiceIdsForFailureCleanup(activeNotes) {
 }
 
 export function getPersistenceRecoveryAction(loadStatus, dirty) {
-  if (loadStatus === "read_failed") return "retry-read";
+  if (loadStatus === "read_failed" || loadStatus === "recovery_required") return "retry-read";
   if (dirty && loadStatus === "loaded") return "conflict";
   if (dirty && loadStatus === "initialized") return "persist-current";
   return "apply-loaded";
