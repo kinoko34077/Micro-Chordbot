@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import {
+  getPersistenceRecoveryAction,
+  getPersistenceStatus
+} from "../src/operation-feedback.js";
 
+const APP_SOURCE = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 const DEFAULT_PROJECT = JSON.parse(
   readFileSync(new URL("../default_project.mcb", import.meta.url), "utf8")
 );
@@ -143,4 +148,19 @@ test("unknown source marker fails closed instead of being replaced", async () =>
   assert.equal(result.status, "recovery_required");
   assert.equal(result.project, null);
   assert.equal(db.writes.length, 0);
+});
+
+
+test("unsafe legacy state keeps autosave fenced and exposes recovery guidance", () => {
+  assert.equal(getPersistenceRecoveryAction("recovery_required", false), "retry-read");
+  const view = getPersistenceStatus(
+    "recovery-required",
+    new Error("保存済みプロジェクトを安全に移行できません。")
+  );
+  assert.equal(view.tone, "error");
+  assert.equal(view.retry, true);
+  assert.match(view.message, /自動保存を停止/);
+  assert.match(view.message, /IndexedDB/);
+  assert.match(APP_SOURCE, /result\.status === "recovery_required"/);
+  assert.match(APP_SOURCE, /"recovery-required"/);
 });
