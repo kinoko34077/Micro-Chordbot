@@ -46,8 +46,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: PWA cache contract regression
-        run: node --test code/tests/issue-10-pwa-cache-contract.test.js
+      - name: Generate current PWA cache contract
+        run: node code/tools/generate-pwa-cache.mjs --site code
+      - name: Full Node regression corpus
+        run: node --test code/tests/*.test.js
       - name: JavaScript syntax
         shell: bash
         run: |
