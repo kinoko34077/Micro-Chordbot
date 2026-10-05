@@ -39,6 +39,15 @@ jobs:
             exit 1
           fi
 
+      - name: Generate content-addressed PWA cache manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          node code/tools/generate-pwa-cache.mjs --site code
+
+      - name: Verify deployable offline/update contract
+        run: node --test code/tests/issue-10-pwa-cache-contract.test.js
+
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:

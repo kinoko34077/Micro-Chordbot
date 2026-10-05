@@ -1,0 +1,59 @@
+name: PWA cache contract
+
+on:
+  pull_request:
+    paths:
+      - "code/service-worker.js"
+      - "code/pwa-version.js"
+      - "code/pwa-cache-manifest.js"
+      - "code/tools/generate-pwa-cache.mjs"
+      - "code/src/**"
+      - "code/index.html"
+      - "code/styles.css"
+      - "code/manifest.webmanifest"
+      - "code/default_project.mcb"
+      - "code/icons/**"
+      - "code/tests/issue-10-pwa-cache-contract.test.js"
+      - ".github/workflows/pwa-cache-contract.yml"
+      - ".github/workflows/deploy-pages.yml"
+  push:
+    branches:
+      - main
+      - "fix/10-pwa-cache-contract"
+    paths:
+      - "code/service-worker.js"
+      - "code/pwa-version.js"
+      - "code/pwa-cache-manifest.js"
+      - "code/tools/generate-pwa-cache.mjs"
+      - "code/src/**"
+      - "code/index.html"
+      - "code/styles.css"
+      - "code/manifest.webmanifest"
+      - "code/default_project.mcb"
+      - "code/icons/**"
+      - "code/tests/issue-10-pwa-cache-contract.test.js"
+      - ".github/workflows/pwa-cache-contract.yml"
+      - ".github/workflows/deploy-pages.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Generate current PWA cache contract
+        run: node code/tools/generate-pwa-cache.mjs --site code
+      - name: Full Node regression corpus
+        run: node --test code/tests/*.test.js
+      - name: JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          find code/src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+          node --check code/service-worker.js
+          node --check code/tools/generate-pwa-cache.mjs
