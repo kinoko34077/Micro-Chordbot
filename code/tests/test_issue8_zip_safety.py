@@ -51,6 +51,18 @@ class ZipReviewSafety(unittest.TestCase):
                 module.extract(self.zpath, self.repo, True)
             self.assertFalse((self.repo / "code/index.html").exists())
 
+    def test_casefolded_sensitive_metadata_and_env_files_are_rejected(self):
+        for name in [
+            "source/CODE/.EDGE-PROFILE/Default/Cookies",
+            "source/.GITHUB/workflows/injected.yml",
+            "source/code/.env.production",
+            "source/code/ID_ED25519",
+        ]:
+            self.make_zip(["source/code/index.html", name])
+            with self.assertRaises(ValueError):
+                module.extract(self.zpath, self.repo, True)
+            self.assertFalse((self.repo / "code/index.html").exists())
+
     def test_symlink_rejected_without_mutation(self):
         with zipfile.ZipFile(self.zpath, "w") as archive:
             archive.writestr("source/code/index.html", "test")

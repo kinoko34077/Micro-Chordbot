@@ -19,7 +19,12 @@ def safe_parts(name):
     segments = raw.split("/")
     if any(part in ("", ".", "..") or ":" in part or "\x00" in part for part in segments):
         raise ValueError("unsafe ZIP member component")
-    if any(part in FORBIDDEN_COMPONENTS or part.lower() in {".env", "id_rsa"} for part in segments):
+    if any(
+        part.lower() in FORBIDDEN_COMPONENTS
+        or part.lower() in {".env", "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa"}
+        or part.lower().startswith(".env.")
+        for part in segments
+    ):
         raise ValueError("reserved or private ZIP member")
     return tuple(segments)
 
