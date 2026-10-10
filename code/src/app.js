@@ -293,6 +293,8 @@ const dataRevision = {
   settings: 0
 };
 let persistDirty = false;
+let persistRevision = 0;
+let persistInFlight = null;
 let persistTimerId = null;
 let persistenceAuthorityReady = false;
 let persistenceLoadError = null;
@@ -385,6 +387,7 @@ function bumpDataRevisionForChange(type) {
 }
 
 function markProjectDirty() {
+  persistRevision += 1;
   persistDirty = true;
   if (!persistenceAuthorityReady) {
     setPersistenceStatus(persistenceLoadError ? "load-error" : "load-conflict", persistenceLoadError);
@@ -5589,18 +5592,54 @@ async function persistLoop(force = false) {
     setPersistenceStatus(persistenceLoadError ? "load-error" : "load-conflict", persistenceLoadError);
     return false;
   }
+  // Only one IndexedDB writer at a time. Edits made while a write is
+  // awaiting completion must be flushed in a subsequent iteration.
+  if (persistInFlight) return persistInFlight;
   if (!force && !persistDirty) return false;
-  setPersistenceStatus("saving");
+
+  const task = (async () => {
+    let anyChanged = false;
+    let forceOnce = force;
+    while (forceOnce || persistDirty) {
+      if (!persistenceAuthorityReady) {
+        setPersistenceStatus(persistenceLoadError ? "load-error" : "load-conflict", persistenceLoadError);
+        return false;
+      }
+      forceOnce = false;
+      const revisionAtStart = persistRevision;
+      const snapshot = buildProjectPayloadForSave();
+      setPersistenceStatus("saving");
+      try {
+        const changed = await saveProject(snapshot);
+        if (!persistenceAuthorityReady) {
+          persistDirty = true;
+          setPersistenceStatus(persistenceLoadError ? "load-error" : "load-conflict", persistenceLoadError);
+          return false;
+        }
+        anyChanged = anyChanged || changed;
+        if (persistRevision === revisionAtStart) {
+          persistDirty = false;
+          setPersistenceStatus(resolvePersistenceSaveResult(changed).status);
+        } else {
+          // The saved snapshot is no longer the newest project state.
+          // Do not announce "saved" or discard the pending new edit.
+          persistDirty = true;
+          setPersistenceStatus("dirty");
+        }
+      } catch (error) {
+        persistDirty = true;
+        setPersistenceStatus("error", error);
+        throw error;
+      }
+    }
+    return anyChanged;
+  })();
+
+  persistInFlight = task;
   try {
-    const changed = await saveProject(buildProjectPayloadForSave());
-    const result = resolvePersistenceSaveResult(changed);
-    persistDirty = result.dirty;
-    setPersistenceStatus(result.status);
-    return changed;
-  } catch (error) {
-    persistDirty = true;
-    setPersistenceStatus("error", error);
-    throw error;
+    return await task;
+  } finally {
+    if (persistInFlight === task) persistInFlight = null;
   }
 }
 
