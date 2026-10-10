@@ -148,3 +148,45 @@ test("unchanged save result must also flush newer revision", async () => {
   assert.equal(h.api.dirty(), false);
 });
 
+
+test("failed IndexedDB write closes its connection and retry persists", async () => {
+  let closed = 0;
+  let attempts = 0;
+  globalThis.indexedDB = {
+    open() {
+      const request = {};
+      queueMicrotask(() => {
+        request.result = {
+          close() { closed += 1; },
+          transaction() {
+            const tx = {};
+            tx.objectStore = () => ({
+              put() {
+                queueMicrotask(() => {
+                  attempts += 1;
+                  if (attempts === 1) {
+                    tx.error = new Error("simulated transaction failure");
+                    tx.onerror?.();
+                  } else {
+                    tx.oncomplete?.();
+                  }
+                });
+              }
+            });
+            return tx;
+          }
+        };
+        request.onsuccess?.();
+      });
+      return request;
+    }
+  };
+  const storage = await import("../src/storage.js?issue24-close=" + Date.now());
+  const sample = {app: "muChordbot", payload: {key: "latest"}};
+  await assert.rejects(storage.saveProject(sample), /simulated transaction failure/);
+  assert.equal(closed, 1, "failed transaction closes database connection");
+  assert.equal(await storage.saveProject(sample), true);
+  assert.equal(closed, 2, "retry closes its successful database connection");
+  assert.equal(attempts, 2);
+});
+

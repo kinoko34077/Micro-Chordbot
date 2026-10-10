@@ -111,6 +111,6 @@ IndexedDB の起動時読込では、保存状態を次の3種類として区別
 - Every mutation requiring persistence increments an in-memory persistRevision. An old write cannot clear the dirty flag if a newer edit occurred.
 - Only one saveProject task runs from the app autosave loop at any instant. Concurrent save requests join its in-flight task.
 - Each write snapshots the project and its revision at the start. Completion clears the dirty flag only when this revision is still current; additional edits trigger a subsequent sequential save, even when a prior write reported unchanged.
-- A failed write leaves the project dirty and exposes an error and retry path. Read authority read_failed or recovery_required cannot be bypassed by forced writes or overlapping retries.
+- A failed write leaves the project dirty and exposes an error and retry path. IndexedDB connections are closed on both transaction success and failure. Read authority read_failed or recovery_required cannot be bypassed by forced writes or overlapping retries.
 - This protects edits made while an IndexedDB write is pending. It does not guarantee completion of asynchronous writes during immediate tab closure or browser termination; that boundary requires separate review.
 - Tests: deterministic deferred-writer, failure/retry and authority cases; isolated browser actual IndexedDB edit-during-write and reload verification.
