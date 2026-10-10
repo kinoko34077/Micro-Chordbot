@@ -93,15 +93,19 @@ export async function saveProject(stateWithoutHistory) {
     return false;
   }
   const db = await openDb();
-  await new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).put(storedValue, KEY);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-  db.close();
-  lastSavedSnapshot = nextSnapshot;
-  return true;
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      tx.objectStore(STORE_NAME).put(storedValue, KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error || new Error("Project DB transaction failed"));
+      tx.onabort = () => reject(tx.error || new Error("Project DB transaction aborted"));
+    });
+    lastSavedSnapshot = nextSnapshot;
+    return true;
+  } finally {
+    db.close();
+  }
 }
 
 async function loadDefaultProject() {

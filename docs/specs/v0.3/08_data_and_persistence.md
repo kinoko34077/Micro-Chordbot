@@ -93,3 +93,24 @@ IndexedDB の起動時読込では、保存状態を次の3種類として区別
 - 未知source marker、field不足、または上記いずれにも安全に分類できないshape: `RECOVERY_REQUIRED` としてfail closedする。既定値や別projectで上書きせずautosaveを停止し、元のIndexedDB recordを退避してから再試行する案内を表示する。
 
 原則: **source markerの欠如は「利用者データではない」証拠ではない。既知の履歴shapeとして積極的に識別できた場合だけ自動移行する。**
+
+
+## Pitch encoding and legacy migration — 2026-10-10
+
+- Current runtime precision: `1 octave = 120000 microStep`, `1 cent = 100 microStep`.
+- New project/library/progression exports explicitly carry `pitchEncoding: "cent-x100"`.
+- Legacy inputs with no encoding marker may be inferred from nonzero paired `pitchPresets[].cent` and `microStep` values. A consistently old `cent × 3` payload is converted only once to the current scale. A consistently modern `cent × 100` payload is not rescaled.
+- `specVersion: "1.2.0"` alone cannot distinguish formats: both source formats use it.
+- Unknown/conflicting evidence is **not** treated as legacy from small numerical values alone. No destructive numeric root conversion is made without positive evidence. Such files may require explicit source review/migration.
+- Import migration applies **only to incoming entities**, never to an existing merged library. On startup, conversion precedes autosave, which writes a current encoding marker and must remain idempotent.
+- Historical reference: `project (2).mcb`; current reference `code/default_project.mcb`.
+
+
+## Concurrent autosave serialization — 2026-10-10
+
+- Every mutation requiring persistence increments an in-memory persistRevision. An old write cannot clear the dirty flag if a newer edit occurred.
+- Only one saveProject task runs from the app autosave loop at any instant. Concurrent save requests join its in-flight task.
+- Each write snapshots the project and its revision at the start. Completion clears the dirty flag only when this revision is still current; additional edits trigger a subsequent sequential save, even when a prior write reported unchanged.
+- A failed write leaves the project dirty and exposes an error and retry path. IndexedDB connections are closed on both transaction success and failure. Read authority read_failed or recovery_required cannot be bypassed by forced writes or overlapping retries.
+- This protects edits made while an IndexedDB write is pending. It does not guarantee completion of asynchronous writes during immediate tab closure or browser termination; that boundary requires separate review.
+- Tests: deterministic deferred-writer, failure/retry and authority cases; isolated browser actual IndexedDB edit-during-write and reload verification.

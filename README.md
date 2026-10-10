@@ -30,11 +30,11 @@
 
 ## 微分音対応
 
-μChordbot は、1オクターブを 3600 microStep として扱います。
+μChordbot は、内部では1オクターブを 120000 microStep として扱います（旧形式の3600 microStepは読込時に形式を識別して変換）。
 
 ```text
-1 cent = 3 microStep
-1 octave = 1200 cent = 3600 microStep
+1 cent = 100 microStep
+1 octave = 1200 cent = 120000 microStep
 ```
 
 これにより、
