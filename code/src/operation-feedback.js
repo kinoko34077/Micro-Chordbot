@@ -153,6 +153,16 @@ function validLibrary(payload) {
     validIds(payload.chordPresets, validChord);
 }
 
+function validSettings(settings) {
+  if (!isRecord(settings) || !finite(settings.a4Hz) || settings.a4Hz <= 0 ||
+      !finite(settings.bpm) || settings.bpm <= 0) return false;
+  const numeric = ["snapCent", "roundUnitCent", "progressionCellWidth"];
+  const ratios = ["masterVolume", "activeNotesVolume"];
+  return numeric.every((name) => !(name in settings) || (finite(settings[name]) && settings[name] >= 0)) &&
+    ratios.every((name) => !(name in settings) || (finite(settings[name]) && settings[name] >= 0 && settings[name] <= 1)) &&
+    (!("tableColumnWidths" in settings) || isRecord(settings.tableColumnWidths));
+}
+
 export function detectImportKind(parsed) {
   if (!isRecord(parsed) || parsed.app !== "muChordbot" || !isRecord(parsed.payload)) {
     throw new Error("対応していないデータ形式です。");
@@ -162,8 +172,10 @@ export function detectImportKind(parsed) {
   const declaredByExtension = extensions[parsed.extensionType];
   const declaredByExport = parsed.exportType;
   if (
-    !declaredByExtension && !["project", "library", "progression"].includes(declaredByExport) ||
-    declaredByExtension && declaredByExport && declaredByExtension !== declaredByExport
+    (parsed.extensionType != null && !declaredByExtension) ||
+    (declaredByExport != null && !["project", "library", "progression"].includes(declaredByExport)) ||
+    (!declaredByExtension && !declaredByExport) ||
+    (declaredByExtension && declaredByExport && declaredByExtension !== declaredByExport)
   ) {
     throw new Error("対応していないデータ形式です。");
   }
@@ -182,9 +194,7 @@ export function detectImportKind(parsed) {
   if (kind === "project") {
     const settings = parsed.payload.settings;
     if (!validLibrary(parsed.payload) || !validProgression(parsed.payload.progression) ||
-        !isRecord(settings) || !finite(settings.a4Hz) || settings.a4Hz <= 0 ||
-        !finite(settings.bpm) || settings.bpm <= 0 ||
-        !isRecord(parsed.payload.progressionEditor)) {
+        !validSettings(settings) || !isRecord(parsed.payload.progressionEditor)) {
       throw new Error("project データが不完全です。");
     }
     return kind;
