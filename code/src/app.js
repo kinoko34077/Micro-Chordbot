@@ -31,7 +31,8 @@ import {
   buildProjectPayload as createProjectPayload,
   cloneStateSnapshot as cloneProjectStateSnapshot,
   ensureDefaultLibrary as ensureDefaultLibraryState,
-  migratePitchScale as migratePitchScaleState
+  migratePitchScale as migratePitchScaleState,
+  detectPitchEncoding
 } from "./project-state.js";
 import {
   formatDecimal,
@@ -1146,8 +1147,12 @@ function findPitchPresetByMicroStep(microStep) {
   return state.pitchPresets.find((preset) => preset.microStep === microStep) || null;
 }
 
-function migratePitchScaleInState() {
-  migratePitchScaleState(state, { microStepToCent, centToMicroStep, normalizePitch, OCTAVE_MICROSTEP });
+function migratePitchScaleInState(document = null) {
+  const encoding = document ? detectPitchEncoding(document) : "unknown";
+  migratePitchScaleState(state, { microStepToCent, centToMicroStep, normalizePitch, OCTAVE_MICROSTEP }, {
+    encoding
+  });
+  return encoding === "cent-x3";
 }
 
 function formatCent(value) {
@@ -2535,12 +2540,24 @@ async function importDataFile(file) {
   const text = await file.text();
   const parsed = JSON.parse(text);
   const importKind = validateImportDocument(parsed);
+  // Normalize only the incoming file: a legacy library must never re-scale
+  // modern pitches already present in the working project.
+  const incoming = structuredClone(parsed.payload);
+  migratePitchScaleState({
+    pitchPresets: incoming.pitchPresets || [],
+    chordPresets: incoming.chordPresets || [],
+    progression: incoming.progression || {parts: []},
+    activeNotes: [],
+    pitchDraft: null
+  }, {microStepToCent, centToMicroStep, normalizePitch, OCTAVE_MICROSTEP}, {
+    encoding: detectPitchEncoding(parsed)
+  });
   const before = snapshotState();
   history.beginGroup("json import");
   try {
     if (importKind === "library") {
-      const incomingPitchPresets = parsed.payload.pitchPresets;
-      const incomingChordPresets = parsed.payload.chordPresets;
+      const incomingPitchPresets = incoming.pitchPresets;
+      const incomingChordPresets = incoming.chordPresets;
       const pitchMerge = mergeById(state.pitchPresets, incomingPitchPresets);
       const chordMerge = mergeById(state.chordPresets, incomingChordPresets);
       state.pitchPresets = pitchMerge.merged;
@@ -2553,11 +2570,11 @@ async function importDataFile(file) {
     } else if (importKind === "progression") {
       state.progression = {
         ...state.progression,
-        ...parsed.payload.progression,
-        parts: parsed.payload.progression.parts
+        ...incoming.progression,
+        parts: incoming.progression.parts
       };
-      if (parsed.payload.progressionEditor) {
-        state.progressionEditor = { ...state.progressionEditor, ...parsed.payload.progressionEditor };
+      if (incoming.progressionEditor) {
+        state.progressionEditor = { ...state.progressionEditor, ...incoming.progressionEditor };
       }
       setStatus(
         els.progStatus,
@@ -2565,21 +2582,20 @@ async function importDataFile(file) {
         "success"
       );
     } else {
-      state.settings = { ...state.settings, ...parsed.payload.settings };
+      state.settings = { ...state.settings, ...incoming.settings };
       state.activeNotes = [];
-      state.pitchPresets = parsed.payload.pitchPresets;
-      state.chordPresets = parsed.payload.chordPresets;
+      state.pitchPresets = incoming.pitchPresets;
+      state.chordPresets = incoming.chordPresets;
       state.progression = {
         ...state.progression,
-        ...parsed.payload.progression,
-        parts: parsed.payload.progression.parts
+        ...incoming.progression,
+        parts: incoming.progression.parts
       };
-      if (parsed.payload.progressionEditor) {
-        state.progressionEditor = { ...state.progressionEditor, ...parsed.payload.progressionEditor };
+      if (incoming.progressionEditor) {
+        state.progressionEditor = { ...state.progressionEditor, ...incoming.progressionEditor };
       }
       setStatus(els.manageStatus, "project を読込しました。", "success");
     }
-    migratePitchScaleInState();
     syncFormFromState();
     render();
     const after = snapshotState();
@@ -5517,6 +5533,7 @@ async function restoreFromStorage() {
         persistenceLoadError
       );
     }
+    return result.project;
   } catch (error) {
     persistenceAuthorityReady = false;
     persistenceLoadError = error instanceof Error ? error : new Error(String(error || "Project load failed"));
@@ -5551,6 +5568,7 @@ async function retryProjectLoad() {
   }
 
   applyProjectFromStorage(result.project);
+  if (migratePitchScaleInState(result.project)) markProjectDirty();
   syncDraftFromCent(state.pitchDraft.cent, state.pitchDraft.octave);
   syncFormFromState();
   invalidateRenderCache();
@@ -5594,14 +5612,14 @@ async function init() {
   if (runtimeState.mode !== "https") {
     await resetDevelopmentCaches().catch(() => {});
   }
-  await restoreFromStorage();
-  migratePitchScaleInState();
+  const initialDocument = await restoreFromStorage();
+  const migratedLegacy = migratePitchScaleInState(initialDocument);
   ensureDefaultLibraryState(state, DEFAULT_PITCH_PRESETS, DEFAULT_CHORD_PRESETS);
-  migratePitchScaleInState();
   state.activeNotes = [];
   syncDraftFromCent(0, state.pitchDraft.octave);
   syncFormFromState();
   attachEvents();
+  if (migratedLegacy && persistenceAuthorityReady) markProjectDirty();
   setView("pitch");
   updateHistoryButtons();
   audio.setMasterVolume(state.settings.masterVolume);
