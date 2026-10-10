@@ -90,52 +90,105 @@ export function resolvePersistenceSaveResult(changed) {
   };
 }
 
+function isRecord(value) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function hasId(value) {
+  return isRecord(value) && typeof value.id === "string" && value.id.trim().length > 0;
+}
+
+function validIds(values, validItem) {
+  if (!Array.isArray(values)) return false;
+  const ids = new Set();
+  return values.every((item) => {
+    if (!hasId(item) || ids.has(item.id) || !validItem(item)) return false;
+    ids.add(item.id);
+    return true;
+  });
+}
+
+function finite(value) {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function validPitch(pitch) {
+  return hasId(pitch) && typeof pitch.name === "string" &&
+    finite(pitch.cent) && finite(pitch.microStep) &&
+    (!("tags" in pitch) || Array.isArray(pitch.tags));
+}
+
+function validPitchPosition(root) {
+  return isRecord(root) && finite(root.octave) &&
+    (finite(root.microStepInOctave) || typeof root.noteText === "string");
+}
+
+function validTone(tone) {
+  if (!isRecord(tone)) return false;
+  const namedPreset = typeof tone.pitchPresetId === "string" && tone.pitchPresetId.trim();
+  const local = finite(tone.localCent);
+  return Boolean(namedPreset || local);
+}
+
+function validChord(chord) {
+  return hasId(chord) && typeof chord.name === "string" &&
+    validPitchPosition(chord.baseRoot) &&
+    Array.isArray(chord.tones) && chord.tones.every(validTone);
+}
+
+function validPart(part) {
+  return hasId(part) && (part.chordId == null || typeof part.chordId === "string") &&
+    validPitchPosition(part.root) && finite(part.beats) && part.beats > 0 &&
+    (!("beatUnit" in part) || (finite(part.beatUnit) && part.beatUnit > 0));
+}
+
+function validProgression(progression) {
+  return isRecord(progression) && validIds(progression.parts, validPart) &&
+    (!("columns" in progression) || (finite(progression.columns) && progression.columns >= 1));
+}
+
+function validLibrary(payload) {
+  return isRecord(payload) &&
+    validIds(payload.pitchPresets, validPitch) &&
+    validIds(payload.chordPresets, validChord);
+}
+
 export function detectImportKind(parsed) {
-  if (!parsed || typeof parsed !== "object" || parsed.app !== "muChordbot" || !parsed.payload || typeof parsed.payload !== "object") {
+  if (!isRecord(parsed) || parsed.app !== "muChordbot" || !isRecord(parsed.payload)) {
     throw new Error("対応していないデータ形式です。");
   }
 
-  const extensionType = parsed.extensionType;
-  const isLibrary = extensionType === "mcbl" || parsed.exportType === "library";
-  const isProgression = extensionType === "mcbp" || parsed.exportType === "progression";
-  const isProject = extensionType === "mcb" || parsed.exportType === "project";
-  const isIdentifiedObjectArray = (value) =>
-    Array.isArray(value) &&
-    value.every((item) => item && typeof item === "object" && typeof item.id === "string" && item.id.trim());
-
-  if (isLibrary) {
-    if (!isIdentifiedObjectArray(parsed.payload.pitchPresets) || !isIdentifiedObjectArray(parsed.payload.chordPresets)) {
-      throw new Error("library データが不完全です。");
-    }
-    return "library";
+  const extensions = {mcb: "project", mcbl: "library", mcbp: "progression"};
+  const declaredByExtension = extensions[parsed.extensionType];
+  const declaredByExport = parsed.exportType;
+  if (
+    !declaredByExtension && !["project", "library", "progression"].includes(declaredByExport) ||
+    declaredByExtension && declaredByExport && declaredByExtension !== declaredByExport
+  ) {
+    throw new Error("対応していないデータ形式です。");
   }
-
-  if (isProgression) {
-    if (
-      !parsed.payload.progression ||
-      typeof parsed.payload.progression !== "object" ||
-      !isIdentifiedObjectArray(parsed.payload.progression.parts)
-    ) {
+  const kind = declaredByExtension || declaredByExport;
+  if (kind === "library") {
+    if (!validLibrary(parsed.payload)) throw new Error("library データが不完全です。");
+    return kind;
+  }
+  if (kind === "progression") {
+    if (!validProgression(parsed.payload.progression) ||
+        ("progressionEditor" in parsed.payload && !isRecord(parsed.payload.progressionEditor))) {
       throw new Error("progression データが不完全です。");
     }
-    return "progression";
+    return kind;
   }
-
-  if (isProject) {
-    if (
-      !parsed.payload.settings ||
-      typeof parsed.payload.settings !== "object" ||
-      !isIdentifiedObjectArray(parsed.payload.pitchPresets) ||
-      !isIdentifiedObjectArray(parsed.payload.chordPresets) ||
-      !parsed.payload.progression ||
-      typeof parsed.payload.progression !== "object" ||
-      !isIdentifiedObjectArray(parsed.payload.progression.parts)
-    ) {
+  if (kind === "project") {
+    const settings = parsed.payload.settings;
+    if (!validLibrary(parsed.payload) || !validProgression(parsed.payload.progression) ||
+        !isRecord(settings) || !finite(settings.a4Hz) || settings.a4Hz <= 0 ||
+        !finite(settings.bpm) || settings.bpm <= 0 ||
+        !isRecord(parsed.payload.progressionEditor)) {
       throw new Error("project データが不完全です。");
     }
-    return "project";
+    return kind;
   }
-
   throw new Error("対応していないデータ形式です。");
 }
 

@@ -2580,13 +2580,16 @@ async function importDataFile(file) {
       setStatus(els.manageStatus, "project を読込しました。", "success");
     }
     migratePitchScaleInState();
+    syncFormFromState();
+    render();
     const after = snapshotState();
     trackStateChange("json_import", "json import", before, after);
+  } catch (error) {
+    applySnapshot(before);
+    throw error;
   } finally {
     history.endGroup();
   }
-  syncFormFromState();
-  render();
   await syncAudioToActiveNotes();
 }
 
