@@ -32,3 +32,14 @@ test("known complete current and historical project/library fixtures are accepte
     assert.ok(["project", "library"].includes(detectImportKind(doc)));
   }
 });
+
+test("rejects unknown declared file kind and invalid optional numeric settings", () => {
+  const unsupported = structuredClone(fixture);
+  unsupported.extensionType = "mcb-unsupported";
+  assert.throws(() => detectImportKind(unsupported), /対応していない/);
+  const invalid = structuredClone(fixture);
+  invalid.payload.settings.masterVolume = "not a number";
+  assert.throws(() => detectImportKind(invalid), /project データが不完全/);
+  invalid.payload.settings.masterVolume = -1;
+  assert.throws(() => detectImportKind(invalid), /project データが不完全/);
+});
