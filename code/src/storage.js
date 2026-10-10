@@ -98,7 +98,8 @@ export async function saveProject(stateWithoutHistory) {
       const tx = db.transaction(STORE_NAME, "readwrite");
       tx.objectStore(STORE_NAME).put(storedValue, KEY);
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = () => reject(tx.error || new Error("Project DB transaction failed"));
+      tx.onabort = () => reject(tx.error || new Error("Project DB transaction aborted"));
     });
     lastSavedSnapshot = nextSnapshot;
     return true;

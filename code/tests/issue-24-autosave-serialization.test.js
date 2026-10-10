@@ -190,3 +190,40 @@ test("failed IndexedDB write closes its connection and retry persists", async ()
   assert.equal(attempts, 2);
 });
 
+
+test("aborted IndexedDB transaction rejects promptly and closes connection", async () => {
+  let closed = 0;
+  globalThis.indexedDB = {
+    open() {
+      const request = {};
+      queueMicrotask(() => {
+        request.result = {
+          close() {closed += 1;},
+          transaction() {
+            const tx = {};
+            tx.objectStore = () => ({
+              put() {
+                queueMicrotask(() => {
+                  tx.error = new Error("simulated abort");
+                  tx.onabort?.();
+                });
+              }
+            });
+            return tx;
+          }
+        };
+        request.onsuccess?.();
+      });
+      return request;
+    }
+  };
+  const storage = await import("../src/storage.js?issue24-abort=" + Date.now());
+  const answer = await Promise.race([
+    storage.saveProject({app:"muChordbot",payload:{valid:true}})
+      .then(()=>"unexpected-success", e=>e.message),
+    new Promise(resolve=>setTimeout(()=>resolve("timed-out"),75))
+  ]);
+  assert.equal(answer, "simulated abort");
+  assert.equal(closed, 1);
+});
+
