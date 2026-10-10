@@ -1,5 +1,5 @@
 import { AudioEngine } from "./audio.js";
-import { HistoryManager } from "./history.js";
+import { HistoryManager, isNativeUndoTarget } from "./history.js";
 import {
   centToMicroStep,
   microStepToCent,
@@ -31,7 +31,8 @@ import {
   buildProjectPayload as createProjectPayload,
   cloneStateSnapshot as cloneProjectStateSnapshot,
   ensureDefaultLibrary as ensureDefaultLibraryState,
-  migratePitchScale as migratePitchScaleState
+  migratePitchScale as migratePitchScaleState,
+  detectPitchEncoding
 } from "./project-state.js";
 import {
   formatDecimal,
@@ -292,6 +293,8 @@ const dataRevision = {
   settings: 0
 };
 let persistDirty = false;
+let persistRevision = 0;
+let persistInFlight = null;
 let persistTimerId = null;
 let persistenceAuthorityReady = false;
 let persistenceLoadError = null;
@@ -384,6 +387,7 @@ function bumpDataRevisionForChange(type) {
 }
 
 function markProjectDirty() {
+  persistRevision += 1;
   persistDirty = true;
   if (!persistenceAuthorityReady) {
     setPersistenceStatus(persistenceLoadError ? "load-error" : "load-conflict", persistenceLoadError);
@@ -1146,8 +1150,12 @@ function findPitchPresetByMicroStep(microStep) {
   return state.pitchPresets.find((preset) => preset.microStep === microStep) || null;
 }
 
-function migratePitchScaleInState() {
-  migratePitchScaleState(state, { microStepToCent, centToMicroStep, normalizePitch, OCTAVE_MICROSTEP });
+function migratePitchScaleInState(document = null) {
+  const encoding = document ? detectPitchEncoding(document) : "unknown";
+  migratePitchScaleState(state, { microStepToCent, centToMicroStep, normalizePitch, OCTAVE_MICROSTEP }, {
+    encoding
+  });
+  return encoding === "cent-x3";
 }
 
 function formatCent(value) {
@@ -1556,6 +1564,14 @@ function trackStateChange(type, label, before, after) {
 function updateHistoryButtons() {
   els.undoBtn.disabled = !history.canUndo();
   els.redoBtn.disabled = !history.canRedo();
+}
+
+function applyHistoryAction(direction) {
+  const changed = direction === "redo" ? history.redo(applySnapshot) : history.undo(applySnapshot);
+  if (changed) markProjectDirty();
+  render();
+  updateHistoryButtons();
+  return changed;
 }
 
 function isCompactProgressionLayout() {
@@ -2527,12 +2543,24 @@ async function importDataFile(file) {
   const text = await file.text();
   const parsed = JSON.parse(text);
   const importKind = validateImportDocument(parsed);
+  // Normalize only the incoming file: a legacy library must never re-scale
+  // modern pitches already present in the working project.
+  const incoming = structuredClone(parsed.payload);
+  migratePitchScaleState({
+    pitchPresets: incoming.pitchPresets || [],
+    chordPresets: incoming.chordPresets || [],
+    progression: incoming.progression || {parts: []},
+    activeNotes: [],
+    pitchDraft: null
+  }, {microStepToCent, centToMicroStep, normalizePitch, OCTAVE_MICROSTEP}, {
+    encoding: detectPitchEncoding(parsed)
+  });
   const before = snapshotState();
   history.beginGroup("json import");
   try {
     if (importKind === "library") {
-      const incomingPitchPresets = parsed.payload.pitchPresets;
-      const incomingChordPresets = parsed.payload.chordPresets;
+      const incomingPitchPresets = incoming.pitchPresets;
+      const incomingChordPresets = incoming.chordPresets;
       const pitchMerge = mergeById(state.pitchPresets, incomingPitchPresets);
       const chordMerge = mergeById(state.chordPresets, incomingChordPresets);
       state.pitchPresets = pitchMerge.merged;
@@ -2545,11 +2573,11 @@ async function importDataFile(file) {
     } else if (importKind === "progression") {
       state.progression = {
         ...state.progression,
-        ...parsed.payload.progression,
-        parts: parsed.payload.progression.parts
+        ...incoming.progression,
+        parts: incoming.progression.parts
       };
-      if (parsed.payload.progressionEditor) {
-        state.progressionEditor = { ...state.progressionEditor, ...parsed.payload.progressionEditor };
+      if (incoming.progressionEditor) {
+        state.progressionEditor = { ...state.progressionEditor, ...incoming.progressionEditor };
       }
       setStatus(
         els.progStatus,
@@ -2557,28 +2585,30 @@ async function importDataFile(file) {
         "success"
       );
     } else {
-      state.settings = { ...state.settings, ...parsed.payload.settings };
+      state.settings = { ...state.settings, ...incoming.settings };
       state.activeNotes = [];
-      state.pitchPresets = parsed.payload.pitchPresets;
-      state.chordPresets = parsed.payload.chordPresets;
+      state.pitchPresets = incoming.pitchPresets;
+      state.chordPresets = incoming.chordPresets;
       state.progression = {
         ...state.progression,
-        ...parsed.payload.progression,
-        parts: parsed.payload.progression.parts
+        ...incoming.progression,
+        parts: incoming.progression.parts
       };
-      if (parsed.payload.progressionEditor) {
-        state.progressionEditor = { ...state.progressionEditor, ...parsed.payload.progressionEditor };
+      if (incoming.progressionEditor) {
+        state.progressionEditor = { ...state.progressionEditor, ...incoming.progressionEditor };
       }
       setStatus(els.manageStatus, "project を読込しました。", "success");
     }
-    migratePitchScaleInState();
+    syncFormFromState();
+    render();
     const after = snapshotState();
     trackStateChange("json_import", "json import", before, after);
+  } catch (error) {
+    applySnapshot(before);
+    throw error;
   } finally {
     history.endGroup();
   }
-  syncFormFromState();
-  render();
   await syncAudioToActiveNotes();
 }
 
@@ -3903,19 +3933,8 @@ function attachEvents() {
     btn.addEventListener("click", () => setView(btn.dataset.view));
   });
 
-  els.undoBtn.addEventListener("click", () => {
-    history.undo(applySnapshot);
-    markProjectDirty();
-    render();
-    updateHistoryButtons();
-  });
-
-  els.redoBtn.addEventListener("click", () => {
-    history.redo(applySnapshot);
-    markProjectDirty();
-    render();
-    updateHistoryButtons();
-  });
+  els.undoBtn.addEventListener("click", () => applyHistoryAction("undo"));
+  els.redoBtn.addEventListener("click", () => applyHistoryAction("redo"));
 
   els.installPwaBtn?.addEventListener("click", async () => {
     if (!deferredInstallPrompt) return;
@@ -3941,18 +3960,15 @@ function attachEvents() {
     }
     const meta = ev.ctrlKey || ev.metaKey;
     if (!meta) return;
+    if (isNativeUndoTarget(ev.target)) return;
     if (ev.key.toLowerCase() === "z" && !ev.shiftKey) {
       ev.preventDefault();
-      history.undo(applySnapshot);
-      render();
-      updateHistoryButtons();
+      applyHistoryAction("undo");
       return;
     }
     if ((ev.key.toLowerCase() === "z" && ev.shiftKey) || ev.key.toLowerCase() === "y") {
       ev.preventDefault();
-      history.redo(applySnapshot);
-      render();
-      updateHistoryButtons();
+      applyHistoryAction("redo");
     }
   });
   document.addEventListener("pointerdown", (ev) => {
@@ -5520,6 +5536,7 @@ async function restoreFromStorage() {
         persistenceLoadError
       );
     }
+    return result.project;
   } catch (error) {
     persistenceAuthorityReady = false;
     persistenceLoadError = error instanceof Error ? error : new Error(String(error || "Project load failed"));
@@ -5554,6 +5571,7 @@ async function retryProjectLoad() {
   }
 
   applyProjectFromStorage(result.project);
+  if (migratePitchScaleInState(result.project)) markProjectDirty();
   syncDraftFromCent(state.pitchDraft.cent, state.pitchDraft.octave);
   syncFormFromState();
   invalidateRenderCache();
@@ -5574,18 +5592,54 @@ async function persistLoop(force = false) {
     setPersistenceStatus(persistenceLoadError ? "load-error" : "load-conflict", persistenceLoadError);
     return false;
   }
+  // Only one IndexedDB writer at a time. Edits made while a write is
+  // awaiting completion must be flushed in a subsequent iteration.
+  if (persistInFlight) return persistInFlight;
   if (!force && !persistDirty) return false;
-  setPersistenceStatus("saving");
+
+  const task = (async () => {
+    let anyChanged = false;
+    let forceOnce = force;
+    while (forceOnce || persistDirty) {
+      if (!persistenceAuthorityReady) {
+        setPersistenceStatus(persistenceLoadError ? "load-error" : "load-conflict", persistenceLoadError);
+        return false;
+      }
+      forceOnce = false;
+      const revisionAtStart = persistRevision;
+      const snapshot = buildProjectPayloadForSave();
+      setPersistenceStatus("saving");
+      try {
+        const changed = await saveProject(snapshot);
+        if (!persistenceAuthorityReady) {
+          persistDirty = true;
+          setPersistenceStatus(persistenceLoadError ? "load-error" : "load-conflict", persistenceLoadError);
+          return false;
+        }
+        anyChanged = anyChanged || changed;
+        if (persistRevision === revisionAtStart) {
+          persistDirty = false;
+          setPersistenceStatus(resolvePersistenceSaveResult(changed).status);
+        } else {
+          // The saved snapshot is no longer the newest project state.
+          // Do not announce "saved" or discard the pending new edit.
+          persistDirty = true;
+          setPersistenceStatus("dirty");
+        }
+      } catch (error) {
+        persistDirty = true;
+        setPersistenceStatus("error", error);
+        throw error;
+      }
+    }
+    return anyChanged;
+  })();
+
+  persistInFlight = task;
   try {
-    const changed = await saveProject(buildProjectPayloadForSave());
-    const result = resolvePersistenceSaveResult(changed);
-    persistDirty = result.dirty;
-    setPersistenceStatus(result.status);
-    return changed;
-  } catch (error) {
-    persistDirty = true;
-    setPersistenceStatus("error", error);
-    throw error;
+    return await task;
+  } finally {
+    if (persistInFlight === task) persistInFlight = null;
   }
 }
 
@@ -5597,14 +5651,14 @@ async function init() {
   if (runtimeState.mode !== "https") {
     await resetDevelopmentCaches().catch(() => {});
   }
-  await restoreFromStorage();
-  migratePitchScaleInState();
+  const initialDocument = await restoreFromStorage();
+  const migratedLegacy = migratePitchScaleInState(initialDocument);
   ensureDefaultLibraryState(state, DEFAULT_PITCH_PRESETS, DEFAULT_CHORD_PRESETS);
-  migratePitchScaleInState();
   state.activeNotes = [];
   syncDraftFromCent(0, state.pitchDraft.octave);
   syncFormFromState();
   attachEvents();
+  if (migratedLegacy && persistenceAuthorityReady) markProjectDirty();
   setView("pitch");
   updateHistoryButtons();
   audio.setMasterVolume(state.settings.masterVolume);
