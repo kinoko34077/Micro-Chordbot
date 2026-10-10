@@ -53,6 +53,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 .github/scripts/safe_extract_zip.py --zip "$ZIP_PATH" --repo . --strip "$STRIP_TOP"
+          # Match the previous extraction contract: the processed input
+          # archive itself is removed in the review branch's diff.
+          rm -- "$ZIP_PATH"
 
       - name: Create dedicated review branch
         id: review

@@ -119,8 +119,9 @@ function validPitch(pitch) {
 }
 
 function validPitchPosition(root) {
-  return isRecord(root) && finite(root.octave) &&
-    (finite(root.microStepInOctave) || typeof root.noteText === "string");
+  // noteText is a display/entry hint; playback and root arithmetic require
+  // an actual finite microStepInOctave number on imported positions.
+  return isRecord(root) && finite(root.octave) && finite(root.microStepInOctave);
 }
 
 function validTone(tone) {

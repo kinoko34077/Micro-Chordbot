@@ -25,6 +25,12 @@ class ZipReviewSafety(unittest.TestCase):
             for name in names:
                 archive.writestr(name, "test")
 
+    def test_workflow_retains_archive_cleanup_in_review_diff(self):
+        workflow = (SOURCE.parent.parent / "workflows" / "extract-zip.yml").read_text(encoding="utf8")
+        self.assertIn('rm -- "$ZIP_PATH"', workflow)
+        self.assertIn("gh pr create", workflow)
+        self.assertNotIn("git push\n", workflow)
+
     def test_happy_path_is_reviewable_files_only(self):
         self.make_zip(["source/code/index.html", "source/docs/readme.txt"])
         module.extract(self.zpath, self.repo, True)
