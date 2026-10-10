@@ -72,3 +72,13 @@ export class HistoryManager {
     return true;
   }
 }
+
+// Let focused text editors retain the browser's own undo/redo buffer.
+export function isNativeUndoTarget(target) {
+  if (!target || typeof target.closest !== "function") return false;
+  const editor = target.closest('textarea, input, [contenteditable="true"], [role="textbox"]');
+  if (!editor) return false;
+  if (String(editor.tagName || "").toLowerCase() !== "input") return true;
+  const nonTextTypes = ["button", "checkbox", "radio", "range", "color", "file", "hidden", "submit", "reset", "image"];
+  return !nonTextTypes.includes(String(editor.type || "text").toLowerCase());
+}

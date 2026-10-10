@@ -1,5 +1,5 @@
 import { AudioEngine } from "./audio.js";
-import { HistoryManager } from "./history.js";
+import { HistoryManager, isNativeUndoTarget } from "./history.js";
 import {
   centToMicroStep,
   microStepToCent,
@@ -3941,6 +3941,7 @@ function attachEvents() {
     }
     const meta = ev.ctrlKey || ev.metaKey;
     if (!meta) return;
+    if (isNativeUndoTarget(ev.target)) return;
     if (ev.key.toLowerCase() === "z" && !ev.shiftKey) {
       ev.preventDefault();
       history.undo(applySnapshot);
