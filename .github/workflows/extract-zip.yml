@@ -1,86 +1,81 @@
-name: Extract uploaded zip
+name: Extract uploaded zip (review PR only)
 
 on:
   workflow_dispatch:
     inputs:
       zip_path:
-        description: "Path to zip file in repository. Root zip is used by default."
+        description: "Tracked repository ZIP archive path to review"
         required: true
         default: "μchordbot_v0.2.zip"
       strip_top_folder:
-        description: "Strip first directory level from extracted zip"
+        description: "Archive contains one enclosing directory"
         required: true
-        default: "true"
+        type: boolean
+        default: true
 
+# pull-requests: write is required to open the review PR; this draft
+# must not be merged until workflow token permissions are approved.
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   extract:
     runs-on: ubuntu-latest
+    concurrency:
+      group: extract-zip-review
+      cancel-in-progress: false
     steps:
-      - name: Checkout repository
+      - name: Checkout accepted main
         uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
 
-      - name: Locate zip
-        id: locate_zip
+      - name: Locate safe tracked ZIP
         shell: bash
+        env:
+          ZIP_PATH: ${{ inputs.zip_path }}
         run: |
           set -euo pipefail
-          requested="${{ inputs.zip_path }}"
-          echo "Requested zip_path: $requested"
-          if [ -f "$requested" ]; then
-            zip_path="$requested"
-          elif [ -f "μchordbot_v0.2.zip" ]; then
-            zip_path="μchordbot_v0.2.zip"
-          elif [ -f "uploads/μchordbot_v0.2.zip" ]; then
-            zip_path="uploads/μchordbot_v0.2.zip"
-          elif [ -f "uploads/muchordbot_v0.2.zip" ]; then
-            zip_path="uploads/muchordbot_v0.2.zip"
-          else
-            echo "ZIP not found. Current repository files:" >&2
-            find . -maxdepth 4 -type f | sort >&2
+          if [[ "$ZIP_PATH" == /* || "$ZIP_PATH" == -* || "$ZIP_PATH" == *".."* || "$ZIP_PATH" != *.zip ]]; then
+            echo "Rejected unsafe archive path" >&2
             exit 1
           fi
-          echo "Using zip_path: $zip_path"
-          file "$zip_path" || true
-          unzip -t "$zip_path"
-          echo "zip_path=$zip_path" >> "$GITHUB_OUTPUT"
+          git ls-files --error-unmatch -- "$ZIP_PATH" >/dev/null
+          test -f "$ZIP_PATH"
 
-      - name: Extract zip
+      - name: Validate and stage safe archive contents
         shell: bash
+        env:
+          ZIP_PATH: ${{ inputs.zip_path }}
+          STRIP_TOP: ${{ inputs.strip_top_folder }}
         run: |
           set -euo pipefail
-          zip_path="${{ steps.locate_zip.outputs.zip_path }}"
-          rm -rf .extract_tmp
-          mkdir .extract_tmp
-          unzip -q "$zip_path" -d .extract_tmp
-          echo "Extracted top-level entries:"
-          find .extract_tmp -mindepth 1 -maxdepth 2 -print | sort
-          if [ "${{ inputs.strip_top_folder }}" = "true" ]; then
-            top_dir="$(find .extract_tmp -mindepth 1 -maxdepth 1 -type d | head -n 1 || true)"
-            if [ -z "$top_dir" ]; then
-              echo "No top-level directory found in zip." >&2
-              exit 1
-            fi
-            cp -R "$top_dir"/. .
-          else
-            cp -R .extract_tmp/. .
-          fi
-          rm -rf .extract_tmp
-          rm -f "$zip_path"
-          rm -f "μchordbot_v0.2.zip" "uploads/μchordbot_v0.2.zip" "uploads/muchordbot_v0.2.zip"
+          python3 .github/scripts/safe_extract_zip.py --zip "$ZIP_PATH" --repo . --strip "$STRIP_TOP"
+          # Match the previous extraction contract: the processed input
+          # archive itself is removed in the review branch's diff.
+          rm -- "$ZIP_PATH"
 
-      - name: Commit extracted files
+      - name: Create dedicated review branch
+        id: review
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ZIP_PATH: ${{ inputs.zip_path }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .
+          git add -A
           if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "Extract uploaded zip contents"
-            git push
+            echo "No extraction diff; no PR needed."
+            exit 0
           fi
+          branch="import/zip-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch -c "$branch"
+          git commit -m "Review ZIP extraction from $ZIP_PATH"
+          git push origin "HEAD:refs/heads/$branch"
+          gh pr create --base main --head "$branch" \
+            --title "Review extracted ZIP: $ZIP_PATH" \
+            --body "Manual ZIP extraction, review only. Validate diff and tests before any merge or Pages publication. Run: ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}."
