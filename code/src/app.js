@@ -1558,6 +1558,14 @@ function updateHistoryButtons() {
   els.redoBtn.disabled = !history.canRedo();
 }
 
+function applyHistoryAction(direction) {
+  const changed = direction === "redo" ? history.redo(applySnapshot) : history.undo(applySnapshot);
+  if (changed) markProjectDirty();
+  render();
+  updateHistoryButtons();
+  return changed;
+}
+
 function isCompactProgressionLayout() {
   return window.matchMedia("(max-width: 640px)").matches;
 }
@@ -3903,19 +3911,8 @@ function attachEvents() {
     btn.addEventListener("click", () => setView(btn.dataset.view));
   });
 
-  els.undoBtn.addEventListener("click", () => {
-    history.undo(applySnapshot);
-    markProjectDirty();
-    render();
-    updateHistoryButtons();
-  });
-
-  els.redoBtn.addEventListener("click", () => {
-    history.redo(applySnapshot);
-    markProjectDirty();
-    render();
-    updateHistoryButtons();
-  });
+  els.undoBtn.addEventListener("click", () => applyHistoryAction("undo"));
+  els.redoBtn.addEventListener("click", () => applyHistoryAction("redo"));
 
   els.installPwaBtn?.addEventListener("click", async () => {
     if (!deferredInstallPrompt) return;
@@ -3944,16 +3941,12 @@ function attachEvents() {
     if (isNativeUndoTarget(ev.target)) return;
     if (ev.key.toLowerCase() === "z" && !ev.shiftKey) {
       ev.preventDefault();
-      history.undo(applySnapshot);
-      render();
-      updateHistoryButtons();
+      applyHistoryAction("undo");
       return;
     }
     if ((ev.key.toLowerCase() === "z" && ev.shiftKey) || ev.key.toLowerCase() === "y") {
       ev.preventDefault();
-      history.redo(applySnapshot);
-      render();
-      updateHistoryButtons();
+      applyHistoryAction("redo");
     }
   });
   document.addEventListener("pointerdown", (ev) => {
