@@ -43,3 +43,13 @@ test("rejects unknown declared file kind and invalid optional numeric settings",
   invalid.payload.settings.masterVolume = -1;
   assert.throws(() => detectImportKind(invalid), /project データが不完全/);
 });
+
+
+test("display-only root text cannot replace required numeric pitch position", () => {
+  const missingChordRoot = structuredClone(fixture);
+  missingChordRoot.payload.chordPresets[0].baseRoot = {octave: 4, noteText: "C4"};
+  assert.throws(() => detectImportKind(missingChordRoot), /project データが不完全/);
+  const missingPartRoot = structuredClone(fixture);
+  missingPartRoot.payload.progression.parts[0].root = {octave: 4, noteText: "C4"};
+  assert.throws(() => detectImportKind(missingPartRoot), /project データが不完全/);
+});
