@@ -712,6 +712,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   height: 100%;
   display: block;
   max-height: none;
+  touch-action: none; /* Touch dragging edits pitch rather than scrolling the page. */
 }
 
 .panel {
@@ -1523,7 +1524,7 @@ body.workspace-combined .chord-library-panel .panel-note {
   .library-controls-grid { grid-template-columns: 1fr; }
   .sustain-toggle { min-height: 40px; }
   .view#view-progression { display: block; }
-  .progression-chunk-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+  .progression-chunk-grid { grid-template-columns: repeat(var(--progression-columns), minmax(0, 1fr)); }
   .progression-toolbar { flex-wrap: wrap; align-items: flex-start; }
   .progression-toolbar-actions {
     display: none;
@@ -1558,4 +1559,161 @@ body.workspace-combined .chord-library-panel .panel-note {
   .note-preset-editor { grid-template-columns: 1fr; }
   .preset-table { min-width: 620px; }
   .scroll-list { max-height: none; }
+}
+
+
+/* Mobile composition workspace: the overview and selected chord editor stay adjacent.
+   The desktop three-pane arrangement is deliberately left unchanged. */
+@media (max-width: 640px) {
+  #view-progression.view.active {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 6px;
+    padding-inline: 0;
+  }
+  #view-progression .progression-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    padding: 5px 4px;
+    background: var(--bg, #101827);
+  }
+  #view-progression .progression-toolbar > button,
+  #view-progression .progression-toolbar .progression-counter {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+  #view-progression .progression-toolbar .progression-columns {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+  #view-progression .progression-toolbar .progression-columns select {
+    max-width: 100%;
+    min-width: 0;
+  }
+  #view-progression .progression-toolbar-actions {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: 0;
+    z-index: 9;
+    padding: 8px;
+    background: #182334;
+    border: 1px solid #334155;
+    border-radius: 8px;
+  }
+  #view-progression .progression-grid {
+    flex: 0 0 auto;
+    min-width: 0;
+    max-height: min(34dvh, 310px);
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  #view-progression .progression-chunk-grid {
+    grid-template-columns: repeat(var(--progression-columns), minmax(0, 1fr));
+    gap: 2px;
+  }
+  #view-progression .progression-cell {
+    min-height: 54px;
+    gap: 2px;
+    padding: 7px 9px;
+  }
+  #view-progression .progression-cell .cell-title {
+    font-size: 0.94rem;
+  }
+  #view-progression .progression-editor {
+    flex: 1 0 auto;
+    min-width: 0;
+    margin: 0;
+    padding: 6px;
+  }
+  #view-progression .progression-editor-header {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+  }
+  #view-progression .progression-editor-heading h3 {
+    font-size: 0.92rem;
+    margin: 0;
+  }
+  #view-progression .progression-editor-heading .panel-note {
+    font-size: 0.7rem;
+  }
+  #view-progression .progression-editor-header-actions {
+    width: auto;
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+  #view-progression .progression-actions {
+    gap: 3px;
+  }
+  #view-progression .progression-actions button {
+    min-height: 32px;
+    padding: 4px 6px;
+    font-size: 0.68rem;
+  }
+  #view-progression .progression-editor-body {
+    display: block;
+    margin-top: 6px;
+  }
+  #view-progression .progression-root-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: 4px;
+  }
+  #view-progression .progression-root-row > label:first-child {
+    grid-column: 1 / -1;
+  }
+  #view-progression .progression-root-combo {
+    grid-template-columns: minmax(0, 1fr) 3.3rem;
+    gap: 3px;
+  }
+  #view-progression .progression-voice-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+  #view-progression .progression-popover-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+  #view-progression .progression-popover {
+    padding: 4px;
+  }
+  #view-progression .root-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+  }
+  #view-progression .chord-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 3px;
+  }
+  #view-progression .root-grid button,
+  #view-progression .chord-grid button {
+    min-width: 0;
+    min-height: 42px;
+    padding: 5px 2px;
+    font-size: 0.78rem;
+    overflow-wrap: anywhere;
+  }
+  #view-progression .progression-filter-label {
+    margin-block: 3px;
+  }
+  #view-progression .progression-filter-label input {
+    width: 100%;
+    min-width: 0;
+  }
+  #view-progression .progression-token.beat-token {
+    max-width: none;
+    width: fit-content;
+  }
 }

@@ -4734,7 +4734,21 @@ function attachEvents() {
   els.progressionGrid.addEventListener("pointercancel", clearGridLongPress);
 
   const canvas = els.lineCanvas;
+  let pitchDragFrame = null;
+  const schedulePitchDragFrame = () => {
+    if (pitchDragFrame !== null) return;
+    pitchDragFrame = window.requestAnimationFrame(() => {
+      pitchDragFrame = null;
+      void applyDragPitch(false);
+    });
+  };
+  const flushPitchDragFrame = () => {
+    if (pitchDragFrame === null) return;
+    window.cancelAnimationFrame(pitchDragFrame);
+    pitchDragFrame = null;
+  };
   canvas.addEventListener("pointerdown", async (ev) => {
+    if (dragContext) return;
     const x = canvasXFromPointerEvent(canvas, ev);
     const hitNote = hitActiveNoteOnLine(canvas, ev.clientX, ev.clientY);
     if (hitNote) {
@@ -4760,12 +4774,13 @@ function attachEvents() {
         virtualX: x
       };
     }
+    dragContext.pointerId = ev.pointerId;
     canvas.setPointerCapture(ev.pointerId);
     await applyDragPitch(false);
   });
 
-  canvas.addEventListener("pointermove", async (ev) => {
-    if (!dragContext) return;
+  canvas.addEventListener("pointermove", (ev) => {
+    if (!dragContext || dragContext.pointerId !== ev.pointerId) return;
     const x = canvasXFromPointerEvent(canvas, ev);
     if (dragContext.mode === "active-note") {
       dragContext.virtualX += x - dragContext.lastCanvasX;
@@ -4775,11 +4790,12 @@ function attachEvents() {
       dragContext.virtualX += x - dragContext.lastCanvasX;
       dragContext.lastCanvasX = x;
     }
-    await applyDragPitch(false);
+    schedulePitchDragFrame();
   });
 
   canvas.addEventListener("pointerup", async (ev) => {
-    if (!dragContext) return;
+    if (!dragContext || dragContext.pointerId !== ev.pointerId) return;
+    flushPitchDragFrame();
     const x = canvasXFromPointerEvent(canvas, ev);
     if (dragContext.mode === "active-note") {
       dragContext.virtualX += x - dragContext.lastCanvasX;
@@ -4809,7 +4825,9 @@ function attachEvents() {
     dragContext = null;
   });
 
-  canvas.addEventListener("pointercancel", () => {
+  canvas.addEventListener("pointercancel", (ev) => {
+    if (!dragContext || dragContext.pointerId !== ev.pointerId) return;
+    flushPitchDragFrame();
     dragContext = null;
     audio.stopVoice(MOMENTARY_VOICE_ID);
     audio.stopVoice(DRAG_PREVIEW_VOICE_ID);
