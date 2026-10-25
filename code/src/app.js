@@ -2348,7 +2348,11 @@ function renderLine() {
   ctx.lineTo(draftX, metrics.height - 8);
   ctx.stroke();
 
-  const sortedActiveNotes = [...state.activeNotes].sort((a, b) => absoluteMicroStep(a) - absoluteMicroStep(b));
+  const sortedActiveNotes = state.activeNotes.map((note) =>
+    dragContext?.mode === "active-note" && dragContext.noteId === note.id && dragContext.candidate
+      ? dragContext.candidate
+      : note
+  ).sort((a, b) => absoluteMicroStep(a) - absoluteMicroStep(b));
   sortedActiveNotes.forEach((note, index) => {
     const original = lineMarkerPosition(metrics, note);
     const roundedNote = activeNotePlaybackPosition(note);
@@ -3020,17 +3024,17 @@ function canvasXFromPointerEvent(canvas, ev) {
   return ev.clientX - rect.left;
 }
 
-function updateDraggedActiveNoteVoice(note, previousVoiceId = "") {
+function updateDraggedActiveNoteVoice(note) {
+  // Stable preview voice; leave committed audio and data untouched until pointerup.
   const playback = activeNotePlaybackPosition(note);
-  if (previousVoiceId && previousVoiceId !== note.id) {
-    audio.stopVoice(previousVoiceId);
+  const frequency = frequencyFromPitch(state.settings.a4Hz, playback.octave, playback.microStepInOctave);
+  if (audio.hasVoice(DRAG_PREVIEW_VOICE_ID)) {
+    audio.updateVoice(DRAG_PREVIEW_VOICE_ID, frequency, 0.02);
+  } else {
+    void startVoiceWithFeedback(
+      DRAG_PREVIEW_VOICE_ID, frequency, state.settings.waveform, state.settings.activeNotesVolume
+    );
   }
-  void startVoiceWithFeedback(
-    note.id,
-    frequencyFromPitch(state.settings.a4Hz, playback.octave, playback.microStepInOctave),
-    state.settings.waveform,
-    state.settings.activeNotesVolume
-  );
 }
 
 function previewDraftPitchVoice() {
@@ -3064,16 +3068,15 @@ async function applyDragPitch(finalize = false) {
     const rawDeltaCent = (deltaX / width) * 1200 / speedFactor;
     const nextAbsoluteCent = quantizeDraggedAbsoluteCent(dragContext.baseAbsoluteCent, rawDeltaCent, dragContext.fine);
     const normalized = normalizePitch(0, centToMicroStep(nextAbsoluteCent));
-    const previousVoiceId = note.id;
-    note.octave = normalized.octave;
-    note.microStepInOctave = normalized.microStepInOctave;
-    note.cent = Number(microStepToCent(normalized.microStepInOctave));
-    note.id = buildNoteId(note.octave, note.microStepInOctave);
-    dragContext.noteId = note.id;
-    dedupeActiveNotes(note);
-    syncDraftFromNote(note);
+    dragContext.candidate = {
+      ...note,
+      octave: normalized.octave,
+      microStepInOctave: normalized.microStepInOctave,
+      cent: Number(microStepToCent(normalized.microStepInOctave)),
+      id: note.id // Keep stable identity throughout the transient preview.
+    };
     renderPitchDuringInteraction();
-    updateDraggedActiveNoteVoice(note, previousVoiceId);
+    updateDraggedActiveNoteVoice(dragContext.candidate);
     return;
   }
   const virtualX = dragContext.virtualX;
@@ -4836,8 +4839,25 @@ function attachEvents() {
       Math.hypot(ev.clientX - completedDrag.tapX, ev.clientY - completedDrag.tapY) <= 12;
     await applyDragPitch(true);
     if (dragContext.mode === "active-note") {
-      const after = snapshotState();
-      trackStateChange("active_note_drag", "現音高ドラッグ", dragContext.before, after);
+      const source = findActiveNoteById(completedDrag.noteId);
+      const candidate = completedDrag.candidate;
+      const targetId = candidate ? buildNoteId(candidate.octave, candidate.microStepInOctave) : "";
+      const collision = targetId && targetId !== completedDrag.noteId && findActiveNoteById(targetId);
+      audio.stopVoice(DRAG_PREVIEW_VOICE_ID);
+      if (source && candidate && !collision) {
+        source.octave = candidate.octave;
+        source.microStepInOctave = candidate.microStepInOctave;
+        source.cent = candidate.cent;
+        source.id = targetId;
+        rememberActiveNote(source.id);
+        syncDraftFromNote(source);
+        const after = snapshotState();
+        trackStateChange("active_note_drag", "現音高ドラッグ", completedDrag.before, after);
+      } else if (collision) {
+        // Never delete another active note as a side effect of dragging.
+        syncDraftFromNote(source);
+      }
+      dragContext = null;
       syncFormFromState();
       render();
       await syncAudioToActiveNotes();
@@ -4851,9 +4871,8 @@ function attachEvents() {
       syncFormFromState();
       render();
     }
-    lastPitchTouchTap = wasTap && completedDrag.mode === "active-note" &&
-      findActiveNoteById(completedDrag.noteId)
-      ? { noteId: completedDrag.noteId, at: ev.timeStamp, x: ev.clientX, y: ev.clientY }
+    lastPitchTouchTap = wasTap && completedDrag.mode === "active-note"
+      ? { noteId: findActiveNoteById(completedDrag.noteId)?.id || buildNoteId(completedDrag.candidate?.octave ?? 0, completedDrag.candidate?.microStepInOctave ?? 0), at: ev.timeStamp, x: ev.clientX, y: ev.clientY }
       : null;
     dragContext = null;
   });
@@ -4861,6 +4880,10 @@ function attachEvents() {
   canvas.addEventListener("pointercancel", (ev) => {
     if (!dragContext || dragContext.pointerId !== ev.pointerId) return;
     flushPitchDragFrame();
+    if (dragContext.mode === "active-note") {
+      const source = findActiveNoteById(dragContext.noteId);
+      if (source) syncDraftFromNote(source);
+    }
     dragContext = null;
     lastPitchTouchTap = null;
     audio.stopVoice(MOMENTARY_VOICE_ID);
