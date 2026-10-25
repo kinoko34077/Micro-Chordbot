@@ -1,0 +1,32 @@
+name: Issue 28 Browser UX Regression
+on:
+  pull_request:
+    paths:
+      - "code/styles.css"
+      - "code/src/**"
+      - "code/index.html"
+      - "code/tests/issue-28-*.mjs"
+      - ".github/workflows/issue-28-browser.yml"
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install ephemeral browser test dependency
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Serve app and run responsive browser tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --directory code >/tmp/micro-chordbot-serve.log 2>&1 &
+          echo $! > /tmp/micro-chordbot-server.pid
+          sleep 2
+          node code/tests/issue-28-responsive-browser.mjs
