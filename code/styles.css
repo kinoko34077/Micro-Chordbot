@@ -712,6 +712,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   height: 100%;
   display: block;
   max-height: none;
+  touch-action: none; /* Touch dragging edits pitch rather than scrolling the page. */
 }
 
 .panel {
