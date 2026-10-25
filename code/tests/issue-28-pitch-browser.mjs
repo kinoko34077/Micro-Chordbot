@@ -40,6 +40,20 @@ try {
   }
   await page.waitForTimeout(150);
   assert.equal(await rows.count(),0,"touch double tap did not delete note");
+
+  // Cancelling an in-progress touch drag must not commit a candidate.
+  await page.mouse.click(x,y);
+  await page.waitForTimeout(120);
+  assert.equal(await rows.count(),1,"cancel fixture note missing");
+  const cancelledId = await rows.first().getAttribute("data-note-id");
+  await touch("touchStart",[{x,y,id:2}]);
+  await touch("touchMove",[{x:x+60,y,id:2}]);
+  await page.waitForTimeout(60);
+  assert.equal(await rows.first().getAttribute("data-note-id"),cancelledId,"touch move wrote committed data");
+  await touch("touchCancel",[]);
+  await page.waitForTimeout(140);
+  assert.equal(await rows.first().getAttribute("data-note-id"),cancelledId,"touch cancel committed pitch");
+
   assert.deepEqual(errors,[],"pitch view emitted uncaught browser errors");
   await page.close();
 }finally{
