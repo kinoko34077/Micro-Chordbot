@@ -3060,7 +3060,7 @@ async function applyDragPitch(finalize = false) {
     const note = findActiveNoteById(dragContext.noteId);
     if (!note) return;
     const deltaX = dragContext.virtualX - dragContext.pointerStartX;
-    const speedFactor = dragContext.fine ? 8 : 1;
+    const speedFactor = dragContext.slow ? 8 : 1;
     const rawDeltaCent = (deltaX / width) * 1200 / speedFactor;
     const nextAbsoluteCent = quantizeDraggedAbsoluteCent(dragContext.baseAbsoluteCent, rawDeltaCent, dragContext.fine);
     const normalized = normalizePitch(0, centToMicroStep(nextAbsoluteCent));
@@ -4778,6 +4778,7 @@ function attachEvents() {
         virtualX: x,
         lastCanvasX: x,
         fine: ev.ctrlKey || ev.metaKey || ev.pointerType === "touch",
+        slow: ev.ctrlKey || ev.metaKey,
         pointerType: ev.pointerType,
         tapX: ev.clientX,
         tapY: ev.clientY,
@@ -4808,6 +4809,7 @@ function attachEvents() {
       dragContext.virtualX += x - dragContext.lastCanvasX;
       dragContext.lastCanvasX = x;
       dragContext.fine = ev.ctrlKey || ev.metaKey || dragContext.pointerType === "touch";
+      dragContext.slow = ev.ctrlKey || ev.metaKey;
     } else {
       dragContext.virtualX += x - dragContext.lastCanvasX;
       dragContext.lastCanvasX = x;
@@ -4823,6 +4825,7 @@ function attachEvents() {
       dragContext.virtualX += x - dragContext.lastCanvasX;
       dragContext.lastCanvasX = x;
       dragContext.fine = ev.ctrlKey || ev.metaKey || dragContext.pointerType === "touch";
+      dragContext.slow = ev.ctrlKey || ev.metaKey;
     } else {
       dragContext.virtualX += x - dragContext.lastCanvasX;
       dragContext.lastCanvasX = x;
