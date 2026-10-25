@@ -4771,6 +4771,8 @@ function attachEvents() {
     if (hitNote) {
       syncDraftFromNote(hitNote);
       rememberActiveNote(hitNote.id);
+      // Audition the moved note through a separate voice; do not double-sound its original.
+      audio.setVoiceGain(hitNote.id, 0, 0.01);
       const baseAbsoluteCent = microStepToCent(absoluteMicroStep(hitNote));
       dragContext = {
         mode: "active-note",
@@ -4882,7 +4884,10 @@ function attachEvents() {
     flushPitchDragFrame();
     if (dragContext.mode === "active-note") {
       const source = findActiveNoteById(dragContext.noteId);
-      if (source) syncDraftFromNote(source);
+      if (source) {
+        syncDraftFromNote(source);
+        audio.setVoiceGain(source.id, state.settings.activeNotesVolume, 0.02);
+      }
     }
     dragContext = null;
     lastPitchTouchTap = null;
