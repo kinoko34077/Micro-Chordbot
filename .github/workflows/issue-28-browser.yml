@@ -30,3 +30,6 @@ jobs:
           echo $! > /tmp/micro-chordbot-server.pid
           sleep 2
           node code/tests/issue-28-responsive-browser.mjs
+          if test -f code/tests/issue-28-pitch-browser.mjs; then
+            node code/tests/issue-28-pitch-browser.mjs
+          fi
