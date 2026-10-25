@@ -1599,7 +1599,7 @@ function clearProgressionReorderVisuals() {
 
 function syncProgressionLayoutState() {
   const compact = isCompactProgressionLayout();
-  const editorExpanded = !compact || progressionUi.isEditorExpanded || Boolean(state.progression.selectedPartId);
+  const editorExpanded = !compact || progressionUi.isEditorExpanded;
   els.progressionView.classList.toggle("progression-menu-open", !compact || progressionUi.isMenuOpen);
   els.progressionView.classList.toggle("progression-editor-expanded", editorExpanded);
   els.progToolbarActions.hidden = compact && !progressionUi.isMenuOpen;

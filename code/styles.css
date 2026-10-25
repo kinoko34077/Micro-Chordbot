@@ -1,3 +1,5 @@
+/* JS controls disclosure via the HTML hidden property across all viewport sizes. */
+[hidden] { display: none !important; }
 :root {
   --bg: #0f172a;
   --bg-soft: #1e293b;
@@ -1559,15 +1561,9 @@ body.workspace-combined .chord-library-panel .panel-note {
   .note-preset-editor { grid-template-columns: 1fr; }
   .preset-table { min-width: 620px; }
   .scroll-list { max-height: none; }
-}
 
-
-/* A JS-owned hidden state must not be overridden by responsive display rules. */
-[hidden] { display: none !important; }
-
-/* Mobile composition workspace: the overview and selected chord editor stay adjacent.
-   The desktop three-pane arrangement is deliberately left unchanged. */
-@media (max-width: 640px) {
+  /* Mobile progression workspace, maintained in this same <=640px cascade.
+     Later rules intentionally override the initial mobile density defaults. */
   #view-progression.view.active {
     display: flex;
     flex-direction: column;
