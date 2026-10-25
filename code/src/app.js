@@ -3060,7 +3060,7 @@ async function applyDragPitch(finalize = false) {
     const note = findActiveNoteById(dragContext.noteId);
     if (!note) return;
     const deltaX = dragContext.virtualX - dragContext.pointerStartX;
-    const speedFactor = dragContext.fine ? 8 : 1;
+    const speedFactor = dragContext.slow ? 8 : 1;
     const rawDeltaCent = (deltaX / width) * 1200 / speedFactor;
     const nextAbsoluteCent = quantizeDraggedAbsoluteCent(dragContext.baseAbsoluteCent, rawDeltaCent, dragContext.fine);
     const normalized = normalizePitch(0, centToMicroStep(nextAbsoluteCent));
@@ -4734,6 +4734,9 @@ function attachEvents() {
   els.progressionGrid.addEventListener("pointercancel", clearGridLongPress);
 
   const canvas = els.lineCanvas;
+  let lastPitchTouchTap = null;
+  const pitchTapMaxDelayMs = 360;
+  const pitchTapMaxDistancePx = 28;
   let pitchDragFrame = null;
   const schedulePitchDragFrame = () => {
     if (pitchDragFrame !== null) return;
@@ -4751,6 +4754,17 @@ function attachEvents() {
     if (dragContext) return;
     const x = canvasXFromPointerEvent(canvas, ev);
     const hitNote = hitActiveNoteOnLine(canvas, ev.clientX, ev.clientY);
+    // Resolve double touch directly; iOS canvas dblclick is not reliable.
+    if (ev.pointerType === "touch" && hitNote && lastPitchTouchTap &&
+        lastPitchTouchTap.noteId === hitNote.id &&
+        ev.timeStamp - lastPitchTouchTap.at <= pitchTapMaxDelayMs &&
+        Math.hypot(ev.clientX - lastPitchTouchTap.x, ev.clientY - lastPitchTouchTap.y) <= pitchTapMaxDistancePx) {
+      ev.preventDefault();
+      lastPitchTouchTap = null;
+      removeActiveNote(hitNote.id);
+      return;
+    }
+    if (ev.pointerType === "touch") lastPitchTouchTap = null;
     if (hitNote) {
       syncDraftFromNote(hitNote);
       rememberActiveNote(hitNote.id);
@@ -4763,7 +4777,12 @@ function attachEvents() {
         pointerStartX: x,
         virtualX: x,
         lastCanvasX: x,
-        fine: ev.ctrlKey || ev.metaKey
+        fine: ev.ctrlKey || ev.metaKey || ev.pointerType === "touch",
+        slow: ev.ctrlKey || ev.metaKey,
+        pointerType: ev.pointerType,
+        tapX: ev.clientX,
+        tapY: ev.clientY,
+        tapStartTime: ev.timeStamp
       };
     } else {
       dragContext = {
@@ -4771,7 +4790,11 @@ function attachEvents() {
         before: snapshotState(),
         baseOctave: state.pitchDraft.octave,
         lastCanvasX: x,
-        virtualX: x
+        virtualX: x,
+        pointerType: ev.pointerType,
+        tapX: ev.clientX,
+        tapY: ev.clientY,
+        tapStartTime: ev.timeStamp
       };
     }
     dragContext.pointerId = ev.pointerId;
@@ -4785,7 +4808,8 @@ function attachEvents() {
     if (dragContext.mode === "active-note") {
       dragContext.virtualX += x - dragContext.lastCanvasX;
       dragContext.lastCanvasX = x;
-      dragContext.fine = ev.ctrlKey || ev.metaKey;
+      dragContext.fine = ev.ctrlKey || ev.metaKey || dragContext.pointerType === "touch";
+      dragContext.slow = ev.ctrlKey || ev.metaKey;
     } else {
       dragContext.virtualX += x - dragContext.lastCanvasX;
       dragContext.lastCanvasX = x;
@@ -4800,11 +4824,16 @@ function attachEvents() {
     if (dragContext.mode === "active-note") {
       dragContext.virtualX += x - dragContext.lastCanvasX;
       dragContext.lastCanvasX = x;
-      dragContext.fine = ev.ctrlKey || ev.metaKey;
+      dragContext.fine = ev.ctrlKey || ev.metaKey || dragContext.pointerType === "touch";
+      dragContext.slow = ev.ctrlKey || ev.metaKey;
     } else {
       dragContext.virtualX += x - dragContext.lastCanvasX;
       dragContext.lastCanvasX = x;
     }
+    const completedDrag = dragContext;
+    const wasTap = completedDrag.pointerType === "touch" &&
+      ev.timeStamp - completedDrag.tapStartTime <= pitchTapMaxDelayMs &&
+      Math.hypot(ev.clientX - completedDrag.tapX, ev.clientY - completedDrag.tapY) <= 12;
     await applyDragPitch(true);
     if (dragContext.mode === "active-note") {
       const after = snapshotState();
@@ -4822,6 +4851,10 @@ function attachEvents() {
       syncFormFromState();
       render();
     }
+    lastPitchTouchTap = wasTap && completedDrag.mode === "active-note" &&
+      findActiveNoteById(completedDrag.noteId)
+      ? { noteId: completedDrag.noteId, at: ev.timeStamp, x: ev.clientX, y: ev.clientY }
+      : null;
     dragContext = null;
   });
 
@@ -4829,6 +4862,7 @@ function attachEvents() {
     if (!dragContext || dragContext.pointerId !== ev.pointerId) return;
     flushPitchDragFrame();
     dragContext = null;
+    lastPitchTouchTap = null;
     audio.stopVoice(MOMENTARY_VOICE_ID);
     audio.stopVoice(DRAG_PREVIEW_VOICE_ID);
     render();
