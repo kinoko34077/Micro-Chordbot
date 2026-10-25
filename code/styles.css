@@ -1562,6 +1562,9 @@ body.workspace-combined .chord-library-panel .panel-note {
 }
 
 
+/* A JS-owned hidden state must not be overridden by responsive display rules. */
+[hidden] { display: none !important; }
+
 /* Mobile composition workspace: the overview and selected chord editor stay adjacent.
    The desktop three-pane arrangement is deliberately left unchanged. */
 @media (max-width: 640px) {
@@ -1583,6 +1586,7 @@ body.workspace-combined .chord-library-panel .panel-note {
     min-width: 0;
     padding: 5px 4px;
     background: var(--bg, #101827);
+    overflow: visible; /* Don't clip the absolute-positioned menu. */
   }
   #view-progression .progression-toolbar > button,
   #view-progression .progression-toolbar .progression-counter {
@@ -1663,8 +1667,10 @@ body.workspace-combined .chord-library-panel .panel-note {
     font-size: 0.68rem;
   }
   #view-progression .progression-editor-body {
-    display: block;
     margin-top: 6px;
+  }
+  #view-progression.progression-editor-expanded .progression-editor-body:not([hidden]) {
+    display: block;
   }
   #view-progression .progression-root-row {
     display: grid;
