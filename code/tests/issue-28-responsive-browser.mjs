@@ -65,6 +65,15 @@ try {
       const after = await page.locator("#progressionEditorBody").isVisible();
       assert.notEqual(after,before,"editor disclosure not toggled at " + width);
     }
+    if (width < 800) {
+      const viewport = await page.evaluate(()=>({
+        scrollWidth: document.documentElement.scrollWidth,
+        width: document.documentElement.clientWidth,
+        activeViewScroll: document.querySelector("#view-progression").scrollWidth
+      }));
+      assert.ok(viewport.scrollWidth <= viewport.width+1,
+        "horizontal document overflow at " + width + ": " + JSON.stringify(viewport));
+    }
     assert.deepEqual(errors,[],"browser script error at " + width);
     await page.close();
   }
