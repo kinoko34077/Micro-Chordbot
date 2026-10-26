@@ -10,6 +10,19 @@ try {
     await page.goto("http://127.0.0.1:4173/", {waitUntil:"domcontentloaded"});
     await page.locator('button[data-view="progression"]').click();
     await page.waitForTimeout(150);
+    if (width < 720) {
+      const shell = await page.evaluate(() => ({
+        bodyOverflowY: getComputedStyle(document.body).overflowY,
+        mainOverflow: getComputedStyle(document.querySelector("main")).overflow,
+        progressionWidth: document.querySelector("#view-progression").getBoundingClientRect().width,
+        viewportWidth: window.innerWidth,
+        layoutDisplay: getComputedStyle(document.querySelector("#view-progression")).display
+      }));
+      assert.notEqual(shell.bodyOverflowY,"hidden","page scrolling blocked at " + width);
+      assert.notEqual(shell.mainOverflow,"hidden","main content clipped at " + width);
+      assert.ok(shell.progressionWidth <= shell.viewportWidth, "progression workspace wider than viewport at " + width);
+      if (width > 640) assert.equal(shell.layoutDisplay,"block","intermediate tablet progression must use natural block flow at " + width);
+    }
     const columnInput = page.locator("#progColumnsSelect");
     if (width <= 640) {
       const menu = page.locator("#progMenuToggleBtn");
