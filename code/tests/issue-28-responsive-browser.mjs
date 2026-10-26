@@ -68,7 +68,7 @@ try {
         "progression columns do not use the full available width at "+width+": "+JSON.stringify(layout));
       assert.ok(Math.abs(layout.chunk-layout.grid)<3,
         "chunk has unexplained trailing whitespace at "+width+": "+JSON.stringify(layout));
-      assert.ok(Math.abs(Math.max(...layout.tracks.map(Number))-Math.min(...layout.tracks.map(Number)))<2,
+      assert.ok(Math.abs(Math.max(...layout.tracks.map(parseFloat))-Math.min(...layout.tracks.map(parseFloat)))<2,
         "progression column widths are uneven at "+width+": "+JSON.stringify(layout));
     }
     if (width <= 640) {
