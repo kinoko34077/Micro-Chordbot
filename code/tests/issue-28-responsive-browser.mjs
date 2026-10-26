@@ -77,6 +77,31 @@ try {
     assert.deepEqual(errors,[],"browser script error at " + width);
     await page.close();
   }
+  // Landscape and reduced-height keyboard-like viewports must retain reachable controls.
+  for (const size of [{width:667,height:375},{width:844,height:390},{width:390,height:430}]) {
+    const page = await browser.newPage({viewport:size});
+    const errors=[];
+    page.on("pageerror",e=>errors.push(String(e)));
+    await page.goto("http://127.0.0.1:4173/",{waitUntil:"domcontentloaded"});
+    await page.locator('button[data-view="progression"]').click();
+    const access = await page.evaluate(()=>({
+      width:document.documentElement.clientWidth,
+      scroll:document.documentElement.scrollWidth,
+      menu:document.querySelector("#progMenuToggleBtn").getBoundingClientRect().width,
+      toolbar:document.querySelector(".progression-toolbar").getBoundingClientRect().width,
+      pageOverflow:getComputedStyle(document.body).overflowY
+    }));
+    if (size.width<800) {
+      assert.ok(access.scroll<=access.width+1,"landscape horizontal overflow: "+JSON.stringify(size));
+      assert.notEqual(access.pageOverflow,"hidden","keyboard height blocks page scroll");
+    }
+    if(size.width<=640) {
+      await page.locator("#progMenuToggleBtn").click();
+      assert.equal(await page.locator("#progToolbarActions").isVisible(),true);
+    }
+    assert.deepEqual(errors,[]);
+    await page.close();
+  }
 } finally {
   await browser.close();
 }
