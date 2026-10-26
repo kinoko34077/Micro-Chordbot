@@ -55,8 +55,21 @@ try {
     assert.equal(columns,"3","column selection not applied at " + width);
     const grid = page.locator(".progression-chunk-grid").first();
     if (await grid.count()) {
-      const tracks = await grid.evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(" ").filter(Boolean).length);
-      assert.equal(tracks,3,"rendered track count mismatched at " + width);
+      const layout = await grid.evaluate(e => {
+        const container = document.querySelector("#progressionGrid");
+        const chunk = e.closest(".progression-chunk");
+        const tracks = getComputedStyle(e).gridTemplateColumns.split(" ").filter(Boolean);
+        return {tracks, container:container.getBoundingClientRect().width,
+          chunk:chunk.getBoundingClientRect().width,
+          grid:e.getBoundingClientRect().width};
+      });
+      assert.equal(layout.tracks.length,3,"rendered track count mismatched at " + width);
+      assert.ok(Math.abs(layout.container-layout.grid)<3,
+        "progression columns do not use the full available width at "+width+": "+JSON.stringify(layout));
+      assert.ok(Math.abs(layout.chunk-layout.grid)<3,
+        "chunk has unexplained trailing whitespace at "+width+": "+JSON.stringify(layout));
+      assert.ok(Math.abs(Math.max(...layout.tracks.map(parseFloat))-Math.min(...layout.tracks.map(parseFloat)))<2,
+        "progression column widths are uneven at "+width+": "+JSON.stringify(layout));
     }
     if (width <= 640) {
       // The 1–12 column setting is user-owned even at phone widths.
