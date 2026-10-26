@@ -24,7 +24,7 @@
   --chord-tones-col: 6.8rem;
   --chord-tags-col: 5.8rem;
   --chord-memo-col: 6.9rem;
-  --progression-cell-width: 124px;
+  --chord-choice-width: 124px;
 }
 
 * { box-sizing: border-box; }
@@ -1115,7 +1115,7 @@ body.workspace-combined .chord-library-panel .panel-note {
 .root-grid { grid-template-columns: repeat(7, minmax(0, 38px)); }
 .octave-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 0; }
 .chord-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--progression-cell-width)), var(--progression-cell-width)));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--chord-choice-width)), var(--chord-choice-width)));
   justify-content: flex-start;
 }
 .quick-grid button,
