@@ -672,7 +672,7 @@ function ensureWorkspaceDom() {
   setLabelLead(els.presetShortWidthInput, "ID rem");
   setLabelLead(els.presetTagWidthInput, "タグ rem");
   setLabelLead(els.presetMemoWidthInput, "メモ rem");
-  setLabelLead(els.progressionCellWidthInput, "箱 px");
+  setLabelLead(els.progressionCellWidthInput, "コード候補幅 px");
   setLabelLead(els.a4HzInput, "A4 Hz");
   setLabelLead(els.bpmInput, "BPM");
   setLabelLead(els.phaseModeSelect, "位相");
@@ -895,7 +895,8 @@ function applyLayoutSettings() {
       document.documentElement.style.setProperty(`--${kind}-${column}-col`, `${getTableColumnWidth(kind, column)}rem`);
     });
   });
-  document.documentElement.style.setProperty("--progression-cell-width", `${state.settings.progressionCellWidth || 124}px`);
+  // Legacy persisted progressionCellWidth is the chord-choice tile width, not a progression column width.
+  document.documentElement.style.setProperty("--chord-choice-width", `${state.settings.progressionCellWidth || 124}px`);
   document.documentElement.style.setProperty("--progression-columns", `${clamp(Number(state.progression.columns) || 4, 1, 12)}`);
 }
 
