@@ -16,12 +16,12 @@ try {
         mainOverflow: getComputedStyle(document.querySelector("main")).overflow,
         progressionWidth: document.querySelector("#view-progression").getBoundingClientRect().width,
         viewportWidth: window.innerWidth,
-        tracks: getComputedStyle(document.querySelector("#view-progression")).gridTemplateColumns.split(" ").filter(Boolean).length
+        layoutDisplay: getComputedStyle(document.querySelector("#view-progression")).display
       }));
       assert.notEqual(shell.bodyOverflowY,"hidden","page scrolling blocked at " + width);
       assert.notEqual(shell.mainOverflow,"hidden","main content clipped at " + width);
       assert.ok(shell.progressionWidth <= shell.viewportWidth, "progression workspace wider than viewport at " + width);
-      if (width > 640) assert.equal(shell.tracks,1,"intermediate tablet progression needs a single layout track at " + width);
+      if (width > 640) assert.equal(shell.layoutDisplay,"block","intermediate tablet progression must use natural block flow at " + width);
     }
     const columnInput = page.locator("#progColumnsSelect");
     if (width <= 640) {
