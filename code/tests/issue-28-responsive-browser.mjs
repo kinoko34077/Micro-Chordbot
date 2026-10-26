@@ -16,6 +16,11 @@ try {
       assert.equal(await menu.isVisible(), true, "mobile menu toggle missing at " + width);
       await menu.click();
       assert.equal(await page.locator("#progToolbarActions").isVisible(), true, "menu clipped or hidden at " + width);
+      const menuDisplay = await page.locator("#progToolbarActions").evaluate(e=>getComputedStyle(e).display);
+      assert.equal(menuDisplay,"flex","opened menu must preserve the base flex layout at " + width);
+      await menu.click();
+      assert.equal(await page.locator("#progToolbarActions").isVisible(),false,"menu did not close at " + width);
+      await menu.click();
       const clip = await page.locator(".progression-toolbar").evaluate(e=>getComputedStyle(e).overflow);
       assert.notEqual(clip,"hidden","mobile menu parent clips at " + width);
     } else {
