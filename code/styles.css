@@ -1528,13 +1528,12 @@ body.workspace-combined .chord-library-panel .panel-note {
   .view#view-progression { display: block; }
   .progression-chunk-grid { grid-template-columns: repeat(var(--progression-columns), minmax(0, 1fr)); }
   .progression-toolbar { flex-wrap: wrap; align-items: flex-start; }
+  /* JS-owned hidden controls menu visibility; CSS owns only its layout. */
   .progression-toolbar-actions {
-    display: none;
     width: 100%;
     margin-left: 0;
     flex-wrap: wrap;
   }
-  #view-progression.progression-menu-open .progression-toolbar-actions { display: flex; }
   .progression-menu-toggle,
   .progression-editor-toggle {
     display: inline-flex;
@@ -1545,8 +1544,7 @@ body.workspace-combined .chord-library-panel .panel-note {
   .progression-editor-header { flex-direction: column; align-items: flex-start; }
   .progression-editor-header-actions { width: 100%; justify-content: space-between; }
   .progression-actions { flex: 1 1 auto; justify-content: flex-end; }
-  .progression-editor-body { display: none; }
-  #view-progression.progression-editor-expanded .progression-editor-body { display: block; }
+  /* The editor disclosure is controlled solely by the HTML hidden state. */
   .progression-voice-row,
   .progression-popover-row { grid-template-columns: 1fr; }
   .root-grid, .chord-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1665,9 +1663,7 @@ body.workspace-combined .chord-library-panel .panel-note {
   #view-progression .progression-editor-body {
     margin-top: 6px;
   }
-  #view-progression.progression-editor-expanded .progression-editor-body:not([hidden]) {
-    display: block;
-  }
+  /* Preserve the base editor body's grid display when expanded. */
   #view-progression .progression-root-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
