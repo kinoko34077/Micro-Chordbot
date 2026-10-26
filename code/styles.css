@@ -1487,9 +1487,9 @@ body.workspace-combined .chord-library-panel .panel-note {
   }
 }
 
-/* The split workspace starts at 720px. Below it, the document must
+/* The split workspace starts at 800px. Below it, the document must
    scroll normally rather than inherit the clipped desktop shell. */
-@media (max-width: 719px) {
+@media (max-width: 799px) {
   html,
   body {
     height: auto;
@@ -1510,8 +1510,8 @@ body.workspace-combined .chord-library-panel .panel-note {
   .view.active {
     overflow: visible;
   }
-  /* Intermediate tablet widths should not inherit the 760px minimum
-     width of the desktop progression editor's two-column grid. */
+  /* Intermediate tablet widths must use block flow, not the desktop
+     progression editor's two-column grid. */
   .view#view-progression.active {
     display: block;
     min-width: 0;

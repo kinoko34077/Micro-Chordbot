@@ -3,14 +3,14 @@ import {chromium} from "playwright";
 
 const browser = await chromium.launch({headless: true});
 try {
-  for (const width of [320, 375, 390, 430, 640, 719, 720, 768]) {
+  for (const width of [320, 375, 390, 430, 640, 719, 720, 768, 799, 800, 900]) {
     const page = await browser.newPage({viewport:{width,height:800},deviceScaleFactor:1});
     const errors = [];
     page.on("pageerror", (e)=>errors.push(String(e)));
     await page.goto("http://127.0.0.1:4173/", {waitUntil:"domcontentloaded"});
     await page.locator('button[data-view="progression"]').click();
     await page.waitForTimeout(150);
-    if (width < 720) {
+    if (width < 800) {
       const shell = await page.evaluate(() => ({
         bodyOverflowY: getComputedStyle(document.body).overflowY,
         mainOverflow: getComputedStyle(document.querySelector("main")).overflow,
@@ -24,6 +24,16 @@ try {
       if (width > 640) assert.equal(shell.layoutDisplay,"block","intermediate tablet progression must use natural block flow at " + width);
     }
     const columnInput = page.locator("#progColumnsSelect");
+    if (width >= 800) {
+      const shell = await page.evaluate(()=>({
+        display:getComputedStyle(document.querySelector("main")).display,
+        viewport:window.innerWidth,
+        mainWidth:document.querySelector("main").getBoundingClientRect().width,
+        minimumPaneWidth: 220 + 8 + 220 + 8 + 280
+      }));
+      assert.equal(shell.display,"grid","combined workspace missing at " + width);
+      assert.ok(shell.mainWidth>=shell.minimumPaneWidth,"combined workspace narrower than minimum panes at "+width);
+    }
     if (width <= 640) {
       const menu = page.locator("#progMenuToggleBtn");
       assert.equal(await menu.isVisible(), true, "mobile menu toggle missing at " + width);
