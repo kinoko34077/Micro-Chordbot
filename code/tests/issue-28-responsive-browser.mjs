@@ -64,8 +64,10 @@ try {
       for (const count of [1,12]) {
         await columnInput.fill(String(count));
         await columnInput.dispatchEvent("change");
-        const columnsAtExtreme = await grid.evaluate(e => getComputedStyle(e).gridTemplateColumns.split(" ").filter(Boolean).length);
-        if (await grid.count()) assert.equal(columnsAtExtreme,count,"column contract at " + width);
+        if (await grid.count()) {
+          const columnsAtExtreme = await grid.evaluate(e => getComputedStyle(e).gridTemplateColumns.split(" ").filter(Boolean).length);
+          assert.equal(columnsAtExtreme,count,"column contract at " + width);
+        }
         const bounds = await page.evaluate(() => ({
           documentWidth: document.documentElement.scrollWidth,
           viewportWidth: document.documentElement.clientWidth,
