@@ -1487,9 +1487,9 @@ body.workspace-combined .chord-library-panel .panel-note {
   }
 }
 
-/* The split workspace starts at 720px. Below it, the document must
+/* The split workspace starts at 800px. Below it, the document must
    scroll normally rather than inherit the clipped desktop shell. */
-@media (max-width: 719px) {
+@media (max-width: 799px) {
   html,
   body {
     height: auto;
