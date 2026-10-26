@@ -1513,7 +1513,8 @@ body.workspace-combined .chord-library-panel .panel-note {
   /* Intermediate tablet widths should not inherit the 760px minimum
      width of the desktop progression editor's two-column grid. */
   .view#view-progression.active {
-    grid-template-columns: minmax(0, 1fr);
+    display: block;
+    min-width: 0;
   }
 }
 
