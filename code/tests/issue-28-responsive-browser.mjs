@@ -472,6 +472,35 @@ try {
     assert.deepEqual(errors,[]);
     await page.close();
   }
+
+  // Phone controls must remain legible and non-overlapping at 200% browser text size.
+  const zoomPage = await browser.newPage({viewport:{width:320,height:700}});
+  await zoomPage.goto("http://127.0.0.1:4173/",{waitUntil:"domcontentloaded"});
+  await zoomPage.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+  await zoomPage.locator('button[data-view="progression"]').click();
+  const zoomText = await zoomPage.evaluate(() => {
+    return ["#progCounter", "#playProgBtn", "#stopProgBtn", "#progMenuToggleBtn"].map((selector) => {
+      const node = document.querySelector(selector);
+      const nodeRect = node.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const textRect = range.getBoundingClientRect();
+      return {
+        selector, text: node.textContent.trim(),
+        button:{left:nodeRect.left,right:nodeRect.right,top:nodeRect.top,bottom:nodeRect.bottom,height:nodeRect.height},
+        content:{left:textRect.left,right:textRect.right,top:textRect.top,bottom:textRect.bottom}
+      };
+    });
+  });
+  for (const item of zoomText) {
+    assert.ok(item.content.left >= item.button.left - 1 && item.content.right <= item.button.right + 1,
+      "phone toolbar label overflows its control at 200% text size: " + JSON.stringify(item));
+    assert.ok(item.button.height >= 39.5, "phone toolbar target shrank at 200% text size: " + JSON.stringify(item));
+  }
+  assert.equal(await zoomPage.locator("#progMenuToggleBtn").getAttribute("aria-label"),"進行メニューを開く");
+  await zoomPage.locator("#progMenuToggleBtn").click();
+  assert.equal(await zoomPage.locator("#progToolbarActions").isVisible(),true);
+  await zoomPage.close();
 } finally {
   await browser.close();
 }
