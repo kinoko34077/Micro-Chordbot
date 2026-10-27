@@ -303,6 +303,24 @@ try {
     if (width <= 640) {
       const menu = page.locator("#progMenuToggleBtn");
       assert.equal(await menu.isVisible(), true, "mobile menu toggle missing at " + width);
+      const toolbarControls = await page.evaluate(() => {
+        const rect = (node) => {
+          const r = node.getBoundingClientRect();
+          return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
+        };
+        const toolbar = document.querySelector(".progression-toolbar");
+        return {
+          toolbar: rect(toolbar),
+          viewport: innerHeight,
+          controls: ["#progPrevBtn", "#progCounter", "#progNextBtn", "#playProgBtn", "#stopProgBtn", "#progChunkSelect", "#progMenuToggleBtn"]
+            .map((selector) => ({ selector, ...rect(document.querySelector(selector)) }))
+        };
+      });
+      for (const control of toolbarControls.controls) {
+        assert.ok(control.left >= toolbarControls.toolbar.left - 1 && control.right <= toolbarControls.toolbar.right + 1,
+          "mobile toolbar control is clipped at " + width + ": " + JSON.stringify({toolbarControls,control}));
+        assert.ok(control.bottom <= toolbarControls.viewport + 1, "mobile toolbar control is below the viewport at " + width + ": " + JSON.stringify(control));
+      }
       await menu.click();
       assert.equal(await page.locator("#progToolbarActions").isVisible(), true, "menu clipped or hidden at " + width);
       const menuDisplay = await page.locator("#progToolbarActions").evaluate(e=>getComputedStyle(e).display);
