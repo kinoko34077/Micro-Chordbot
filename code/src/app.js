@@ -1381,6 +1381,8 @@ function renderProgressionPopovers() {
   els.progBassPopover?.classList.toggle("active", popoverUi.active === "bass");
   els.progInversionPopover?.classList.toggle("active", popoverUi.active === "inversion");
   els.progInversionPopoverBtn?.classList.toggle("active", popoverUi.active === "inversion");
+  els.progBassPopoverBtn?.setAttribute("aria-expanded", popoverUi.active === "bass" ? "true" : "false");
+  els.progInversionPopoverBtn?.setAttribute("aria-expanded", popoverUi.active === "inversion" ? "true" : "false");
 }
 
 function buildChordToneDefaults(note, index, rootNote) {
