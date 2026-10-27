@@ -68,6 +68,8 @@ try {
           progressionToolbar: box(".progression-toolbar"),
           progressionGrid: box("#progressionGrid"),
           progressionEditor: box(".progression-editor"),
+          progressionChoiceTools: box(".progression-choice-tools"),
+          firstChordChoice: box("#progChordButtonGrid button[data-chord-id]"),
           chordLibrary: box(".chord-library-panel"),
           renderedPitchPresetRows: pitchRows,
           renderedChordPresetRows: chordRows,
