@@ -267,10 +267,12 @@ try {
       const libraryBeforeResize = await page.evaluate(() => {
         const panel = document.querySelector(".chord-library-panel").getBoundingClientRect();
         const details = document.querySelector("#chordLibraryDetails").getBoundingClientRect();
+        const search = document.querySelector(".chord-library-search").getBoundingClientRect();
         const list = document.querySelector("#chordPresetList");
         const rect = list.getBoundingClientRect();
         return {
           panel:{top:panel.top,bottom:panel.bottom},
+          search:{height:search.height},
           details:{top:details.top,bottom:details.bottom},
           list:{top:rect.top,bottom:rect.bottom,height:rect.height,clientHeight:list.clientHeight,scrollHeight:list.scrollHeight,overflowY:getComputedStyle(list).overflowY}
         };
@@ -278,6 +280,8 @@ try {
       assert.ok(libraryBeforeResize.list.height >= 48 && libraryBeforeResize.list.clientHeight > 0,
         "chord library list has no usable viewport at " + width + ": " + JSON.stringify(libraryBeforeResize));
       assert.equal(libraryBeforeResize.list.overflowY,"auto","chord library rows must scroll in their own list at " + width);
+      assert.ok(libraryBeforeResize.search.height <= 40,
+        "desktop chord library search occupies an unnecessary row at " + width + ": " + JSON.stringify(libraryBeforeResize));
       assert.ok(libraryBeforeResize.list.bottom <= libraryBeforeResize.details.bottom + 1 &&
         libraryBeforeResize.details.bottom <= libraryBeforeResize.panel.bottom + 1,
         "chord library content escapes its allocated region at " + width + ": " + JSON.stringify(libraryBeforeResize));
