@@ -66,6 +66,26 @@ try {
   await page.waitForTimeout(140);
   assert.equal(await rows.first().getAttribute("data-note-id"),cancelledId,"touch cancel committed pitch");
 
+  // A real touch drag changes an active note only on release and is one undoable action.
+  await touch("touchStart",[{x,y,id:3}]);
+  await touch("touchMove",[{x:x+35,y,id:3}]);
+  await page.waitForTimeout(80);
+  assert.equal(await rows.first().getAttribute("data-note-id"),cancelledId,
+    "touch drag committed before release");
+  await touch("touchEnd",[]);
+  await page.waitForTimeout(160);
+  const touchDraggedId = await rows.first().getAttribute("data-note-id");
+  assert.notEqual(touchDraggedId,cancelledId,"touch drag did not commit after release");
+  assert.equal(await rows.count(),1,"touch drag duplicated or removed the active note");
+  await page.locator("#undoBtn").click();
+  await page.waitForTimeout(100);
+  assert.equal(await rows.first().getAttribute("data-note-id"),cancelledId,
+    "one undo did not restore the touch-dragged pitch");
+  await page.locator("#redoBtn").click();
+  await page.waitForTimeout(100);
+  assert.equal(await rows.first().getAttribute("data-note-id"),touchDraggedId,
+    "redo did not restore the touch-dragged pitch");
+
   assert.deepEqual(errors,[],"pitch view emitted uncaught browser errors");
   await page.close();
 }finally{
