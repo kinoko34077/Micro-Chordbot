@@ -1444,9 +1444,8 @@ function syncProgressionFormFromState() {
   els.progPrevBtn.disabled = state.progression.parts.length === 0;
   els.progNextBtn.disabled = state.progression.parts.length === 0;
   els.playProgBtn.disabled = state.progression.parts.length === 0;
-  els.playProgBtn.textContent = state.progression.playingPartId ? "一時停止" : "再生";
   els.stopProgBtn.disabled = !state.progression.playingPartId;
-  els.stopProgBtn.textContent = "停止";
+  syncProgressionToolbarLabels();
   syncProgressionLayoutState();
 }
 
@@ -1587,6 +1586,17 @@ function clearProgressionReorderVisuals() {
   progressionUi.dragPlacement = "after";
 }
 
+function syncProgressionToolbarLabels() {
+  const compact = isCompactProgressionLayout();
+  const isPlaying = Boolean(state.progression.playingPartId);
+  els.playProgBtn.textContent = compact ? (isPlaying ? "Ⅱ" : "▶") : (isPlaying ? "一時停止" : "再生");
+  els.playProgBtn.setAttribute("aria-label", isPlaying ? "進行を一時停止" : "進行を再生");
+  els.playProgBtn.title = isPlaying ? "進行を一時停止" : "進行を再生";
+  els.stopProgBtn.textContent = compact ? "■" : "停止";
+  els.stopProgBtn.setAttribute("aria-label", "進行を停止");
+  els.stopProgBtn.title = "進行を停止";
+}
+
 function syncProgressionLayoutState() {
   const compact = isCompactProgressionLayout();
   const editorExpanded = !compact || progressionUi.isEditorExpanded;
@@ -1598,8 +1608,10 @@ function syncProgressionLayoutState() {
   els.progEditorToggleBtn.hidden = !compact;
   els.progMenuToggleBtn.setAttribute("aria-expanded", compact && progressionUi.isMenuOpen ? "true" : "false");
   els.progEditorToggleBtn.setAttribute("aria-expanded", editorExpanded ? "true" : "false");
-  els.progMenuToggleBtn.textContent = "その他";
+  els.progMenuToggleBtn.textContent = compact ? "☰" : "その他";
   els.progMenuToggleBtn.setAttribute("aria-label", compact && progressionUi.isMenuOpen ? "進行メニューを閉じる" : "進行メニューを開く");
+  els.progMenuToggleBtn.title = compact && progressionUi.isMenuOpen ? "進行メニューを閉じる" : "進行メニューを開く";
+  syncProgressionToolbarLabels();
   els.progEditorToggleBtn.textContent = editorExpanded ? "エディタを閉じる" : "エディタを開く";
 }
 
@@ -5357,9 +5369,13 @@ function syncChordComposerInputsFromRow(row) {
 function renderProgressionSummary() {
   const selectedIndex = currentProgressionSelectionIndex();
   const chunkInfo = chunkContextForPartId(currentProgressionAnchorId());
-  const current = chunkInfo.index >= 0 ? String(chunkInfo.index + 1).padStart(2, "0") : "00";
-  const total = String(chunkInfo.chunks.length).padStart(2, "0");
+  const currentNumber = chunkInfo.index >= 0 ? chunkInfo.index + 1 : 0;
+  const totalNumber = chunkInfo.chunks.length;
+  const compact = isCompactProgressionLayout();
+  const current = compact ? String(currentNumber) : String(currentNumber).padStart(2, "0");
+  const total = compact ? String(totalNumber) : String(totalNumber).padStart(2, "0");
   els.progCounter.textContent = `${current}/${total}`;
+  els.progCounter.setAttribute("aria-label", `チャンク ${currentNumber} / ${totalNumber}`);
   const selected = selectedIndex >= 0 ? state.progression.parts[selectedIndex] : null;
   const chord = selected ? state.chordPresets.find((item) => item.id === selected.chordId) : null;
   const editorRoot = state.progressionEditor.rootNoteText;
