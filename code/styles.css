@@ -1033,6 +1033,11 @@ body.workspace-combined .chord-library-panel .panel-note {
   align-items: center;
   min-width: 0;
 }
+.progression-choice-tools > .progression-filter-label { min-width: 0; }
+.progression-choice-tools > .progression-filter-label input {
+  width: 100%;
+  min-width: 0;
+}
 .progression-root-row {
   display: grid;
   grid-template-columns: minmax(110px, 148px) minmax(132px, 172px) auto;
