@@ -408,7 +408,6 @@ body.workspace-combined .workspace-resizer {
     linear-gradient(180deg, transparent, rgba(34, 211, 238, 0.28), transparent);
 }
 body.workspace-combined .workspace-resizer-left { grid-column: 2; }
-body.workspace-combined .workspace-resizer-right { display: none; }
 body.workspace-resizing {
   user-select: none;
   cursor: col-resize;
