@@ -39,6 +39,27 @@ try {
       assert.ok(pitchFold.toolbarHeight <= 180, "phone pitch controls are stacked beyond working height at " + width + ": " + JSON.stringify(pitchFold));
       assert.ok(pitchFold.lineTop < Math.min(400, pitchFold.viewport * 0.65),
         "pitch line not reachable in no-scroll initial viewport at " + width + ": " + JSON.stringify(pitchFold));
+      const pitchSearches = await page.evaluate(() => {
+        const bounds = (selector) => {
+          const rect = document.querySelector(selector).getBoundingClientRect();
+          return {
+            left: rect.left, right: rect.right, width: rect.width, height: rect.height,
+            fontSize: Number.parseFloat(getComputedStyle(document.querySelector(selector)).fontSize)
+          };
+        };
+        return {
+          activeNotes: bounds("#activeNotesFilterInput"),
+          presets: bounds("#pitchPresetFilterInput")
+        };
+      });
+      for (const [name, input] of Object.entries(pitchSearches)) {
+        assert.ok(input.width >= 140,
+          "phone " + name + " search field remains too narrow at " + width + ": " + JSON.stringify(pitchSearches));
+        assert.ok(input.left >= 0 && input.right <= width + 1,
+          "phone " + name + " search field exceeds the viewport at " + width + ": " + JSON.stringify(pitchSearches));
+        assert.ok(input.height >= 40 && input.fontSize >= 16,
+          "phone " + name + " search field is too small to tap or triggers iOS focus zoom at " + width + ": " + JSON.stringify(pitchSearches));
+      }
     }
     if (width < 1200) {
       const visibleOnly = async (selected) => {
