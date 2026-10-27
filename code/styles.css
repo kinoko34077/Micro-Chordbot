@@ -1574,11 +1574,33 @@ body.workspace-combined .chord-library-panel .panel-note {
   .panel-heading { align-items: flex-start; flex-direction: column; }
   .panel-heading-actions { width: 100%; justify-content: space-between; }
   .inline-row { flex-wrap: wrap; }
-  .pitch-toolbar { grid-template-columns: 1fr; }
+  /* Pitch editing keeps tuning inputs adjacent; sound options form one compact
+     second band immediately above the directly manipulated pitch line. */
+  .pitch-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    margin-bottom: 6px;
+    align-items: start;
+  }
   .controls-grid,
-  .pitch-controls,
-  .pitch-options,
   .compact-grid { grid-template-columns: 1fr; }
+  .pitch-controls {
+    grid-template-columns: minmax(56px, 0.64fr) minmax(78px, 0.89fr) minmax(104px, 1.18fr);
+    align-items: end;
+    gap: 6px;
+  }
+  .pitch-controls > label { min-width: 0; }
+  .pitch-controls input { max-width: 100%; }
+  .pitch-options {
+    grid-template-columns: minmax(0, 1fr) minmax(72px, 1fr) minmax(0, 1.15fr);
+    align-items: end;
+    gap: 6px;
+    min-width: 0;
+  }
+  .pitch-options > label { min-width: 0; }
+  .pitch-options select,
+  .pitch-options input[type="range"] { min-width: 0; max-width: 100%; }
+  #view-pitch .line-wrap { min-height: 118px; }
   .library-controls-grid { grid-template-columns: 1fr; }
   .sustain-toggle { min-height: 40px; }
   .view#view-progression.active { display: block; }

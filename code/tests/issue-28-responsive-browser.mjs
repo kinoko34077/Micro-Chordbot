@@ -31,6 +31,14 @@ try {
       }
       assert.ok(header.volume.width >= 64, "volume becomes unreachable at " + width);
       assert.ok(header.tools.right <= width + 1, "header tools extend outside phone viewport at " + width);
+      const pitchFold = await page.evaluate(() => {
+        const toolbar = document.querySelector(".pitch-toolbar").getBoundingClientRect();
+        const line = document.querySelector("#pitchLine").getBoundingClientRect();
+        return {toolbarHeight: toolbar.height, lineTop: line.top, lineBottom: line.bottom, viewport: innerHeight};
+      });
+      assert.ok(pitchFold.toolbarHeight <= 180, "phone pitch controls are stacked beyond working height at " + width + ": " + JSON.stringify(pitchFold));
+      assert.ok(pitchFold.lineTop < Math.min(400, pitchFold.viewport * 0.65),
+        "pitch line not reachable in no-scroll initial viewport at " + width + ": " + JSON.stringify(pitchFold));
     }
     if (width < 800) {
       const visibleOnly = async (selected) => {
