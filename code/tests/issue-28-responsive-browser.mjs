@@ -8,8 +8,24 @@ try {
     const errors = [];
     page.on("pageerror", (e)=>errors.push(String(e)));
     await page.goto("http://127.0.0.1:4173/", {waitUntil:"domcontentloaded"});
+    if (width < 800) {
+      const visibleOnly = async (selected) => {
+        for (const name of ["pitch", "progression"]) {
+          const actual = await page.locator("#view-" + name).evaluate((el) => getComputedStyle(el).display);
+          assert.equal(actual === "none", name !== selected,
+            "view visibility mismatch at " + width + ": " + selected + "/" + name + " display=" + actual);
+        }
+      };
+      await visibleOnly("pitch");
+    }
     await page.locator('button[data-view="progression"]').click();
     await page.waitForTimeout(150);
+    if (width < 800) {
+      for (const name of ["pitch"]) {
+        const display = await page.locator("#view-" + name).evaluate(el => getComputedStyle(el).display);
+        assert.equal(display, "none", "inactive view leaked on progression tab at " + width + ": " + name);
+      }
+    }
     if (width < 800) {
       const shell = await page.evaluate(() => ({
         bodyOverflowY: getComputedStyle(document.body).overflowY,
