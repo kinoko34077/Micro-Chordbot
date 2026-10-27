@@ -1026,6 +1026,18 @@ body.workspace-combined .chord-library-panel .panel-note {
   gap: 10px;
 }
 .progression-editor-body { margin-top: 8px; }
+.progression-choice-tools {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+.progression-choice-tools > .progression-filter-label { min-width: 0; }
+.progression-choice-tools > .progression-filter-label input {
+  width: 100%;
+  min-width: 0;
+}
 .progression-root-row {
   display: grid;
   grid-template-columns: minmax(110px, 148px) minmax(132px, 172px) auto;
@@ -1847,8 +1859,10 @@ body.workspace-combined .chord-library-panel .panel-note {
     overflow-wrap: anywhere;
   }
   #view-progression .progression-filter-label {
-    margin-block: 3px;
+    margin-block: 0;
   }
+  #view-progression .progression-choice-tools { gap: 4px; }
+  #view-progression .progression-filter-label input { min-height: 40px; }
   #view-progression .progression-filter-label input {
     width: 100%;
     min-width: 0;
