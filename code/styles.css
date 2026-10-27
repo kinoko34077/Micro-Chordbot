@@ -1857,6 +1857,7 @@ body.workspace-combined .chord-library-panel .panel-note {
     margin-block: 0;
   }
   #view-progression .progression-choice-tools { gap: 4px; }
+  #view-progression .progression-filter-label input { min-height: 40px; }
   #view-progression .progression-filter-label input {
     width: 100%;
     min-width: 0;
