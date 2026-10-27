@@ -181,6 +181,30 @@ try {
       }
       assert.equal(shell.separator,"block","pitch/progression divider unavailable at " + width);
       assert.equal(shell.separatorCount,1,"desktop must have exactly one workspace divider at " + width);
+      const libraryBeforeResize = await page.evaluate(() => {
+        const panel = document.querySelector(".chord-library-panel").getBoundingClientRect();
+        const details = document.querySelector("#chordLibraryDetails").getBoundingClientRect();
+        const list = document.querySelector("#chordPresetList");
+        const rect = list.getBoundingClientRect();
+        return {
+          panel:{top:panel.top,bottom:panel.bottom},
+          details:{top:details.top,bottom:details.bottom},
+          list:{top:rect.top,bottom:rect.bottom,height:rect.height,clientHeight:list.clientHeight,scrollHeight:list.scrollHeight,overflowY:getComputedStyle(list).overflowY}
+        };
+      });
+      assert.ok(libraryBeforeResize.list.height >= 48 && libraryBeforeResize.list.clientHeight > 0,
+        "chord library list has no usable viewport at " + width + ": " + JSON.stringify(libraryBeforeResize));
+      assert.equal(libraryBeforeResize.list.overflowY,"auto","chord library rows must scroll in their own list at " + width);
+      assert.ok(libraryBeforeResize.list.bottom <= libraryBeforeResize.details.bottom + 1 &&
+        libraryBeforeResize.details.bottom <= libraryBeforeResize.panel.bottom + 1,
+        "chord library content escapes its allocated region at " + width + ": " + JSON.stringify(libraryBeforeResize));
+      if (libraryBeforeResize.list.scrollHeight > libraryBeforeResize.list.clientHeight) {
+        const reachable = await page.locator("#chordPresetList").evaluate(node => {
+          node.scrollTop = node.scrollHeight;
+          return node.scrollTop > 0;
+        });
+        assert.equal(reachable,true,"chord library list cannot reach its final rows at " + width);
+      }
       const beforeResize = await page.evaluate(() => ({
         pitchWidth:document.querySelector("#view-pitch").getBoundingClientRect().width,
         selectedPart:document.querySelector("#progressionGrid .progression-cell.active")?.dataset.partId || null,
