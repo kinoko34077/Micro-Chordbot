@@ -1381,7 +1381,10 @@ body.workspace-combined .chord-library-panel .panel-note {
   flex-wrap: wrap;
 }
 .table-filter-input {
-  width: min(10ch, 100%);
+  flex: 1 1 10ch;
+  width: min(22rem, 100%);
+  min-width: 0;
+  max-width: 22rem;
   font-size: 0.78rem;
   padding: 4px 6px;
 }

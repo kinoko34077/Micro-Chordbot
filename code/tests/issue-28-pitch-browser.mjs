@@ -7,6 +7,18 @@ try {
   const errors = [];
   page.on("pageerror", e=>errors.push(String(e)));
   await page.goto("http://127.0.0.1:4173/", {waitUntil:"domcontentloaded"});
+  const presets = page.locator("#pitchPresetList tbody tr[data-pitch-preset-id]");
+  const initialPresetCount = await presets.count();
+  assert.ok(initialPresetCount > 0,"pitch library seed data not rendered");
+  const searchText = (await presets.first().locator("td").nth(1).innerText()).trim();
+  const search = page.locator("#pitchPresetFilterInput");
+  assert.equal(await search.getAttribute("aria-label"),"音高プリセットを検索","pitch preset search needs an accessible name");
+  await search.fill(searchText);
+  await page.waitForTimeout(100);
+  assert.ok(await presets.count() > 0,"pitch library search did not find its selected row");
+  await search.fill("");
+  await page.waitForTimeout(100);
+  assert.equal(await presets.count(),initialPresetCount,"clearing pitch library search did not restore all presets");
   await page.locator("#clearActiveNotesBtn").click();
   const canvas = page.locator("#pitchLine");
   const box = await canvas.boundingBox();
