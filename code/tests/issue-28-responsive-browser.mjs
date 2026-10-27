@@ -105,7 +105,12 @@ try {
         candidate: id,
         active: [...document.querySelectorAll("#progChordButtonGrid button.active")].map(el => el.dataset.chordId),
         selectedCell: document.querySelector("#progressionGrid .progression-cell.active")?.dataset.partId,
-        status: document.querySelector("#progStatus")?.textContent
+        status: document.querySelector("#progStatus")?.textContent,
+        root: document.querySelector("#progRootNoteInput")?.value,
+        octave: document.querySelector("#progRootOctaveInput")?.value,
+        beats: document.querySelector("#progBeatsNumeratorInput")?.value,
+        pickedName: document.querySelector(`#progChordButtonGrid button[data-chord-id="${id}"]`)?.textContent,
+        cell: document.querySelector("#progressionGrid .progression-cell.active")?.textContent
       }), pickedChordId);
       assert.ok(chosenState.active.includes(pickedChordId),
         "chord choice not selected at " + width + ": " + JSON.stringify(chosenState));
