@@ -42,7 +42,10 @@ try {
       const pitchSearches = await page.evaluate(() => {
         const bounds = (selector) => {
           const rect = document.querySelector(selector).getBoundingClientRect();
-          return { left: rect.left, right: rect.right, width: rect.width };
+          return {
+            left: rect.left, right: rect.right, width: rect.width, height: rect.height,
+            fontSize: Number.parseFloat(getComputedStyle(document.querySelector(selector)).fontSize)
+          };
         };
         return {
           activeNotes: bounds("#activeNotesFilterInput"),
@@ -54,6 +57,8 @@ try {
           "phone " + name + " search field remains too narrow at " + width + ": " + JSON.stringify(pitchSearches));
         assert.ok(input.left >= 0 && input.right <= width + 1,
           "phone " + name + " search field exceeds the viewport at " + width + ": " + JSON.stringify(pitchSearches));
+        assert.ok(input.height >= 40 && input.fontSize >= 16,
+          "phone " + name + " search field is too small to tap or triggers iOS focus zoom at " + width + ": " + JSON.stringify(pitchSearches));
       }
     }
     if (width < 1200) {
