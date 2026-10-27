@@ -1493,9 +1493,9 @@ body.workspace-combined .chord-library-panel .panel-note {
   }
 }
 
-/* The split workspace starts at 800px. Below it, the document must
-   scroll normally rather than inherit the clipped desktop shell. */
-@media (max-width: 799px) {
+/* Full three-pane editing is desktop-only. Tablet layouts retain one selected
+   view and normal page scroll instead of three narrow independent panes. */
+@media (max-width: 1199px) {
   html,
   body {
     height: auto;
@@ -1516,14 +1516,25 @@ body.workspace-combined .chord-library-panel .panel-note {
   .view.active {
     overflow: visible;
   }
-  /* Intermediate tablet widths must use block flow, not the desktop
-     progression editor's two-column grid. */
-  .view#view-progression.active {
-    display: block;
-    min-width: 0;
-  }
+  /* Narrow tablet and landscape-phone widths keep one linear editing flow. */
+  .view#view-progression.active { display: block; min-width: 0; }
 }
-
+/* Wider tablets: the selected progression editor and its overview/library
+   occupy two deliberately sized columns, not a compressed desktop tri-pane. */
+@media (min-width: 820px) and (max-width: 1199px) {
+  .view#view-progression.active {
+    display: grid;
+    grid-template-columns: minmax(0, 1.14fr) minmax(0, 0.86fr);
+    gap: 10px;
+    align-items: start;
+  }
+  .view#view-progression .progression-editor { min-width: 0; max-width: 100%; }
+  .view#view-progression .progression-editor-header { flex-wrap: wrap; }
+  .view#view-progression .progression-editor-header-actions { flex-wrap: wrap; }
+  .view#view-progression .progression-toolbar { flex-wrap: wrap; }
+  .view#view-progression .progression-grid { min-width: 0; overflow-x: auto; }
+  .view#view-progression .chord-library-panel { min-width: 0; }
+}
 /* Phone-specific interaction density; JS compact-menu breakpoint is 640px. */
 @media (max-width: 640px) {
   /* Two intentional header bands: context/navigation above persistent tools.

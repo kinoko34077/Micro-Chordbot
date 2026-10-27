@@ -3,7 +3,7 @@ import {chromium} from "playwright";
 
 const browser = await chromium.launch({headless: true});
 try {
-  for (const width of [320, 375, 390, 430, 640, 719, 720, 768, 799, 800, 900]) {
+  for (const width of [320, 375, 390, 430, 640, 719, 720, 768, 799, 800, 834, 900, 1024, 1199, 1200, 1280, 1440, 1920]) {
     const page = await browser.newPage({viewport:{width,height:800},deviceScaleFactor:1});
     const errors = [];
     page.on("pageerror", (e)=>errors.push(String(e)));
@@ -40,7 +40,7 @@ try {
       assert.ok(pitchFold.lineTop < Math.min(400, pitchFold.viewport * 0.65),
         "pitch line not reachable in no-scroll initial viewport at " + width + ": " + JSON.stringify(pitchFold));
     }
-    if (width < 800) {
+    if (width < 1200) {
       const visibleOnly = async (selected) => {
         for (const name of ["pitch", "progression"]) {
           const actual = await page.locator("#view-" + name).evaluate((el) => getComputedStyle(el).display);
@@ -52,13 +52,13 @@ try {
     }
     await page.locator('button[data-view="progression"]').click();
     await page.waitForTimeout(150);
-    if (width < 800) {
+    if (width < 1200) {
       for (const name of ["pitch"]) {
         const display = await page.locator("#view-" + name).evaluate(el => getComputedStyle(el).display);
         assert.equal(display, "none", "inactive view leaked on progression tab at " + width + ": " + name);
       }
     }
-    if (width < 800) {
+    if (width < 1200) {
       const shell = await page.evaluate(() => ({
         bodyOverflowY: getComputedStyle(document.body).overflowY,
         mainOverflow: getComputedStyle(document.querySelector("main")).overflow,
@@ -69,7 +69,8 @@ try {
       assert.notEqual(shell.bodyOverflowY,"hidden","page scrolling blocked at " + width);
       assert.notEqual(shell.mainOverflow,"hidden","main content clipped at " + width);
       assert.ok(shell.progressionWidth <= shell.viewportWidth, "progression workspace wider than viewport at " + width);
-      if (width > 640) assert.equal(shell.layoutDisplay,"block","intermediate tablet progression must use natural block flow at " + width);
+      if (width > 640 && width < 820) assert.equal(shell.layoutDisplay,"block","narrow tablets must use natural block flow at " + width);
+      if (width >= 820) assert.equal(shell.layoutDisplay,"grid","wide tablets must use a two-column progression workspace at " + width);
     }
     if (width <= 640) {
       const task = await page.evaluate(() => {
@@ -97,7 +98,7 @@ try {
       assert.equal(await bassPanel.isVisible(), false, "switching secondary panel leaves Bass overlay visible");
     }
     const columnInput = page.locator("#progColumnsSelect");
-    if (width >= 800) {
+    if (width >= 1200) {
       const shell = await page.evaluate(()=>({
         display:getComputedStyle(document.querySelector("main")).display,
         viewport:window.innerWidth,
@@ -171,7 +172,7 @@ try {
       const after = await page.locator("#progressionEditorBody").isVisible();
       assert.notEqual(after,before,"editor disclosure not toggled at " + width);
     }
-    if (width < 800) {
+    if (width < 1200) {
       const viewport = await page.evaluate(()=>({
         scrollWidth: document.documentElement.scrollWidth,
         width: document.documentElement.clientWidth,

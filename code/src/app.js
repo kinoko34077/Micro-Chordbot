@@ -1578,7 +1578,7 @@ function isCompactProgressionLayout() {
 }
 
 function isDesktopWorkspaceLayout() {
-  return window.matchMedia("(min-width: 800px)").matches;
+  return window.matchMedia("(min-width: 1200px)").matches;
 }
 
 function clearProgressionLongPressTimer() {
