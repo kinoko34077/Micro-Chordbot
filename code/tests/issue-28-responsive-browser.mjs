@@ -88,6 +88,19 @@ try {
       assert.ok(task.beatsTop <= task.chordTop + 2 && task.chordTop < task.voicingTop,
         "advanced controls displaced main editor " + width + " " + JSON.stringify(task));
       assert.ok(task.chordTop < task.viewport, "chord type selection outside first viewport " + width + " " + JSON.stringify(task));
+      // Verify primary editor actions actually change their selected state.
+      await page.locator('#progRootLetterButtons button[data-note="G"]').click();
+      assert.equal(await page.locator('#progRootLetterButtons button[data-note="G"]').getAttribute("class"), "active",
+        "root selection did not update at " + width);
+      await page.locator("#progBeatsNumeratorInput").fill("3");
+      await page.locator("#progBeatsNumeratorInput").dispatchEvent("change");
+      assert.equal(await page.locator("#progBeatsNumeratorInput").inputValue(), "3",
+        "duration selection did not persist in editor at " + width);
+      const chordChoices = page.locator("#progChordButtonGrid button[data-chord-id]");
+      assert.ok(await chordChoices.count() > 0, "chord choices not populated at " + width);
+      await chordChoices.first().click();
+      assert.ok(await chordChoices.first().evaluate(el => el.classList.contains("active")),
+        "chord choice not selected at " + width);
       const bassPanel = page.locator("#progBassPopover");
       assert.equal(await bassPanel.isVisible(), false, "secondary Bass panel should be collapsed on phone");
       await page.locator("#progBassPopoverBtn").click();
