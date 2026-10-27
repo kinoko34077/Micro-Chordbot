@@ -88,6 +88,7 @@ try {
       assert.ok(task.beatsTop <= task.chordTop + 2 && task.chordTop < task.voicingTop,
         "advanced controls displaced main editor " + width + " " + JSON.stringify(task));
       assert.ok(task.chordTop < task.viewport, "chord type selection outside first viewport " + width + " " + JSON.stringify(task));
+      await page.locator("#progressionGrid .progression-cell").first().click();
       // Verify primary editor actions actually change their selected state.
       await page.locator('#progRootLetterButtons button[data-note="G"]').click();
       assert.equal(await page.locator('#progRootLetterButtons button[data-note="G"]').getAttribute("class"), "active",
