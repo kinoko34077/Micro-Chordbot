@@ -249,6 +249,29 @@
             </div>
           </div>
 
+          <div id="progRootLetterButtons" class="quick-grid root-grid">
+            <button type="button" data-note="C">C</button>
+            <button type="button" data-note="D">D</button>
+            <button type="button" data-note="E">E</button>
+            <button type="button" data-note="F">F</button>
+            <button type="button" data-note="G">G</button>
+            <button type="button" data-note="A">A</button>
+            <button type="button" data-note="B">B</button>
+          </div>
+
+          <label class="progression-token progression-token-input beat-token">
+            <span class="progression-token-label">拍:</span>
+            <span class="beat-inline">
+              <input id="progBeatsNumeratorInput" type="number" min="1" max="32" step="1" value="4" aria-label="beats numerator">
+              <span>/</span>
+              <input id="progBeatsDenominatorInput" type="number" min="1" max="32" step="1" value="4" aria-label="beats denominator">
+            </span>
+          </label>
+          <label class="progression-filter-label">🔎
+            <input id="progChordTagFilterInput" type="text" placeholder="tag: core / min / sus">
+          </label>
+          <div id="progChordButtonGrid" class="quick-grid chord-grid"></div>
+
           <div class="progression-voice-row">
             <label class="progression-token progression-token-input">
               <span class="progression-token-label">Bass:</span>
@@ -275,29 +298,6 @@
           </div>
           </div>
 
-          <div id="progRootLetterButtons" class="quick-grid root-grid">
-            <button type="button" data-note="C">C</button>
-            <button type="button" data-note="D">D</button>
-            <button type="button" data-note="E">E</button>
-            <button type="button" data-note="F">F</button>
-            <button type="button" data-note="G">G</button>
-            <button type="button" data-note="A">A</button>
-            <button type="button" data-note="B">B</button>
-          </div>
-
-          <label class="progression-filter-label">🔎
-            <input id="progChordTagFilterInput" type="text" placeholder="tag: core / min / sus">
-          </label>
-          <div id="progChordButtonGrid" class="quick-grid chord-grid"></div>
-
-          <label class="progression-token progression-token-input beat-token">
-            <span class="progression-token-label">拍:</span>
-            <span class="beat-inline">
-              <input id="progBeatsNumeratorInput" type="number" min="1" max="32" step="1" value="4" aria-label="beats numerator">
-              <span>/</span>
-              <input id="progBeatsDenominatorInput" type="number" min="1" max="32" step="1" value="4" aria-label="beats denominator">
-            </span>
-          </label>
           <p id="progStatus" class="status-text" aria-live="polite"></p>
         </div>
       </section>
