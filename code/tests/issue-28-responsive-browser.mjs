@@ -181,6 +181,27 @@ try {
       }
       assert.equal(shell.separator,"block","pitch/progression divider unavailable at " + width);
       assert.equal(shell.separatorCount,1,"desktop must have exactly one workspace divider at " + width);
+      const beforeResize = await page.evaluate(() => ({
+        pitchWidth:document.querySelector("#view-pitch").getBoundingClientRect().width,
+        selectedPart:document.querySelector("#progressionGrid .progression-cell.active")?.dataset.partId || null,
+        root:document.querySelector("#progRootNoteInput").value
+      }));
+      const divider = await page.locator('[data-workspace-resizer="pitch-progression"]').boundingBox();
+      await page.mouse.move(divider.x + divider.width / 2, divider.y + 80);
+      await page.mouse.down();
+      await page.mouse.move(divider.x + divider.width / 2 + 64, divider.y + 80, {steps:4});
+      await page.mouse.up();
+      const afterResize = await page.evaluate(() => ({
+        pitchWidth:document.querySelector("#view-pitch").getBoundingClientRect().width,
+        selectedPart:document.querySelector("#progressionGrid .progression-cell.active")?.dataset.partId || null,
+        root:document.querySelector("#progRootNoteInput").value,
+        saved:JSON.parse(localStorage.getItem("uchordbot.workspaceColumns.v1") || "null")
+      }));
+      assert.ok(afterResize.pitchWidth >= beforeResize.pitchWidth + 50,
+        "desktop divider drag did not resize pitch workspace at " + width + ": " + JSON.stringify({beforeResize,afterResize}));
+      assert.equal(afterResize.selectedPart,beforeResize.selectedPart,"divider drag moved the selected progression target at " + width);
+      assert.equal(afterResize.root,beforeResize.root,"divider drag changed the selected progression value at " + width);
+      assert.ok(afterResize.saved?.left >= 280,"divider drag was not persisted at " + width);
     }
     if (width <= 640) {
       const menu = page.locator("#progMenuToggleBtn");
