@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 57782)
-Total output lines: 5809
-
 import { AudioEngine } from "./audio.js";
 import { HistoryManager, isNativeUndoTarget } from "./history.js";
 import {
@@ -1501,7 +1498,2888 @@ async function refreshAudibleVoices() {
 }
 
 async function updateWaveformSetting(nextWaveform) {
-  const waveform = String(nextWaveform || "…27782 tokens truncated…or.chordId = chordId;
+  const waveform = String(nextWaveform || "").trim();
+  if (!waveform) return;
+  const previousWaveform = state.settings.waveform;
+  const before = snapshotState();
+  state.settings.waveform = waveform;
+  if (els.waveformSelect) {
+    els.waveformSelect.value = waveform;
+  }
+  const after = snapshotState();
+  if (previousWaveform !== waveform) {
+    trackStateChange("update_waveform", "波形変更", before, after);
+  } else {
+    dataRevision.settings += 1;
+  }
+  render();
+  await refreshAudibleVoices();
+  render();
+}
+
+function applySnapshot(snap) {
+  resetProgressionInteractionState();
+  stopProgressionPreview(false);
+  stopProgressionPlayback(false);
+  state.settings = snap.settings;
+  state.pitchDraft = snap.pitchDraft;
+  state.activeNotes = snap.activeNotes ?? [];
+  state.pitchPresets = snap.pitchPresets ?? [];
+  state.chordPresets = snap.chordPresets ?? [];
+  state.progression = snap.progression ?? state.progression;
+  state.progressionEditor = snap.progressionEditor ?? state.progressionEditor;
+  const selectedPart = state.progression.parts.find((part) => part.id === state.progression.selectedPartId);
+  if (selectedPart) loadProgressionEditorFromPart(selectedPart);
+  bumpAllDataRevisions();
+  pitchUi.lastTouchedNoteId = state.activeNotes[0]?.id || null;
+  syncFormFromState();
+  render();
+  void syncAudioToActiveNotes();
+}
+
+function trackStateChange(type, label, before, after) {
+  history.track({
+    id: `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    type,
+    label,
+    before,
+    after,
+    timestamp: new Date().toISOString()
+  });
+  bumpDataRevisionForChange(type);
+  updateHistoryButtons();
+  markProjectDirty();
+}
+
+function updateHistoryButtons() {
+  els.undoBtn.disabled = !history.canUndo();
+  els.redoBtn.disabled = !history.canRedo();
+}
+
+function applyHistoryAction(direction) {
+  const changed = direction === "redo" ? history.redo(applySnapshot) : history.undo(applySnapshot);
+  if (changed) markProjectDirty();
+  render();
+  updateHistoryButtons();
+  return changed;
+}
+
+function isCompactProgressionLayout() {
+  return window.matchMedia("(max-width: 640px)").matches;
+}
+
+function isDesktopWorkspaceLayout() {
+  return window.matchMedia("(min-width: 1200px)").matches;
+}
+
+function clearProgressionLongPressTimer() {
+  if (progressionUi.longPressTimerId) {
+    clearTimeout(progressionUi.longPressTimerId);
+    progressionUi.longPressTimerId = null;
+  }
+  progressionUi.pendingPointerId = null;
+  progressionUi.pendingPartId = null;
+}
+
+function clearProgressionReorderVisuals() {
+  progressionUi.draggingPartId = null;
+  progressionUi.dragOverPartId = null;
+  progressionUi.dragPlacement = "after";
+}
+
+function syncProgressionLayoutState() {
+  const compact = isCompactProgressionLayout();
+  const editorExpanded = !compact || progressionUi.isEditorExpanded;
+  els.progressionView.classList.toggle("progression-menu-open", !compact || progressionUi.isMenuOpen);
+  els.progressionView.classList.toggle("progression-editor-expanded", editorExpanded);
+  els.progToolbarActions.hidden = compact && !progressionUi.isMenuOpen;
+  els.progressionEditorBody.hidden = compact && !editorExpanded;
+  els.progMenuToggleBtn.hidden = !compact;
+  els.progEditorToggleBtn.hidden = !compact;
+  els.progMenuToggleBtn.setAttribute("aria-expanded", compact && progressionUi.isMenuOpen ? "true" : "false");
+  els.progEditorToggleBtn.setAttribute("aria-expanded", editorExpanded ? "true" : "false");
+  els.progMenuToggleBtn.textContent = "その他";
+  els.progMenuToggleBtn.setAttribute("aria-label", compact && progressionUi.isMenuOpen ? "進行メニューを閉じる" : "進行メニューを開く");
+  els.progEditorToggleBtn.textContent = editorExpanded ? "エディタを閉じる" : "エディタを開く";
+}
+
+function suppressNextProgressionGridClick() {
+  progressionUi.suppressClick = true;
+  window.setTimeout(() => {
+    progressionUi.suppressClick = false;
+  }, 0);
+}
+
+function loadProgressionEditorFromPart(part) {
+  if (!part) return;
+  state.progressionEditor.chordId = part.chordId;
+  state.progressionEditor.rootNoteText = formatDirectRootFromPart(part.root);
+  state.progressionEditor.beats = part.beats;
+  state.progressionEditor.beatUnit = part.beatUnit || 4;
+  state.progressionEditor.sectionName = String(part.sectionName || "");
+  const bass = bassSpecForPart(part);
+  state.progressionEditor.bassMode = bass.mode;
+  state.progressionEditor.bassValue = bass.value;
+  const chord = state.chordPresets.find((item) => item.id === part.chordId);
+  const total = chord?.tones?.length || 1;
+  const normalizedVoicing = normalizeVoicingState(total, progressionVoicingBaseOctave(part), part.voicing?.step || 0);
+  state.progressionEditor.voicingOctave = normalizedVoicing.octave;
+  state.progressionEditor.inversionStep = normalizedVoicing.step;
+}
+
+function resetProgressionInteractionState() {
+  clearProgressionLongPressTimer();
+  clearProgressionReorderVisuals();
+  progressionUi.isMenuOpen = false;
+}
+
+function syncWorkspaceViewState(view) {
+  const nextView = view || document.body.dataset.currentView || "pitch";
+  const desktopWorkspace = isDesktopWorkspaceLayout() && nextView !== "settings";
+  document.body.dataset.currentView = nextView;
+  document.body.classList.toggle("workspace-combined", desktopWorkspace);
+  if (desktopWorkspace) {
+    document.body.dataset.workspaceFocus = nextView === "progression" ? "progression" : "pitch";
+  } else {
+    delete document.body.dataset.workspaceFocus;
+  }
+  for (const btn of els.navButtons) {
+    btn.classList.toggle("active", btn.dataset.view === nextView);
+  }
+  for (const sec of els.views) {
+    const shouldShow = desktopWorkspace
+      ? sec.id === "view-pitch" || sec.id === "view-progression"
+      : sec.id === `view-${nextView}`;
+    sec.classList.toggle("active", shouldShow);
+  }
+}
+
+function setView(view) {
+  const desktopWorkspace = isDesktopWorkspaceLayout() && view !== "settings";
+  if (!desktopWorkspace && view !== "progression") {
+    resetProgressionInteractionState();
+  } else {
+    progressionUi.isEditorExpanded = true;
+  }
+  syncWorkspaceViewState(view);
+  syncProgressionLayoutState();
+  invalidateRenderCache();
+  render();
+}
+
+function syncDraftFromCent(cent, octave) {
+  const snapped = snapCent(cent, state.settings.snapCent);
+  const ms = centToMicroStep(snapped);
+  const normalized = normalizePitch(octave, ms);
+  state.pitchDraft = {
+    octave: normalized.octave,
+    cent: microStepToCent(normalized.microStepInOctave),
+    microStepInOctave: normalized.microStepInOctave
+  };
+}
+
+function findActiveNoteIndex(noteId) {
+  return state.activeNotes.findIndex((note) => note.id === noteId);
+}
+
+function parseDirectRootNote(text) {
+  const match = String(text || "").trim().match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
+  if (!match) return null;
+  const [, letterRaw, accidentalRaw, octaveRaw] = match;
+  const letter = letterRaw.toUpperCase();
+  const accidental = accidentalRaw || "";
+  const octave = Number(octaveRaw);
+  const semitoneBase = ROOT_NOTE_SEMITONES[letter];
+  const accidentalShift = ROOT_ACCIDENTAL_OPTIONS.find((option) => option.symbol === accidental)?.delta ?? 0;
+  let resolvedOctave = octave;
+  let microStepInOctave = (semitoneBase * SEMITONE_MICROSTEP) + (accidentalShift * SEMITONE_MICROSTEP);
+  if (microStepInOctave >= OCTAVE_MICROSTEP) {
+    resolvedOctave += Math.floor(microStepInOctave / OCTAVE_MICROSTEP);
+    microStepInOctave %= OCTAVE_MICROSTEP;
+  } else if (microStepInOctave < 0) {
+    const octaveDelta = Math.floor(microStepInOctave / OCTAVE_MICROSTEP);
+    resolvedOctave += octaveDelta;
+    microStepInOctave -= octaveDelta * OCTAVE_MICROSTEP;
+  }
+  return {
+    noteText: `${letter}${accidental}${octave}`,
+    octave: resolvedOctave,
+    microStepInOctave,
+    pitchPresetId: null
+  };
+}
+
+function parseRootEditorTextRaw(text) {
+  const match = String(text || "").trim().match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
+  if (!match) return null;
+  return {
+    letter: match[1].toUpperCase(),
+    accidental: match[2] || "",
+    octave: match[3]
+  };
+}
+
+function accidentalDelta(symbol) {
+  return ROOT_ACCIDENTAL_OPTIONS.find((option) => option.symbol === symbol)?.delta ?? 0;
+}
+
+function resolveSpelledOctave(letter, accidental, targetAbsolute, preferredOctave) {
+  const base = Number(preferredOctave) || 4;
+  for (let offset = -2; offset <= 2; offset += 1) {
+    const candidate = base + offset;
+    const parsed = parseDirectRootNote(`${letter}${accidental}${candidate}`);
+    if (!parsed) continue;
+    if (((parsed.octave * OCTAVE_MICROSTEP) + parsed.microStepInOctave) === targetAbsolute) {
+      return candidate;
+    }
+  }
+  return base;
+}
+
+function applyRootAccidentalChange(nextAccidental) {
+  const parts = rootEditorParts();
+  const current = resolveProgressionRootInput();
+  if (!current) return;
+  const currentAbsolute = (current.octave * OCTAVE_MICROSTEP) + current.microStepInOctave;
+    const semitoneDelta = (accidentalDelta(nextAccidental) - accidentalDelta(parts.accidental)) * SEMITONE_MICROSTEP;
+  const targetAbsolute = currentAbsolute + semitoneDelta;
+  const nextOctave = resolveSpelledOctave(parts.letter, nextAccidental, targetAbsolute, Number(parts.octave));
+  setProgressionEditorRoot({ ...parts, accidental: nextAccidental, octave: String(nextOctave) });
+}
+
+function formatDirectRootFromPart(root) {
+  if (root.noteText) return root.noteText;
+  const semitone = Math.round(root.microStepInOctave / SEMITONE_MICROSTEP);
+  const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  return `${names[((semitone % 12) + 12) % 12]}${root.octave}`;
+}
+
+function formatChordBaseRoot(baseRoot) {
+  if (!baseRoot) return "";
+  if (baseRoot.noteText) return baseRoot.noteText;
+  if (baseRoot.pitchPresetId) {
+    const preset = findPitchPresetById(baseRoot.pitchPresetId);
+    return formatPresetDisplayName(preset) || baseRoot.pitchPresetId;
+  }
+  return formatDecimal(microStepToCent(baseRoot.microStepInOctave || 0));
+}
+
+function rootEditorParts() {
+  const parsed = parseRootEditorTextRaw(state.progressionEditor.rootNoteText);
+  if (parsed) return parsed;
+  return { letter: "C", accidental: "", octave: "4" };
+}
+
+function currentProgressionSelectionIndex() {
+  return state.progression.parts.findIndex((part) => part.id === state.progression.selectedPartId);
+}
+
+function currentProgressionAnchorId() {
+  return state.progression.selectedPartId || state.progression.parts[0]?.id || "";
+}
+
+function progressionToneSpecs(chord) {
+  return (chord?.tones || []).map((tone, toneIndex) => {
+    let intervalMicroStep = 0;
+    if (tone.pitchPresetId) {
+      const preset = findPitchPresetById(tone.pitchPresetId);
+      if (!preset) return null;
+      intervalMicroStep = preset.microStep;
+    } else {
+      intervalMicroStep = centToMicroStep(Number(tone.localCent) || 0);
+    }
+    return {
+      toneIndex,
+      label: tone.label || `Tone${toneIndex + 1}`,
+      intervalAbsoluteMicroStep: (tone.octaveShift * OCTAVE_MICROSTEP) + intervalMicroStep
+    };
+  }).filter(Boolean).sort((a, b) => a.intervalAbsoluteMicroStep - b.intervalAbsoluteMicroStep);
+}
+
+function applyInversionToToneSpecs(toneSpecs, step = 0, octaveOffset = 0) {
+  if (!toneSpecs.length) return [];
+  const total = toneSpecs.length;
+  const normalizedStep = Number(step) || 0;
+  const rotation = normalizedInversionRotation(total, normalizedStep);
+  const octaveCarry = inversionOctaveCarry(total, normalizedStep);
+  const rotated = toneSpecs.slice(rotation).concat(
+    toneSpecs.slice(0, rotation).map((tone) => ({
+      ...tone,
+      intervalAbsoluteMicroStep: tone.intervalAbsoluteMicroStep + OCTAVE_MICROSTEP
+    }))
+  );
+  return rotated.map((tone) => ({
+    ...tone,
+    intervalAbsoluteMicroStep: tone.intervalAbsoluteMicroStep + (octaveCarry * OCTAVE_MICROSTEP) + octaveOffset
+  }));
+}
+
+function progressionBassPosition(part) {
+  const spec = bassSpecForPart(part);
+  if (spec.mode === "absolute") {
+    const parsed = parseDirectRootNote(spec.value);
+    return parsed ? { octave: parsed.octave, microStepInOctave: parsed.microStepInOctave } : null;
+  }
+  const intervalMicroStep = spec.value === ROOT_BASS_TOKEN
+    ? 0
+    : findPitchPresetById(spec.value)?.microStep;
+  if (!Number.isFinite(intervalMicroStep)) return normalizePitch(part.root.octave - 1, part.root.microStepInOctave);
+  const absolute = (part.root.octave * OCTAVE_MICROSTEP) + part.root.microStepInOctave + intervalMicroStep - OCTAVE_MICROSTEP;
+  return normalizePitch(0, absolute);
+}
+
+function selectBassPreset(presetId, changeLabel = "進行セルの bass 変更") {
+  state.progressionEditor.bassMode = "relative";
+  state.progressionEditor.bassValue = presetId || ROOT_BASS_TOKEN;
+  syncProgressionSelectionFromEditor(changeLabel, true);
+}
+
+function selectBassAbsoluteNote(noteText, changeLabel = "進行セルの bass 固定音変更") {
+  const parsed = parseDirectRootNote(noteText);
+  if (!parsed) return false;
+  state.progressionEditor.bassMode = "absolute";
+  state.progressionEditor.bassValue = parsed.noteText;
+  syncProgressionSelectionFromEditor(changeLabel, true);
+  return true;
+}
+
+function selectInversionStep(step, changeLabel = "進行セルの転回形変更", baseOctave = state.progressionEditor.voicingOctave) {
+  if (!Number.isFinite(Number(step))) return;
+  const chord = state.chordPresets.find((item) => item.id === state.progressionEditor.chordId);
+  const total = chord?.tones?.length || 1;
+  const normalizedVoicing = normalizeVoicingState(total, baseOctave, step);
+  state.progressionEditor.voicingOctave = normalizedVoicing.octave;
+  state.progressionEditor.inversionStep = normalizedVoicing.step;
+  syncProgressionSelectionFromEditor(changeLabel, true);
+}
+
+function buttonAtClientPoint(container, clientX, clientY) {
+  if (!(container instanceof HTMLElement)) return null;
+  const target = document.elementFromPoint(clientX, clientY);
+  if (!(target instanceof HTMLElement) || !container.contains(target)) return null;
+  const button = target.closest("button");
+  return button instanceof HTMLButtonElement && container.contains(button) ? button : null;
+}
+
+function renderProgressionChordButtons() {
+  els.progChordButtonGrid.innerHTML = "";
+  const chords = filteredChordPresets(els.progChordTagFilterInput?.value);
+  if (chords.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "条件に合うコードがありません。";
+    els.progChordButtonGrid.appendChild(empty);
+    return;
+  }
+  chords.forEach((chord) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.chordId = chord.id;
+    button.textContent = chord.name;
+    if (state.progressionEditor.chordId === chord.id) {
+      button.classList.add("active");
+    }
+    els.progChordButtonGrid.appendChild(button);
+  });
+}
+
+function renderBassChoiceButtons() {
+  if (!els.progBassButtonGrid) return;
+  els.progBassButtonGrid.innerHTML = "";
+  const rootButton = document.createElement("button");
+  rootButton.type = "button";
+  rootButton.dataset.bassPresetId = ROOT_BASS_TOKEN;
+  rootButton.textContent = "P1";
+  rootButton.title = "root";
+  rootButton.classList.toggle(
+    "active",
+    state.progressionEditor.bassMode === "relative" &&
+    (!state.progressionEditor.bassValue || state.progressionEditor.bassValue === ROOT_BASS_TOKEN)
+  );
+  els.progBassButtonGrid.appendChild(rootButton);
+  sortedPitchPresets().forEach((preset) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.bassPresetId = preset.id;
+    button.textContent = formatPresetDisplayName(preset);
+    button.title = `${preset.name || preset.id} / ${preset.id}`;
+    button.classList.toggle(
+      "active",
+      state.progressionEditor.bassMode === "relative" && state.progressionEditor.bassValue === preset.id
+    );
+    els.progBassButtonGrid.appendChild(button);
+  });
+}
+
+function renderVoicingControls() {
+  if (!els.progInversionButtonGrid) return;
+  if (els.progVoicingBandGrid) {
+    els.progVoicingBandGrid.innerHTML = "";
+    els.progVoicingBandGrid.classList.add("hidden");
+  }
+  els.progInversionButtonGrid.innerHTML = "";
+  const chord = state.chordPresets.find((item) => item.id === state.progressionEditor.chordId);
+  const tones = progressionToneSpecs(chord);
+  const normalizedStep = normalizedInversionRotation(tones.length, state.progressionEditor.inversionStep);
+  tones.slice(1).forEach((tone, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.inversionStep = String(index + 1);
+    button.textContent = ordinalLabel(index + 1);
+    button.title = tone.label || ordinalLabel(index + 1);
+    button.classList.toggle("active", normalizedStep === index + 1);
+    els.progInversionButtonGrid.appendChild(button);
+  });
+}
+
+function renderProgressionEditorButtons() {
+  const parts = rootEditorParts();
+  if (els.progSectionNameInput) {
+    els.progSectionNameInput.value = state.progressionEditor.sectionName || "";
+  }
+  els.progRootLetterButtons.querySelectorAll("button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.note === parts.letter);
+  });
+  els.progFlatBtn.classList.toggle("active", parts.accidental === "b");
+  els.progNaturalBtn.classList.toggle("active", parts.accidental === "");
+  els.progSharpBtn.classList.toggle("active", parts.accidental === "#");
+  if (els.progBeatsNumeratorInput) els.progBeatsNumeratorInput.value = String(state.progressionEditor.beats || 4);
+  if (els.progBeatsDenominatorInput) els.progBeatsDenominatorInput.value = String(state.progressionEditor.beatUnit || 4);
+  if (els.progBassInput) els.progBassInput.value = bassTokenLabel();
+  if (els.progInversionPopoverBtn) {
+    els.progInversionPopoverBtn.textContent = `転回形: ${currentInversionLabel()} / oct ${currentVoicingOctave()}`;
+  }
+  renderProgressionPopovers();
+  renderBassChoiceButtons();
+  renderVoicingControls();
+}
+
+function progressionPartLabel(part) {
+  const chord = state.chordPresets.find((item) => item.id === part.chordId);
+  const rootLabel = formatRootPitchClass(part.root);
+  const bass = bassSpecForPart(part);
+  const octave = progressionVoicingBaseOctave(part);
+  const chordName = chord?.name || `(deleted: ${part.chordId})`;
+  const bassLabel = bassSpecLabel(bass.mode, bass.value);
+  const inversion = inversionLabelForChord(chord, part.voicing?.step || 0);
+  return {
+    sectionName: String(part.sectionName || ""),
+    chunkName: String(part.chunkName || ""),
+    chordName,
+    rootLabel,
+    title: `${rootLabel}${chordName}`,
+    meta: `${part.beats}/${part.beatUnit || 4}`,
+    detail: `${part.sectionName || "section"} / ${chordName} / ${formatDirectRootFromPart(part.root)} / bass ${bassLabel} / ${inversion} / oct ${octave} / ${part.beats}/${part.beatUnit || 4}`
+  };
+}
+
+function progressionSections() {
+  const groups = [];
+  let currentGroup = null;
+  state.progression.parts.forEach((part, index) => {
+    const explicitName = String(part.sectionName || "").trim();
+    if (!currentGroup || explicitName) {
+      currentGroup = {
+        startIndex: index,
+        name: explicitName || `section ${groups.length + 1}`,
+        partIds: []
+      };
+      groups.push(currentGroup);
+    }
+    currentGroup.partIds.push(part.id);
+  });
+  return groups;
+}
+
+function progressionSectionAtIndex(index) {
+  const sections = progressionSections();
+  const sectionIndex = sections.findIndex((section) => index >= section.startIndex && index < section.startIndex + section.partIds.length);
+  return {
+    sections,
+    index: sectionIndex >= 0 ? sectionIndex : (sections.length ? 0 : -1),
+    section: sectionIndex >= 0 ? sections[sectionIndex] : null
+  };
+}
+
+function progressionChunks() {
+  const chunks = [];
+  let currentChunk = null;
+  state.progression.parts.forEach((part, index) => {
+    const chunkId = part.chunkId || "chunk-1";
+    if (!currentChunk || currentChunk.id !== chunkId) {
+      currentChunk = {
+        id: chunkId,
+        startIndex: index,
+        name: String(part.chunkName || "").trim() || `chunk ${chunks.length + 1}`,
+        partIds: []
+      };
+      chunks.push(currentChunk);
+    }
+    currentChunk.partIds.push(part.id);
+  });
+  return chunks;
+}
+
+function chunkContextForPartId(partId) {
+  const chunks = progressionChunks();
+  const chunkIndex = chunks.findIndex((chunk) => chunk.partIds.includes(partId));
+  return {
+    chunks,
+    index: chunkIndex >= 0 ? chunkIndex : (chunks.length ? 0 : -1),
+    chunk: chunkIndex >= 0 ? chunks[chunkIndex] : null
+  };
+}
+
+function chunkPartsForPartId(partId) {
+  const context = chunkContextForPartId(partId);
+  if (!context.chunk) return [];
+  const partById = new Map(state.progression.parts.map((part) => [part.id, part]));
+  return context.chunk.partIds.map((id) => partById.get(id)).filter(Boolean);
+}
+
+function currentChunkId() {
+  const selected = state.progression.parts.find((part) => part.id === state.progression.selectedPartId);
+  if (selected?.chunkId) return selected.chunkId;
+  return progressionChunks()[0]?.id || "chunk-1";
+}
+
+function currentChunkName() {
+  const current = chunkContextForPartId(currentProgressionAnchorId());
+  return current.chunk?.name || "chunk 1";
+}
+
+function resolveProgressionRootInput() {
+  const noteName = String(els.progRootNoteInput?.value || "").trim();
+  const octave = String(els.progRootOctaveInput?.value || "").trim();
+  if (/^[A-Ga-g][#b]?-?\d+$/.test(noteName)) {
+    return parseDirectRootNote(noteName);
+  }
+  return parseDirectRootNote(`${noteName}${octave}`);
+}
+
+function stopProgressionPreview(shouldRender = true) {
+  if (progressionPreviewTimerId) {
+    clearTimeout(progressionPreviewTimerId);
+    progressionPreviewTimerId = null;
+  }
+  for (const [voiceId] of audio.voices) {
+    if (voiceId.startsWith(PROGRESSION_PREVIEW_VOICE_PREFIX)) {
+      audio.stopVoice(voiceId);
+    }
+  }
+  if (shouldRender) {
+    render();
+  }
+}
+
+function stopScopedVoices(prefix) {
+  for (const [voiceId] of audio.voices) {
+    if (voiceId.startsWith(prefix)) {
+      audio.stopVoice(voiceId);
+    }
+  }
+}
+
+function hasScopedVoices(prefix) {
+  for (const [voiceId] of audio.voices) {
+    if (voiceId.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
+async function syncScopedVoiceSpecs(prefix, specs, preservePhase = false) {
+  const activeIds = new Set(specs.map((spec) => spec.id));
+  const hadScopedVoices = hasScopedVoices(prefix);
+  if (!preservePhase) {
+    stopScopedVoices(prefix);
+  } else {
+    for (const [voiceId] of audio.voices) {
+      if (voiceId.startsWith(prefix) && !activeIds.has(voiceId)) {
+        audio.stopVoice(voiceId);
+      }
+    }
+  }
+  const results = await Promise.all(
+    specs.map((spec) =>
+      startVoiceWithFeedback(
+        spec.id,
+        spec.freq,
+        state.settings.waveform,
+        state.settings.activeNotesVolume,
+        {
+          phaseKey: spec.phaseKey || spec.id,
+          phaseStartMode: preservePhase && !hadScopedVoices ? "random" : "stored"
+        }
+      )
+    )
+  );
+  if (results.every(Boolean)) {
+    clearAudioFailure();
+    return true;
+  }
+  stopScopedVoices(prefix);
+  return false;
+}
+
+function progressionPartVoiceSpecs(part, voicePrefix) {
+  const chord = state.chordPresets.find((item) => item.id === part.chordId);
+  if (!chord) return [];
+
+  const rootAbsolute = (part.root.octave * OCTAVE_MICROSTEP) + part.root.microStepInOctave;
+  const voicingOffset = (progressionVoicingBaseOctave(part) - part.root.octave) * OCTAVE_MICROSTEP;
+  const voicedTones = applyInversionToToneSpecs(
+    progressionToneSpecs(chord),
+    part.voicing?.step || 0,
+    voicingOffset
+  );
+  const specs = [];
+
+  voicedTones.forEach((tone) => {
+    const absolute = rootAbsolute + tone.intervalAbsoluteMicroStep;
+    const normalized = normalizePitch(0, absolute);
+    const rounded = roundPitchPosition(normalized.octave, normalized.microStepInOctave);
+    specs.push({
+      id: `${voicePrefix}tone:${specs.length}`,
+      phaseKey: `prog:tone:${specs.length}`,
+      freq: frequencyFromPitch(state.settings.a4Hz, rounded.octave, rounded.microStepInOctave)
+    });
+  });
+
+  const bassPosition = progressionBassPosition(part);
+  if (bassPosition) {
+    const roundedBass = roundPitchPosition(bassPosition.octave, bassPosition.microStepInOctave);
+    specs.push({
+      id: `${voicePrefix}bass`,
+      phaseKey: "prog:bass",
+      freq: frequencyFromPitch(state.settings.a4Hz, roundedBass.octave, roundedBass.microStepInOctave)
+    });
+  }
+
+  return specs;
+}
+
+async function previewProgressionPart(part, durationMs = 700) {
+  if (!part || state.progression.playingPartId) return;
+  if (progressionPreviewTimerId) {
+    clearTimeout(progressionPreviewTimerId);
+    progressionPreviewTimerId = null;
+  }
+  if (state.settings.phaseMode !== "continue") {
+    stopScopedVoices(PROGRESSION_PREVIEW_VOICE_PREFIX);
+  }
+  const specs = progressionPartVoiceSpecs(part, PROGRESSION_PREVIEW_VOICE_PREFIX);
+  const started = await syncScopedVoiceSpecs(PROGRESSION_PREVIEW_VOICE_PREFIX, specs, state.settings.phaseMode === "continue");
+  if (!started) return false;
+  progressionPreviewTimerId = setTimeout(() => {
+    stopProgressionPreview();
+    render();
+  }, durationMs);
+  render();
+  return true;
+}
+
+function clearProgressionPlaybackTimer() {
+  if (progressionPlayback.timerId) {
+    clearTimeout(progressionPlayback.timerId);
+    progressionPlayback.timerId = null;
+  }
+}
+
+function stopProgressionPlayback(shouldRender = true) {
+  clearProgressionPlaybackTimer();
+  progressionPlayback.partIndex = -1;
+  state.progression.playingPartId = null;
+  stopScopedVoices(PROGRESSION_VOICE_PREFIX);
+  if (shouldRender) {
+    render();
+  }
+}
+
+async function playProgressionPart(part, partIndex) {
+  clearProgressionPlaybackTimer();
+  if (state.settings.phaseMode !== "continue") {
+    stopScopedVoices(PROGRESSION_VOICE_PREFIX);
+  }
+  stopProgressionPreview(false);
+  state.progression.playingPartId = part.id;
+  progressionPlayback.partIndex = partIndex;
+  const specs = progressionPartVoiceSpecs(part, PROGRESSION_VOICE_PREFIX);
+  if (specs.length === 0) {
+    render();
+    return;
+  }
+
+  const started = await syncScopedVoiceSpecs(PROGRESSION_VOICE_PREFIX, specs, state.settings.phaseMode === "continue");
+  if (!started) {
+    stopProgressionPlayback();
+    return false;
+  }
+  render();
+
+  const beatMs = (60_000 / clamp(state.settings.bpm, 5, 300)) * part.beats * (4 / clamp(Number(part.beatUnit) || 4, 1, 32));
+  progressionPlayback.timerId = setTimeout(() => {
+    const chunkParts = chunkPartsForPartId(part.id);
+    const currentChunkIndex = chunkParts.findIndex((item) => item.id === part.id);
+    const nextIndex = currentChunkIndex + 1;
+    if (nextIndex < chunkParts.length) {
+      const nextPart = chunkParts[nextIndex];
+      const globalIndex = state.progression.parts.findIndex((item) => item.id === nextPart.id);
+      void playProgressionPart(nextPart, globalIndex);
+      return;
+    }
+    if (state.progression.loop && chunkParts.length > 0) {
+      const firstPart = chunkParts[0];
+      const globalIndex = state.progression.parts.findIndex((item) => item.id === firstPart.id);
+      void playProgressionPart(firstPart, globalIndex);
+      return;
+    }
+    stopProgressionPlayback();
+  }, beatMs);
+  return true;
+}
+
+function removeActiveNote(noteId) {
+  const index = findActiveNoteIndex(noteId);
+  if (index < 0) return;
+  const before = snapshotState();
+  state.activeNotes.splice(index, 1);
+  if (pitchUi.lastTouchedNoteId === noteId) {
+    pitchUi.lastTouchedNoteId = state.activeNotes[0]?.id || null;
+  }
+  audio.stopVoice(noteId);
+  const after = snapshotState();
+  trackStateChange("remove_active_note", "現音高を削除", before, after);
+  syncFormFromState();
+  render();
+}
+
+function syncLineCanvasSize(canvas) {
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(1, Math.round(rect.width || canvas.clientWidth || 1));
+  const height = Math.max(1, Math.round(rect.height || canvas.clientHeight || 1));
+  const ratio = Math.max(1, window.devicePixelRatio || 1);
+  const renderWidth = Math.round(width * ratio);
+  const renderHeight = Math.round(height * ratio);
+  if (canvas.width !== renderWidth || canvas.height !== renderHeight) {
+    canvas.width = renderWidth;
+    canvas.height = renderHeight;
+  }
+  return { width, height, ratio };
+}
+
+function lineMarkerPosition(metrics, note) {
+  const centerOctave = 3;
+  const octaveStepY = 10;
+  const markerBaseY = metrics.height / 2;
+  const x = (note.microStepInOctave / OCTAVE_MICROSTEP) * metrics.width;
+  const octaveOffset = note.octave - centerOctave;
+  const y = clamp(markerBaseY - (octaveOffset * octaveStepY), 24, metrics.height - 14);
+  return { x, y };
+}
+
+function hitActiveNoteOnLine(canvas, clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const metrics = syncLineCanvasSize(canvas);
+  const localX = clientX - rect.left;
+  const localY = clientY - rect.top;
+  let best = null;
+  let bestDistance = 16;
+  state.activeNotes.forEach((note) => {
+    const candidates = [lineMarkerPosition(metrics, note)];
+    if (state.settings.roundUnitCent > 0) {
+      candidates.push(lineMarkerPosition(metrics, activeNotePlaybackPosition(note)));
+    }
+    candidates.forEach((marker) => {
+      const distance = Math.hypot(marker.x - localX, marker.y - localY);
+      if (distance <= bestDistance) {
+        best = note;
+        bestDistance = distance;
+      }
+    });
+  });
+  return best;
+}
+
+function renderLine() {
+  const canvas = els.lineCanvas;
+  const metrics = syncLineCanvasSize(canvas);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(metrics.ratio, 0, 0, metrics.ratio, 0, 0);
+  ctx.clearRect(0, 0, metrics.width, metrics.height);
+  ctx.fillStyle = "#0b1220";
+  ctx.fillRect(0, 0, metrics.width, metrics.height);
+
+  ctx.strokeStyle = "#334155";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 12; i += 1) {
+    const x = (metrics.width * i) / 12;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, metrics.height);
+    ctx.stroke();
+  }
+
+  const labels = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "C"];
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "center";
+  labels.forEach((label, index) => {
+    const rawX = (metrics.width * index) / 12;
+    const x = clamp(rawX + (index === 0 ? 12 : index === 12 ? -12 : 0), 12, metrics.width - 12);
+    ctx.fillText(label, x, 12);
+  });
+  ctx.textAlign = "start";
+
+  const markerPad = 8;
+  const draftX = (state.pitchDraft.microStepInOctave / OCTAVE_MICROSTEP) * metrics.width;
+  ctx.strokeStyle = "#22d3ee";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(draftX, 16);
+  ctx.lineTo(draftX, metrics.height - 8);
+  ctx.stroke();
+
+  const sortedActiveNotes = state.activeNotes.map((note) =>
+    dragContext?.mode === "active-note" && dragContext.noteId === note.id && dragContext.candidate
+      ? dragContext.candidate
+      : note
+  ).sort((a, b) => absoluteMicroStep(a) - absoluteMicroStep(b));
+  sortedActiveNotes.forEach((note, index) => {
+    const original = lineMarkerPosition(metrics, note);
+    const roundedNote = activeNotePlaybackPosition(note);
+    const rounded = lineMarkerPosition(metrics, roundedNote);
+    let originalX = original.x;
+    let roundedX = rounded.x;
+    if (Math.abs(originalX - roundedX) > metrics.width / 2) {
+      if (originalX < roundedX) originalX += metrics.width;
+      else roundedX += metrics.width;
+    }
+    const drawOriginalX = clamp(originalX, markerPad, metrics.width - markerPad);
+    const drawRoundedX = clamp(roundedX, markerPad, metrics.width - markerPad);
+    if (state.settings.roundUnitCent > 0) {
+      ctx.strokeStyle = "#64748b";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(drawOriginalX, original.y);
+      ctx.lineTo(drawRoundedX, rounded.y);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(148, 163, 184, 0.65)";
+      ctx.beginPath();
+      ctx.arc(drawOriginalX, original.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#38bdf8";
+    ctx.beginPath();
+    ctx.arc(drawRoundedX, rounded.y, 6, 0, Math.PI * 2);
+    ctx.fill();
+    if (pitchUi.lastTouchedNoteId === note.id) {
+      ctx.strokeStyle = "#f8fafc";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(drawRoundedX, rounded.y, 8, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = "10px sans-serif";
+    ctx.fillText(String(index + 1), drawRoundedX - 3, rounded.y + 4);
+  });
+
+  if (audio.hasVoice(MOMENTARY_VOICE_ID) || audio.hasVoice(DRAG_PREVIEW_VOICE_ID)) {
+    ctx.fillStyle = "#22d3ee";
+    ctx.beginPath();
+    ctx.arc(draftX, 22, 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function renderProgressionGrid() {
+  els.progressionGrid.innerHTML = "";
+
+  if (state.progression.parts.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "grid-placeholder";
+    empty.textContent = "進行セルはまだありません。";
+    els.progressionGrid.appendChild(empty);
+    return;
+  }
+
+  const current = chunkContextForPartId(currentProgressionAnchorId());
+  const chunk = current.chunk || progressionChunks()[0];
+  if (!chunk) return;
+  const partById = new Map(state.progression.parts.map((part) => [part.id, part]));
+  const indexById = new Map(state.progression.parts.map((part, index) => [part.id, index]));
+
+  const chunkWrap = document.createElement("section");
+  chunkWrap.className = "progression-chunk";
+
+  const chunkHead = document.createElement("div");
+  chunkHead.className = "progression-chunk-head";
+  chunkHead.textContent = chunk.name;
+  chunkHead.dataset.chunkId = chunk.id;
+  chunkHead.dataset.chunkName = chunk.name;
+  chunkHead.title = "ダブルクリックでチャンク名を編集";
+  chunkWrap.appendChild(chunkHead);
+
+  const chunkGrid = document.createElement("div");
+  chunkGrid.className = "progression-chunk-grid";
+
+  chunk.partIds.forEach((partId) => {
+    const part = partById.get(partId);
+    const index = indexById.get(partId) ?? -1;
+    if (!part) return;
+    const { title: cellLabel, meta: metaLabel, detail: detailLabel, sectionName } = progressionPartLabel(part);
+
+    if (sectionName) {
+      const sectionBreak = document.createElement("div");
+      sectionBreak.className = "progression-section-break";
+      sectionBreak.textContent = sectionName;
+      sectionBreak.dataset.partId = part.id;
+      sectionBreak.dataset.sectionName = sectionName;
+      sectionBreak.title = "ダブルクリックでセクション名を編集";
+      chunkGrid.appendChild(sectionBreak);
+    }
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "progression-cell";
+    button.draggable = true;
+    if (part.id === state.progression.selectedPartId) {
+      button.classList.add("active");
+    }
+    if (part.id === state.progression.playingPartId) {
+      button.classList.add("playing");
+    }
+    if (part.id === progressionUi.draggingPartId) {
+      button.classList.add("reorder-source");
+    }
+    if (part.id === progressionUi.dragOverPartId) {
+      button.classList.add(progressionUi.dragPlacement === "before" ? "drop-before" : "drop-after");
+    }
+    button.dataset.partId = part.id;
+    button.dataset.index = String(index);
+    button.dataset.chunkId = chunk.id;
+    button.title = detailLabel;
+
+    const title = document.createElement("div");
+    title.className = "cell-title";
+    title.textContent = cellLabel;
+    button.appendChild(title);
+
+    const meta = document.createElement("div");
+    meta.className = "cell-meta";
+    meta.textContent = metaLabel;
+    button.appendChild(meta);
+
+    chunkGrid.appendChild(button);
+  });
+
+  chunkWrap.appendChild(chunkGrid);
+  els.progressionGrid.appendChild(chunkWrap);
+}
+
+function paintProgressionGridReorderState() {
+  els.progressionGrid.querySelectorAll(".progression-cell").forEach((cell) => {
+    if (!(cell instanceof HTMLButtonElement)) return;
+    const partId = cell.dataset.partId;
+    cell.classList.toggle("reorder-source", partId === progressionUi.draggingPartId);
+    cell.classList.toggle("drop-before", partId === progressionUi.dragOverPartId && progressionUi.dragPlacement === "before");
+    cell.classList.toggle("drop-after", partId === progressionUi.dragOverPartId && progressionUi.dragPlacement === "after");
+  });
+}
+
+function exportProject() {
+  const payload = buildProjectPayloadForSave();
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "project.mcb";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportLibrary() {
+  const payload = buildLibraryPayloadForSave();
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "library.mcbl";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportProgressionProject() {
+  const payload = buildProgressionPayloadForSave();
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "progression.mcbp";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function mergeById(existingItems, incomingItems) {
+  const merged = [...existingItems];
+  const existingIds = new Set(existingItems.map((item) => item.id));
+  let added = 0;
+  for (const item of incomingItems) {
+    if (!item?.id || existingIds.has(item.id)) continue;
+    merged.push(item);
+    existingIds.add(item.id);
+    added += 1;
+  }
+  return { merged, added };
+}
+
+function validateImportDocument(parsed) {
+  return detectImportKind(parsed);
+}
+
+async function importDataFile(file) {
+  const text = await file.text();
+  const parsed = JSON.parse(text);
+  const importKind = validateImportDocument(parsed);
+  // Normalize only the incoming file: a legacy library must never re-scale
+  // modern pitches already present in the working project.
+  const incoming = structuredClone(parsed.payload);
+  migratePitchScaleState({
+    pitchPresets: incoming.pitchPresets || [],
+    chordPresets: incoming.chordPresets || [],
+    progression: incoming.progression || {parts: []},
+    activeNotes: [],
+    pitchDraft: null
+  }, {microStepToCent, centToMicroStep, normalizePitch, OCTAVE_MICROSTEP}, {
+    encoding: detectPitchEncoding(parsed)
+  });
+  const before = snapshotState();
+  history.beginGroup("json import");
+  try {
+    if (importKind === "library") {
+      const incomingPitchPresets = incoming.pitchPresets;
+      const incomingChordPresets = incoming.chordPresets;
+      const pitchMerge = mergeById(state.pitchPresets, incomingPitchPresets);
+      const chordMerge = mergeById(state.chordPresets, incomingChordPresets);
+      state.pitchPresets = pitchMerge.merged;
+      state.chordPresets = chordMerge.merged;
+      setStatus(
+        els.manageStatus,
+        `library を読込: pitch +${pitchMerge.added}, chord +${chordMerge.added}`,
+        "success"
+      );
+    } else if (importKind === "progression") {
+      state.progression = {
+        ...state.progression,
+        ...incoming.progression,
+        parts: incoming.progression.parts
+      };
+      if (incoming.progressionEditor) {
+        state.progressionEditor = { ...state.progressionEditor, ...incoming.progressionEditor };
+      }
+      setStatus(
+        els.progStatus,
+        `progression を読込: parts ${state.progression.parts.length}`,
+        "success"
+      );
+    } else {
+      state.settings = { ...state.settings, ...incoming.settings };
+      state.activeNotes = [];
+      state.pitchPresets = incoming.pitchPresets;
+      state.chordPresets = incoming.chordPresets;
+      state.progression = {
+        ...state.progression,
+        ...incoming.progression,
+        parts: incoming.progression.parts
+      };
+      if (incoming.progressionEditor) {
+        state.progressionEditor = { ...state.progressionEditor, ...incoming.progressionEditor };
+      }
+      setStatus(els.manageStatus, "project を読込しました。", "success");
+    }
+    syncFormFromState();
+    render();
+    const after = snapshotState();
+    trackStateChange("json_import", "json import", before, after);
+  } catch (error) {
+    applySnapshot(before);
+    throw error;
+  } finally {
+    history.endGroup();
+  }
+  await syncAudioToActiveNotes();
+}
+
+async function handleImportFileInput(input) {
+  const file = input?.files?.[0];
+  if (!file) return;
+  try {
+    await importDataFile(file);
+  } catch (error) {
+    setStatus(els.manageStatus, getImportFailureMessage(error), "error");
+  } finally {
+    input.value = "";
+  }
+}
+
+function savePitchPresetFromActiveNote(noteId) {
+  const li = els.activeNotesList.querySelector(`[data-note-id="${noteId}"]`);
+  const note = state.activeNotes.find((item) => item.id === noteId);
+  if (!li || !note) return;
+  const values = {
+    id: li.querySelector('[data-field="id"]')?.value || "",
+    name: li.querySelector('[data-field="name"]')?.value || "",
+    tags: li.querySelector('[data-field="tags"]')?.value || "",
+    memo: li.querySelector('[data-field="memo"]')?.value || ""
+  };
+  saveCurrentPitchPreset({ note, values });
+}
+
+function buildProgressionBassState() {
+  if (state.progressionEditor.bassMode === "absolute") {
+    const parsed = parseDirectRootNote(state.progressionEditor.bassValue);
+    if (parsed) {
+      return {
+        mode: "absolute",
+        noteText: parsed.noteText
+      };
+    }
+  }
+  return {
+    mode: "relative",
+    pitchPresetId:
+      state.progressionEditor.bassValue && state.progressionEditor.bassValue !== ROOT_BASS_TOKEN
+        ? state.progressionEditor.bassValue
+        : null
+  };
+}
+
+function buildProgressionVoicingState() {
+  const chord = state.chordPresets.find((item) => item.id === state.progressionEditor.chordId);
+  const total = chord?.tones?.length || 1;
+  const normalizedVoicing = normalizeVoicingState(
+    total,
+    state.progressionEditor.voicingOctave,
+    state.progressionEditor.inversionStep
+  );
+  return {
+    octave: normalizedVoicing.octave,
+    step: normalizedVoicing.step
+  };
+}
+
+function buildProgressionSectionName() {
+  return String(state.progressionEditor.sectionName || "").trim();
+}
+
+function buildProgressionPartFromEditor(partId, root, chunkId, sectionName) {
+  return {
+    id: partId,
+    chordId: state.progressionEditor.chordId,
+    root,
+    chunkId,
+    chunkName: currentChunkName(),
+    sectionName,
+    bass: buildProgressionBassState(),
+    voicing: buildProgressionVoicingState(),
+    beats: clamp(Number(state.progressionEditor.beats) || 4, 1, 32),
+    beatUnit: clamp(Number(state.progressionEditor.beatUnit) || 4, 1, 32)
+  };
+}
+
+function addProgressionPart() {
+  const chordId = state.progressionEditor.chordId;
+  if (!chordId) {
+    setStatus(els.progStatus, "追加するコードがありません。", "error");
+    return;
+  }
+
+  const root = resolveProgressionRootInput();
+  if (!root) {
+    setStatus(els.progStatus, "進行ルートを選べませんでした。", "error");
+    return;
+  }
+
+  const before = snapshotState();
+  const partId = `PART_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const newPart = buildProgressionPartFromEditor(partId, root, currentChunkId(), "");
+  const selectedIndex = state.progression.parts.findIndex((part) => part.id === state.progression.selectedPartId);
+  if (selectedIndex >= 0) {
+    state.progression.parts.splice(selectedIndex + 1, 0, newPart);
+  } else {
+    state.progression.parts.push(newPart);
+  }
+  state.progression.selectedPartId = partId;
+  if (state.progression.playingPartId) {
+    stopProgressionPlayback(false);
+  }
+  const after = snapshotState();
+  trackStateChange("add_progression_part", "進行セルを追加", before, after);
+  syncProgressionFormFromState();
+  render();
+  setStatus(els.progStatus, "進行セルを追加しました。", "success");
+}
+
+
+function addProgressionSection() {
+  const root = resolveProgressionRootInput();
+  if (!root || !state.progressionEditor.chordId) {
+    setStatus(els.progStatus, "Section 追加前にコードとルートを設定してください。", "error");
+    return;
+  }
+  const before = snapshotState();
+  const selectedIndex = state.progression.parts.findIndex((part) => part.id === state.progression.selectedPartId);
+  const insertIndex = selectedIndex >= 0 ? selectedIndex + 1 : state.progression.parts.length;
+  const partId = `PART_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const sectionName = buildProgressionSectionName() || `section ${insertIndex + 1}`;
+  const newPart = buildProgressionPartFromEditor(partId, root, currentChunkId(), sectionName);
+  state.progression.parts.splice(insertIndex, 0, newPart);
+  state.progression.selectedPartId = partId;
+  const after = snapshotState();
+  trackStateChange("add_progression_section", "Section を追加", before, after);
+  syncProgressionFormFromState();
+  render();
+  setStatus(els.progStatus, "Section を追加しました。", "success");
+}
+
+
+function addProgressionChunk() {
+  const root = resolveProgressionRootInput();
+  if (!root || !state.progressionEditor.chordId) {
+    setStatus(els.progStatus, "チャンク追加前にコードとルートを設定してください。", "error");
+    return;
+  }
+  const before = snapshotState();
+  const chunks = progressionChunks();
+  const current = chunkContextForPartId(state.progression.selectedPartId || "");
+  const insertAfterChunk = current.chunk || chunks[chunks.length - 1] || null;
+  const insertIndex = insertAfterChunk ? insertAfterChunk.startIndex + insertAfterChunk.partIds.length : state.progression.parts.length;
+  const chunkId = `CHUNK_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const partId = `PART_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const newPart = {
+    ...buildProgressionPartFromEditor(partId, root, chunkId, buildProgressionSectionName()),
+    chunkName: `chunk ${chunks.length + 1}`
+  };
+  state.progression.parts.splice(insertIndex, 0, newPart);
+  state.progression.selectedPartId = partId;
+  const after = snapshotState();
+  trackStateChange("add_progression_chunk", "チャンクを追加", before, after);
+  syncProgressionFormFromState();
+  render();
+  setStatus(els.progStatus, "チャンクを追加しました。", "success");
+}
+
+
+function renameChunk(chunkId, nextName) {
+  const name = String(nextName || "").trim();
+  if (!chunkId || !name) return;
+  const before = snapshotState();
+  state.progression.parts = state.progression.parts.map((part) =>
+    part.chunkId === chunkId ? { ...part, chunkName: name } : part
+  );
+  const after = snapshotState();
+  trackStateChange("rename_progression_chunk", "チャンク名を変更", before, after);
+  syncProgressionFormFromState();
+  render();
+}
+
+
+function renameSection(partId, nextName) {
+  const name = String(nextName || "").trim();
+  if (!partId || !name) return;
+  const before = snapshotState();
+  state.progression.parts = state.progression.parts.map((part) =>
+    part.id === partId ? { ...part, sectionName: name } : part
+  );
+  if (state.progression.selectedPartId === partId) {
+    state.progressionEditor.sectionName = name;
+  }
+  const after = snapshotState();
+  trackStateChange("rename_progression_section", "Section 名を変更", before, after);
+  syncProgressionFormFromState();
+  render();
+}
+
+
+function selectProgressionPart(partId) {
+  state.progression.selectedPartId = partId;
+  const part = state.progression.parts.find((item) => item.id === partId);
+  if (part) {
+    loadProgressionEditorFromPart(part);
+  }
+  progressionUi.isMenuOpen = false;
+  progressionUi.isEditorExpanded = true;
+  invalidateRenderCache();
+  syncProgressionFormFromState();
+  render();
+  if (part) {
+    void previewProgressionPart(part);
+  }
+}
+
+function normalizePitchPresetIdentity() {
+  state.pitchPresets.forEach((preset) => {
+    const normalizedShort = slugifyIdPart(pitchPresetDisplayId(preset) || preset.name || "");
+    if (normalizedShort) preset.shortName = normalizedShort;
+    if (!preset.id) preset.id = normalizedShort;
+  });
+}
+
+function normalizeChordPresetIdentity() {
+  state.chordPresets.forEach((chord) => {
+    const normalizedShort = slugifyIdPart(chordPresetDisplayId(chord) || chord.name || "");
+    if (normalizedShort) chord.shortName = normalizedShort;
+    if (!chord.id) chord.id = normalizedShort;
+  });
+}
+
+function deleteSelectedProgressionPart() {
+  const selectedId = state.progression.selectedPartId;
+  if (!selectedId) {
+    setStatus(els.progStatus, "削除するセルを選択してください。", "error");
+    return;
+  }
+
+  const index = state.progression.parts.findIndex((part) => part.id === selectedId);
+  if (index < 0) return;
+
+  const before = snapshotState();
+  state.progression.parts.splice(index, 1);
+  state.progression.selectedPartId = state.progression.parts[index - 1]?.id || state.progression.parts[index]?.id || null;
+  const nextSelected = state.progression.parts.find((part) => part.id === state.progression.selectedPartId) || null;
+  if (nextSelected) {
+    loadProgressionEditorFromPart(nextSelected);
+  }
+  if (state.progression.playingPartId) {
+    stopProgressionPlayback(false);
+  }
+  const after = snapshotState();
+  trackStateChange("delete_progression_part", "進行セルを削除", before, after);
+  syncProgressionFormFromState();
+  render();
+  setStatus(els.progStatus, "選択セルを削除しました。", "success");
+}
+
+
+function syncProgressionSelectionFromEditor(changeLabel, preview = false) {
+  const selectedId = state.progression.selectedPartId;
+  if (!selectedId) {
+    syncProgressionFormFromState();
+    render();
+    return;
+  }
+  const index = state.progression.parts.findIndex((part) => part.id === selectedId);
+  if (index < 0) return;
+
+  const root = resolveProgressionRootInput();
+  if (!root || !state.progressionEditor.chordId) {
+    syncProgressionFormFromState();
+    render();
+    return;
+  }
+
+  const before = snapshotState();
+  state.progression.parts[index] = {
+    ...state.progression.parts[index],
+    chordId: state.progressionEditor.chordId,
+    root,
+    sectionName: buildProgressionSectionName(),
+    bass: buildProgressionBassState(),
+    voicing: buildProgressionVoicingState(),
+    beats: clamp(Number(state.progressionEditor.beats) || 4, 1, 32),
+    beatUnit: clamp(Number(state.progressionEditor.beatUnit) || 4, 1, 32)
+  };
+  const after = snapshotState();
+  trackStateChange("update_progression_part", changeLabel, before, after);
+  syncProgressionFormFromState();
+  render();
+  setStatus(els.progStatus, "選択セルへ反映しました。", "success");
+  if (preview) {
+    void previewProgressionPart(state.progression.parts[index]);
+  }
+}
+
+
+function setProgressionEditorRoot({ letter, accidental, octave }) {
+  const previousParts = rootEditorParts();
+  state.progressionEditor.rootNoteText = `${letter}${accidental}${octave}`;
+  const nextOctave = Number(octave);
+  const previousOctave = Number(previousParts.octave);
+  if (Number.isFinite(previousOctave) && Number.isFinite(nextOctave)) {
+    const offset = Number(state.progressionEditor.voicingOctave || previousOctave) - previousOctave;
+    state.progressionEditor.voicingOctave = clamp(nextOctave + offset, -2, 9);
+  } else if (Number.isFinite(nextOctave)) {
+    state.progressionEditor.voicingOctave = clamp(nextOctave, -2, 9);
+  }
+  if (els.progRootNoteInput) els.progRootNoteInput.value = `${letter}${accidental}`;
+  if (els.progRootOctaveInput) els.progRootOctaveInput.value = octave;
+  syncProgressionSelectionFromEditor("進行セルのルート変更", true);
+}
+
+function stepSelectedProgressionPart(direction) {
+  const current = chunkContextForPartId(currentProgressionAnchorId());
+  if (!current.chunk || current.chunks.length === 0) return;
+  const nextIndex = clamp(current.index + direction, 0, current.chunks.length - 1);
+  selectProgressionPart(current.chunks[nextIndex].partIds[0]);
+}
+
+function getProgressionDropPlacement(cell, clientX, clientY) {
+  const rect = cell.getBoundingClientRect();
+  if (rect.height > rect.width) {
+    return clientY < rect.top + (rect.height / 2) ? "before" : "after";
+  }
+  return clientX < rect.left + (rect.width / 2) ? "before" : "after";
+}
+
+function beginProgressionReorder(partId) {
+  const part = state.progression.parts.find((item) => item.id === partId);
+  if (!part) return;
+  clearProgressionLongPressTimer();
+  progressionUi.draggingPartId = partId;
+  progressionUi.dragOverPartId = null;
+  progressionUi.dragPlacement = "after";
+  progressionUi.isEditorExpanded = true;
+  state.progression.selectedPartId = partId;
+  loadProgressionEditorFromPart(part);
+  syncProgressionFormFromState();
+  render();
+  setStatus(els.progStatus, "移動先セルをタップ、またはドラッグして並び替え", "success");
+}
+
+
+function cancelProgressionReorder(clearStatus = false) {
+  clearProgressionLongPressTimer();
+  clearProgressionReorderVisuals();
+  if (clearStatus) {
+    setStatus(els.progStatus, "", "");
+  }
+  syncProgressionLayoutState();
+  render();
+}
+
+function commitProgressionReorder(movingId, targetId, placement) {
+  if (!movingId || !targetId || movingId === targetId) {
+    cancelProgressionReorder();
+    return;
+  }
+
+  const before = snapshotState();
+  const reordered = [...state.progression.parts];
+  const fromIndex = reordered.findIndex((part) => part.id === movingId);
+  const targetIndex = reordered.findIndex((part) => part.id === targetId);
+  if (fromIndex < 0 || targetIndex < 0) {
+    cancelProgressionReorder();
+    return;
+  }
+
+  const [moving] = reordered.splice(fromIndex, 1);
+  const insertBaseIndex = reordered.findIndex((part) => part.id === targetId);
+  const insertIndex = placement === "before" ? insertBaseIndex : insertBaseIndex + 1;
+  reordered.splice(insertIndex, 0, moving);
+
+  const changed = reordered.some((part, index) => part.id !== state.progression.parts[index]?.id);
+  clearProgressionLongPressTimer();
+  clearProgressionReorderVisuals();
+
+  if (!changed) {
+    syncFormFromState();
+    render();
+    setStatus(els.progStatus, "並び順は変わっていません。", "");
+    return;
+  }
+
+  state.progression.parts = reordered;
+  if (state.progression.playingPartId) {
+    stopProgressionPlayback(false);
+  }
+  const after = snapshotState();
+  trackStateChange("reorder_progression_part", "進行セルの並び替え", before, after);
+  syncFormFromState();
+  render();
+  setStatus(els.progStatus, "進行セルの並び順を更新しました。", "success");
+}
+
+
+function applyActiveNoteGain() {
+  audio.setVoiceGain(MOMENTARY_VOICE_ID, state.settings.activeNotesVolume);
+  audio.setVoiceGain(DRAG_PREVIEW_VOICE_ID, state.settings.activeNotesVolume);
+  state.activeNotes.forEach((note) => {
+    audio.setVoiceGain(note.id, state.settings.activeNotesVolume);
+  });
+  for (const [voiceId] of audio.voices) {
+    if (voiceId.startsWith(PROGRESSION_VOICE_PREFIX)) {
+      audio.setVoiceGain(voiceId, state.settings.activeNotesVolume);
+    }
+  }
+}
+
+function canvasXFromPointerEvent(canvas, ev) {
+  const rect = canvas.getBoundingClientRect();
+  return ev.clientX - rect.left;
+}
+
+function updateDraggedActiveNoteVoice(note) {
+  // Stable preview voice; leave committed audio and data untouched until pointerup.
+  const playback = activeNotePlaybackPosition(note);
+  const frequency = frequencyFromPitch(state.settings.a4Hz, playback.octave, playback.microStepInOctave);
+  if (audio.hasVoice(DRAG_PREVIEW_VOICE_ID)) {
+    audio.updateVoice(DRAG_PREVIEW_VOICE_ID, frequency, 0.02);
+  } else {
+    void startVoiceWithFeedback(
+      DRAG_PREVIEW_VOICE_ID, frequency, state.settings.waveform, state.settings.activeNotesVolume
+    );
+  }
+}
+
+function previewDraftPitchVoice() {
+  if (state.settings.playMode === "momentary") {
+    void startVoiceWithFeedback(
+      MOMENTARY_VOICE_ID,
+      currentDraftFrequency(),
+      state.settings.waveform,
+      state.settings.activeNotesVolume
+    );
+    return;
+  }
+  void startVoiceWithFeedback(
+    DRAG_PREVIEW_VOICE_ID,
+    currentDraftFrequency(),
+    state.settings.waveform,
+    state.settings.activeNotesVolume
+  );
+}
+
+async function applyDragPitch(finalize = false) {
+  const canvas = els.lineCanvas;
+  if (!dragContext) return;
+  const rect = canvas.getBoundingClientRect();
+  const width = rect.width || 1;
+  if (dragContext.mode === "active-note") {
+    const note = findActiveNoteById(dragContext.noteId);
+    if (!note) return;
+    const deltaX = dragContext.virtualX - dragContext.pointerStartX;
+    const speedFactor = dragContext.slow ? 8 : 1;
+    const rawDeltaCent = (deltaX / width) * 1200 / speedFactor;
+    const nextAbsoluteCent = quantizeDraggedAbsoluteCent(dragContext.baseAbsoluteCent, rawDeltaCent, dragContext.fine);
+    const normalized = normalizePitch(0, centToMicroStep(nextAbsoluteCent));
+    dragContext.candidate = {
+      ...note,
+      octave: normalized.octave,
+      microStepInOctave: normalized.microStepInOctave,
+      cent: Number(microStepToCent(normalized.microStepInOctave)),
+      id: note.id // Keep stable identity throughout the transient preview.
+    };
+    renderPitchDuringInteraction();
+    updateDraggedActiveNoteVoice(dragContext.candidate);
+    return;
+  }
+  const virtualX = dragContext.virtualX;
+  const octaveDelta = Math.floor(virtualX / width);
+  const normalizedX = ((virtualX % width) + width) % width;
+  const cent = (normalizedX / width) * 1200;
+  const targetOctave = dragContext.baseOctave + octaveDelta;
+
+  syncDraftFromCent(cent, targetOctave);
+  renderPitchDuringInteraction();
+  previewDraftPitchVoice();
+
+  if (finalize && state.settings.playMode === "toggle") {
+    audio.stopVoice(DRAG_PREVIEW_VOICE_ID);
+    await toggleCurrentNote();
+  }
+}
+
+async function toggleCurrentNote() {
+  const noteId = buildNoteId(state.pitchDraft.octave, state.pitchDraft.microStepInOctave);
+  const index = findActiveNoteIndex(noteId);
+  const before = snapshotState();
+  audio.stopVoice(MOMENTARY_VOICE_ID);
+  audio.stopVoice(DRAG_PREVIEW_VOICE_ID);
+
+  if (index >= 0) {
+    state.activeNotes.splice(index, 1);
+    if (pitchUi.lastTouchedNoteId === noteId) {
+      pitchUi.lastTouchedNoteId = state.activeNotes[0]?.id || null;
+    }
+  } else {
+    state.activeNotes.push({
+      id: noteId,
+      octave: state.pitchDraft.octave,
+      microStepInOctave: state.pitchDraft.microStepInOctave,
+      cent: Number(state.pitchDraft.cent)
+    });
+    rememberActiveNote(noteId);
+  }
+
+  const after = snapshotState();
+  trackStateChange("active_note_toggle", "現音高を切替", before, after);
+  syncFormFromState();
+  render();
+  await syncAudioToActiveNotes();
+}
+
+async function clearAllActiveNotes() {
+  if (state.activeNotes.length === 0) return;
+  const before = snapshotState();
+  state.activeNotes = [];
+  pitchUi.lastTouchedNoteId = null;
+  const after = snapshotState();
+  trackStateChange("clear_active_notes", "現音高を一括削除", before, after);
+  render();
+  await syncAudioToActiveNotes();
+}
+
+async function addPitchPresetToActiveNotes(presetId) {
+  const preset = findPitchPresetById(presetId);
+  if (!preset) return;
+  const noteId = buildNoteId(state.pitchDraft.octave, preset.microStep);
+  if (findActiveNoteIndex(noteId) >= 0) return;
+
+  const before = snapshotState();
+  state.activeNotes.push({
+    id: noteId,
+    octave: state.pitchDraft.octave,
+    microStepInOctave: preset.microStep,
+    cent: Number(microStepToCent(preset.microStep))
+  });
+  rememberActiveNote(noteId);
+  syncDraftFromCent(microStepToCent(preset.microStep), state.pitchDraft.octave);
+  const after = snapshotState();
+  trackStateChange("add_pitch_preset_note", "音高プリセットを追加", before, after);
+  audio.stopVoice(MOMENTARY_VOICE_ID);
+  audio.stopVoice(DRAG_PREVIEW_VOICE_ID);
+  syncFormFromState();
+  render();
+  await syncAudioToActiveNotes();
+}
+
+function buildPresetMainCell(name, id, subtitle = "") {
+  const wrap = document.createElement("div");
+  wrap.className = "preset-main";
+
+  const title = document.createElement("div");
+  title.className = "preset-name";
+  title.textContent = name;
+  wrap.appendChild(title);
+
+  const presetId = document.createElement("div");
+  presetId.className = "preset-id";
+  presetId.textContent = id;
+  wrap.appendChild(presetId);
+
+  if (subtitle) {
+    const sub = document.createElement("div");
+    sub.className = "preset-sub";
+    sub.textContent = subtitle;
+    wrap.appendChild(sub);
+  }
+
+  return wrap;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function buildInlineInput(value, field) {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "preset-inline-input";
+  input.dataset.field = field;
+  input.value = value ?? "";
+  return input;
+}
+
+function buildInlineTextarea(value, field) {
+  const textarea = document.createElement("textarea");
+  textarea.className = "preset-inline-textarea";
+  textarea.dataset.field = field;
+  textarea.value = value ?? "";
+  return textarea;
+}
+
+function populateComposerRootPresetSelect(select, selectedId = "") {
+  select.innerHTML = "";
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = "未選択";
+  select.appendChild(empty);
+
+  sortedPitchPresets().forEach((preset) => {
+    const option = document.createElement("option");
+    option.value = preset.id;
+    option.textContent = formatPresetDisplayName(preset);
+    select.appendChild(option);
+  });
+
+  const fallbackId = defaultRootPresetId();
+  select.value = state.pitchPresets.some((preset) => preset.id === selectedId)
+    ? selectedId
+    : fallbackId;
+}
+
+function renderPresetTableEmpty(container, message) {
+  container.innerHTML = "";
+  const empty = document.createElement("div");
+  empty.className = "empty-state";
+  empty.textContent = message;
+  container.appendChild(empty);
+}
+
+function tagColorFromText(text) {
+  let hash = 0;
+  for (const ch of String(text || "")) {
+    hash = ((hash * 31) + ch.charCodeAt(0)) >>> 0;
+  }
+  const hue = hash % 360;
+  return `hsla(${hue} 70% 60% / 0.22)`;
+}
+
+function buildTagChips(tags) {
+  const wrap = document.createElement("div");
+  wrap.className = "tag-chip-list";
+  (tags || []).forEach((tag) => {
+    const chip = document.createElement("span");
+    chip.className = "tag-chip";
+    chip.textContent = tag;
+    chip.style.background = tagColorFromText(tag);
+    chip.style.borderColor = tagColorFromText(`${tag}-border`).replace("/ 0.22", "/ 0.55");
+    wrap.appendChild(chip);
+  });
+  return wrap;
+}
+
+function buildToneChips(tones) {
+  const wrap = document.createElement("div");
+  wrap.className = "tone-chip-list";
+  (tones || []).forEach((tone, index) => {
+    const chip = document.createElement("span");
+    chip.className = "tone-chip";
+    chip.textContent = formatChordToneToken(tone, index);
+    wrap.appendChild(chip);
+  });
+  return wrap;
+}
+
+function resolvePitchPresetToken(token) {
+  const normalized = slugifyIdPart(token);
+  return state.pitchPresets.find((preset) =>
+    preset.id === normalized ||
+    preset.id === token ||
+    preset.name === token ||
+    preset.shortName === token ||
+    formatPresetDisplayName(preset) === token
+  ) || null;
+}
+
+function formatChordToneToken(tone, index = 0) {
+  const labelPrefix = tone.label ? `${tone.label}:` : "";
+  let pitchToken = "";
+  if (tone.pitchPresetId) {
+    const preset = findPitchPresetById(tone.pitchPresetId);
+    pitchToken = preset ? formatPresetDisplayName(preset) : tone.pitchPresetId;
+  } else {
+    pitchToken = `${formatDecimal(Number(tone.localCent) || 0)}c`;
+  }
+  const octaveToken = tone.octaveShift ? `@${tone.octaveShift}` : "";
+  return `${labelPrefix}${pitchToken}${octaveToken}` || `Tone${index + 1}`;
+}
+
+function serializeChordTones(tones) {
+  return (tones || []).map((tone, index) => {
+    const labelPrefix = tone.label ? `${tone.label}:` : "";
+    const pitchToken = tone.pitchPresetId
+      ? tone.pitchPresetId
+      : `${formatDecimal(Number(tone.localCent) || 0)}c`;
+    const octaveToken = tone.octaveShift ? `@${tone.octaveShift}` : "";
+    return `${labelPrefix}${pitchToken}${octaveToken}`;
+  }).join(", ");
+}
+
+function parseChordTonesInput(value) {
+  const tokens = String(value || "")
+    .split(/[\n,]/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  return tokens.map((token, index) => {
+    const separatorIndex = token.indexOf(":");
+    const rawLabel = separatorIndex >= 0 ? token.slice(0, separatorIndex).trim() : "";
+    let pitchSpec = separatorIndex >= 0 ? token.slice(separatorIndex + 1).trim() : token;
+    let octaveShift = 0;
+
+    const octaveSeparator = pitchSpec.lastIndexOf("@");
+    if (octaveSeparator >= 0) {
+      const parsedShift = Number(pitchSpec.slice(octaveSeparator + 1).trim());
+      if (Number.isFinite(parsedShift)) {
+        octaveShift = parsedShift;
+        pitchSpec = pitchSpec.slice(0, octaveSeparator).trim();
+      }
+    }
+
+    if (/c$/i.test(pitchSpec)) {
+      const centValue = Number(pitchSpec.slice(0, -1).trim().replace(",", "."));
+      if (!Number.isFinite(centValue)) return null;
+      return {
+        pitchPresetId: null,
+        localAnonymousId: `anon:edit:${String(index + 1).padStart(4, "0")}`,
+        localCent: centValue,
+        octaveShift,
+        label: rawLabel || `Tone${index + 1}`
+      };
+    }
+
+    const preset = resolvePitchPresetToken(pitchSpec);
+    if (!preset) return null;
+    return {
+      pitchPresetId: preset.id,
+      localAnonymousId: null,
+      localCent: null,
+      octaveShift,
+      label: rawLabel || `Tone${index + 1}`
+    };
+  }).filter(Boolean);
+}
+
+function renderPitchPresetsV2() {
+  const container = els.pitchPresetList;
+  container.innerHTML = "";
+  const presets = filteredPitchPresets(els.pitchPresetFilterInput?.value);
+  if (state.pitchPresets.length === 0) {
+    renderPresetTableEmpty(container, "音高プリセットはまだありません。");
+    return;
+  }
+
+  const table = document.createElement("table");
+  table.className = "preset-table";
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th><input type="checkbox" data-select-all="pitch" aria-label="select all pitch presets"></th>
+        <th data-sort="pitch:name">名前${sortIndicator(presetUi.pitchSort, "name")}</th>
+        <th data-sort="pitch:id">ID${sortIndicator(presetUi.pitchSort, "id")}</th>
+        <th data-sort="pitch:cent">¢${sortIndicator(presetUi.pitchSort, "cent")}</th>
+        <th data-sort="pitch:tags">タグ${sortIndicator(presetUi.pitchSort, "tags")}</th>
+        <th data-sort="pitch:memo">メモ${sortIndicator(presetUi.pitchSort, "memo")}</th>
+      </tr>
+    </thead>
+  `;
+  table.prepend(buildPresetColGroup(["select", "name", "id", "cent", "tags", "memo"]));
+  const tbody = document.createElement("tbody");
+
+  if (presets.length === 0) {
+    const emptyRow = document.createElement("tr");
+    emptyRow.innerHTML = `<td colspan="6" class="composer-note">条件に合う音高プリセットがありません。</td>`;
+    tbody.appendChild(emptyRow);
+  }
+
+  presets.forEach((preset) => {
+    const row = document.createElement("tr");
+    row.dataset.pitchPresetId = preset.id;
+    const isEditing = presetUi.editingPitchPresetId === preset.id;
+    row.title = isEditing ? "" : "クリックで追加、ダブルクリックで編集";
+    if (!isEditing && state.activeNotes.some((note) => note.octave === state.pitchDraft.octave && note.microStepInOctave === preset.microStep)) {
+      row.classList.add("is-active");
+    }
+    const selectCell = document.createElement("td");
+    selectCell.innerHTML = `<input type="checkbox" data-row-select="pitch" data-id="${escapeHtml(preset.id)}" aria-label="select ${escapeHtml(preset.name)}">`;
+    selectCell.querySelector("input").checked = presetUi.selectedPitchPresetIds.has(preset.id);
+    row.appendChild(selectCell);
+
+    if (isEditing) {
+      const nameCell = document.createElement("td");
+      nameCell.appendChild(buildInlineInput(preset.name, "name"));
+      row.appendChild(nameCell);
+      const idCell = document.createElement("td");
+      idCell.appendChild(buildInlineInput(pitchPresetDisplayId(preset), "id"));
+      row.appendChild(idCell);
+      const centCell = document.createElement("td");
+      const centInput = buildInlineInput(formatDecimal(preset.cent), "cent");
+      centInput.type = "number";
+      centInput.step = String(state.settings.snapCent || 1);
+      centCell.appendChild(centInput);
+      row.appendChild(centCell);
+      const tagsCell = document.createElement("td");
+      tagsCell.appendChild(buildInlineInput((preset.tags || []).join(", "), "tags"));
+      row.appendChild(tagsCell);
+      const memoCell = document.createElement("td");
+      const memoWrap = document.createElement("div");
+      memoWrap.className = "preset-main";
+      memoWrap.appendChild(buildInlineTextarea(preset.memo || "", "memo"));
+      const actions = document.createElement("div");
+      actions.className = "preset-inline-actions";
+      actions.innerHTML = `<button type="button" data-action="save-pitch-inline" data-preset-id="${escapeHtml(preset.id)}">保存</button><button type="button" data-action="cancel-pitch-inline">取消</button>`;
+      memoWrap.appendChild(actions);
+      memoCell.appendChild(memoWrap);
+      row.appendChild(memoCell);
+    } else {
+      const nameCell = document.createElement("td");
+      nameCell.appendChild(buildPresetMainCell(preset.name, ""));
+      row.appendChild(nameCell);
+      const idCell = document.createElement("td");
+      idCell.className = "preset-id";
+      idCell.textContent = pitchPresetDisplayId(preset);
+      row.appendChild(idCell);
+      const centCell = document.createElement("td");
+      centCell.textContent = formatDecimal(preset.cent);
+      row.appendChild(centCell);
+      const tagsCell = document.createElement("td");
+      tagsCell.appendChild(buildTagChips(preset.tags));
+      row.appendChild(tagsCell);
+      const memoCell = document.createElement("td");
+      memoCell.textContent = preset.memo || " ";
+      row.appendChild(memoCell);
+    }
+    tbody.appendChild(row);
+  });
+
+  table.appendChild(tbody);
+  container.appendChild(table);
+  syncTableSelectAll(table, "pitch", presetUi.selectedPitchPresetIds, presets.map((preset) => preset.id));
+  enhancePresetTable(table, "pitch");
+}
+
+
+function normalizePitchPresetTableColumns() {
+  const table = els.pitchPresetList?.querySelector("table");
+  if (!table || table.dataset.idColumnReady === "true") return;
+  if (table.querySelector("col.col-id")) {
+    table.dataset.idColumnReady = "true";
+    return;
+  }
+  table.dataset.idColumnReady = "true";
+  const headerRow = table.querySelector("thead tr");
+  const firstHeader = headerRow?.querySelector("th");
+  if (firstHeader && !headerRow.querySelector('[data-column="id"]')) {
+    const idHeader = document.createElement("th");
+    idHeader.dataset.column = "id";
+    idHeader.textContent = "ID";
+    firstHeader.after(idHeader);
+  }
+  const colgroup = table.querySelector("colgroup");
+  const firstCol = colgroup?.querySelector("col");
+  if (firstCol && !colgroup.querySelector(".col-id")) {
+    const idCol = document.createElement("col");
+    idCol.className = "col-id";
+    firstCol.after(idCol);
+  }
+  table.querySelectorAll("tbody tr").forEach((row) => {
+    const cells = row.querySelectorAll("td");
+    if (cells.length === 1) {
+      cells[0].setAttribute("colspan", "6");
+      return;
+    }
+    if (row.querySelector('[data-column-cell="id"]')) return;
+    const nameCell = cells[0];
+    const idText = nameCell.querySelector(".preset-id")?.textContent?.trim() || row.dataset.pitchPresetId || "";
+    nameCell.querySelector(".preset-id")?.remove();
+    const idCell = document.createElement("td");
+    idCell.dataset.columnCell = "id";
+    idCell.className = "preset-id";
+    idCell.textContent = idText.toLowerCase();
+    nameCell.after(idCell);
+  });
+}
+
+function renderChordPresetsV2() {
+  const container = els.chordPresetList;
+  container.innerHTML = "";
+  const chords = filteredChordPresets(els.chordTagFilterInput?.value);
+
+  const table = document.createElement("table");
+  table.className = "preset-table";
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th><input type="checkbox" data-select-all="chord" aria-label="select all chord presets"></th>
+        <th data-sort="chord:name">名前${sortIndicator(presetUi.chordSort, "name")}</th>
+        <th data-sort="chord:id">ID${sortIndicator(presetUi.chordSort, "id")}</th>
+        <th data-sort="chord:root">基音${sortIndicator(presetUi.chordSort, "root")}</th>
+        <th data-sort="chord:tones">構成音${sortIndicator(presetUi.chordSort, "tones")}</th>
+        <th data-sort="chord:tags">タグ${sortIndicator(presetUi.chordSort, "tags")}</th>
+        <th data-sort="chord:memo">メモ${sortIndicator(presetUi.chordSort, "memo")}</th>
+      </tr>
+    </thead>
+  `;
+  table.prepend(buildPresetColGroup(["select", "name", "id", "root", "tones", "tags", "memo"]));
+  const tbody = document.createElement("tbody");
+
+  const composerRow = document.createElement("tr");
+  composerRow.className = "composer-row";
+  composerRow.dataset.composerRow = "true";
+  composerRow.innerHTML = `
+    <td></td>
+    <td><input type="text" class="preset-inline-input" data-composer-field="name" placeholder="コード名" value="${escapeHtml(els.chordNameInput.value)}"></td>
+    <td><input type="text" class="preset-inline-input" data-composer-field="id" placeholder="コードID" value="${escapeHtml(els.chordIdInput.value)}"></td>
+  `;
+
+  const composerRootCell = document.createElement("td");
+  const composerRootWrap = document.createElement("div");
+  composerRootWrap.className = "composer-stack";
+  const rootInput = document.createElement("input");
+  rootInput.type = "text";
+  rootInput.className = "preset-inline-input";
+  rootInput.dataset.composerField = "rootText";
+  rootInput.placeholder = "C3 / D#4";
+  rootInput.value = els.recallRootTextInput.value;
+  composerRootWrap.appendChild(rootInput);
+  const rootSelect = document.createElement("select");
+  rootSelect.className = "preset-inline-select";
+  rootSelect.dataset.composerField = "rootPreset";
+  populateComposerRootPresetSelect(rootSelect, els.recallRootPresetSelect.value);
+  composerRootWrap.appendChild(rootSelect);
+  composerRootCell.appendChild(composerRootWrap);
+  composerRow.appendChild(composerRootCell);
+
+  const composerTonesCell = document.createElement("td");
+  const composerToneWrap = document.createElement("div");
+  composerToneWrap.className = "composer-stack";
+  const composerToneNote = document.createElement("div");
+  composerToneNote.className = "composer-note";
+  composerToneNote.textContent = state.activeNotes.length === 0
+    ? "現音高をコード化します"
+    : state.activeNotes
+      .slice()
+      .sort((a, b) => absoluteMicroStep(a) - absoluteMicroStep(b))
+      .map((note) => formatPresetDisplayName(findPitchPresetByMicroStep(note.microStepInOctave)) || formatDecimal(note.cent))
+      .join(" / ");
+  composerToneWrap.append(composerToneNote);
+  const labelsInput = document.createElement("input");
+  labelsInput.type = "text";
+  labelsInput.className = "preset-inline-input";
+  labelsInput.dataset.composerField = "labels";
+  labelsInput.placeholder = "Root, M3, P5";
+  labelsInput.value = els.chordLabelsInput.value;
+  composerToneWrap.appendChild(labelsInput);
+  composerTonesCell.appendChild(composerToneWrap);
+  composerRow.appendChild(composerTonesCell);
+
+  const composerTagsCell = document.createElement("td");
+  composerTagsCell.innerHTML = `<input type="text" class="preset-inline-input" data-composer-field="tags" placeholder="bright, core" value="${escapeHtml(els.chordTagsInput.value)}">`;
+  composerRow.appendChild(composerTagsCell);
+
+  const composerMemoCell = document.createElement("td");
+  composerMemoCell.innerHTML = `
+    <div class="composer-stack">
+      <textarea class="preset-inline-textarea" data-composer-field="memo" placeholder="メモ">${escapeHtml(els.chordMemoInput.value)}</textarea>
+      <div class="preset-inline-actions"><button type="button" data-action="save-chord-compose">保存</button></div>
+    </div>
+  `;
+  composerRow.appendChild(composerMemoCell);
+  tbody.appendChild(composerRow);
+
+  if (chords.length === 0) {
+    const emptyRow = document.createElement("tr");
+    emptyRow.className = "composer-row";
+    emptyRow.innerHTML = `<td colspan="7" class="composer-note">${state.chordPresets.length === 0 ? "コードプリセットはまだありません。" : "条件に合うコードプリセットがありません。"}</td>`;
+    tbody.appendChild(emptyRow);
+  }
+
+  chords.forEach((chord) => {
+    const row = document.createElement("tr");
+    row.dataset.chordPresetId = chord.id;
+    const isEditing = presetUi.editingChordPresetId === chord.id;
+    row.title = isEditing ? "" : "クリックで追加、ダブルクリックで編集";
+    const tonesText = serializeChordTones(chord.tones);
+    const rootLabel =
+      els.recallRootTextInput.value.trim() ||
+      formatPresetDisplayName(findPitchPresetById(els.recallRootPresetSelect.value)) ||
+      "未設定";
+
+    const displayRootLabel = formatChordBaseRoot(chord.baseRoot);
+    const selectCell = document.createElement("td");
+    selectCell.innerHTML = `<input type="checkbox" data-row-select="chord" data-id="${escapeHtml(chord.id)}" aria-label="select ${escapeHtml(chord.name)}">`;
+    selectCell.querySelector("input").checked = presetUi.selectedChordPresetIds.has(chord.id);
+    row.appendChild(selectCell);
+
+    if (isEditing) {
+      const nameCell = document.createElement("td");
+      nameCell.appendChild(buildInlineInput(chord.name, "name"));
+      row.appendChild(nameCell);
+
+      const idCell = document.createElement("td");
+      idCell.appendChild(buildInlineInput(chordPresetDisplayId(chord), "id"));
+      row.appendChild(idCell);
+
+      const rootCell = document.createElement("td");
+      rootCell.textContent = displayRootLabel;
+      row.appendChild(rootCell);
+
+      const tonesCell = document.createElement("td");
+      tonesCell.appendChild(buildInlineInput(tonesText, "tones"));
+      row.appendChild(tonesCell);
+
+      const tagsCell = document.createElement("td");
+      tagsCell.appendChild(buildInlineInput((chord.tags || []).join(", "), "tags"));
+      row.appendChild(tagsCell);
+
+      const memoCell = document.createElement("td");
+      const memoWrap = document.createElement("div");
+      memoWrap.className = "preset-main";
+      memoWrap.appendChild(buildInlineTextarea(chord.memo || "", "memo"));
+      const actions = document.createElement("div");
+      actions.className = "preset-inline-actions";
+      actions.innerHTML = `<button type="button" data-action="save-chord-inline" data-chord-id="${escapeHtml(chord.id)}">保存</button><button type="button" data-action="cancel-chord-inline">取消</button>`;
+      memoWrap.appendChild(actions);
+      memoCell.appendChild(memoWrap);
+      row.appendChild(memoCell);
+    } else {
+      const nameCell = document.createElement("td");
+      nameCell.appendChild(buildPresetMainCell(chord.name, ""));
+      row.appendChild(nameCell);
+
+      const idCell = document.createElement("td");
+      idCell.className = "preset-id";
+      idCell.textContent = chordPresetDisplayId(chord);
+      row.appendChild(idCell);
+
+      const rootCell = document.createElement("td");
+      rootCell.textContent = displayRootLabel;
+      row.appendChild(rootCell);
+
+      const tonesCell = document.createElement("td");
+      tonesCell.appendChild(buildToneChips(chord.tones));
+      row.appendChild(tonesCell);
+
+      const tagsCell = document.createElement("td");
+      tagsCell.appendChild(buildTagChips(chord.tags));
+      row.appendChild(tagsCell);
+
+      const memoCell = document.createElement("td");
+      memoCell.textContent = chord.memo || " ";
+      row.appendChild(memoCell);
+    }
+    tbody.appendChild(row);
+  });
+
+  table.appendChild(tbody);
+  container.appendChild(table);
+  syncTableSelectAll(table, "chord", presetUi.selectedChordPresetIds, chords.map((chord) => chord.id));
+  enhancePresetTable(table, "chord");
+}
+
+function editPitchPreset(presetId) {
+  presetUi.editingPitchPresetId = presetId;
+  presetUi.editingChordPresetId = null;
+  render();
+}
+
+function editChordPreset(chordId) {
+  presetUi.editingChordPresetId = chordId;
+  presetUi.editingPitchPresetId = null;
+  render();
+}
+
+function saveInlinePitchPreset(presetId, row) {
+  const preset = findPitchPresetById(presetId);
+  if (!preset || !(row instanceof HTMLElement)) return;
+  const nextId = slugifyIdPart(row.querySelector('[data-field="id"]')?.value || "") || pitchPresetDisplayId(preset);
+  const nextName = String(row.querySelector('[data-field="name"]')?.value || "").trim() || preset.name;
+  const nextCent = Number(String(row.querySelector('[data-field="cent"]')?.value || "").replace(",", "."));
+  const nextTags = parseCsvList(row.querySelector('[data-field="tags"]')?.value || "");
+  const nextMemo = String(row.querySelector('[data-field="memo"]')?.value || "").trim();
+
+  if (nextId !== pitchPresetDisplayId(preset) && state.pitchPresets.some((item) => pitchPresetDisplayId(item) === nextId)) {
+    setStatus(els.pitchPresetStatus, `ID ${nextId} は既存プリセットと重複しています。`, "error");
+    return;
+  }
+
+  const before = snapshotState();
+  if (Number.isFinite(nextCent)) {
+    preset.cent = Number(microStepToCent(centToMicroStep(nextCent)));
+    preset.microStep = centToMicroStep(nextCent);
+  }
+  preset.name = nextName;
+  preset.shortName = nextId;
+  preset.tags = nextTags;
+  preset.memo = nextMemo;
+  presetUi.editingPitchPresetId = null;
+  const after = snapshotState();
+  trackStateChange("edit_pitch_preset", "音高プリセットを更新", before, after);
+  setStatus(els.pitchPresetStatus, `${preset.name} を更新しました。`, "success");
+  render();
+}
+
+function saveInlineChordPreset(chordId, row) {
+  const chord = state.chordPresets.find((item) => item.id === chordId);
+  if (!chord || !(row instanceof HTMLElement)) return;
+  const nextId = slugifyIdPart(row.querySelector('[data-field="id"]')?.value || "") || chordPresetDisplayId(chord);
+  const nextName = String(row.querySelector('[data-field="name"]')?.value || "").trim() || chord.name;
+  const nextTones = parseChordTonesInput(row.querySelector('[data-field="tones"]')?.value || "");
+  const nextTags = parseCsvList(row.querySelector('[data-field="tags"]')?.value || "");
+  const nextMemo = String(row.querySelector('[data-field="memo"]')?.value || "").trim();
+
+  if (nextId !== chordPresetDisplayId(chord) && state.chordPresets.some((item) => chordPresetDisplayId(item) === nextId)) {
+    setStatus(els.chordStatus, `ID ${nextId} は既存プリセットと重複しています。`, "error");
+    return;
+  }
+  if (nextTones.length === 0) {
+    setStatus(els.chordStatus, "構成音は `P5` や `M3:PITCH_M3`、`M4:550c` のように入力してください。", "error");
+    return;
+  }
+
+  const before = snapshotState();
+  chord.name = nextName;
+  chord.shortName = nextId;
+  chord.tones = nextTones;
+  chord.tags = nextTags;
+  chord.memo = nextMemo;
+  presetUi.editingChordPresetId = null;
+  const after = snapshotState();
+  trackStateChange("edit_chord_preset", "コードプリセットを更新", before, after);
+  setStatus(els.chordStatus, `${chord.name} を更新しました。`, "success");
+  render();
+}
+
+function updateActiveNoteFromRow(noteId) {
+  const row = els.activeNotesList.querySelector(`[data-note-id="${noteId}"]`);
+  const note = state.activeNotes.find((item) => item.id === noteId);
+  if (!(row instanceof HTMLElement) || !note) return;
+
+  const before = snapshotState();
+  const centValue = Number(String(row.querySelector('[data-field="cent"]')?.value || "").replace(",", "."));
+  if (Number.isFinite(centValue)) {
+    const normalized = normalizePitch(note.octave, centToMicroStep(centValue));
+    note.octave = normalized.octave;
+    note.microStepInOctave = normalized.microStepInOctave;
+    note.cent = Number(microStepToCent(normalized.microStepInOctave));
+    note.id = buildNoteId(note.octave, note.microStepInOctave);
+    dedupeActiveNotes(note);
+    rememberActiveNote(note.id);
+    syncDraftFromNote(note);
+  }
+
+  const after = snapshotState();
+  trackStateChange("update_active_note", "現音高を更新", before, after);
+  syncFormFromState();
+  render();
+  void syncAudioToActiveNotes();
+}
+
+function toggleSettingsDrawer(forceOpen = null) {
+  const drawer = document.getElementById("settingsDrawer");
+  if (!drawer) return;
+  const nextOpen = forceOpen ?? drawer.hidden;
+  drawer.hidden = !nextOpen;
+  document.getElementById("settingsMenuBtn")?.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+}
+
+function selectMenuPanel(panelName) {
+  const drawer = document.getElementById("settingsDrawer");
+  if (!drawer) return;
+  drawer.querySelectorAll("[data-menu-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.menuPanel !== panelName;
+  });
+  const settingsBody = drawer.querySelector("#settingsDrawerBody");
+  if (settingsBody) {
+    settingsBody.hidden = panelName !== "settings";
+    settingsBody.setAttribute("aria-hidden", settingsBody.hidden ? "true" : "false");
+  }
+  drawer.querySelectorAll("[data-menu-focus]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.menuFocus === panelName);
+  });
+}
+
+function selectedIdsForKind(kind) {
+  if (kind === "pitch") return presetUi.selectedPitchPresetIds;
+  if (kind === "chord") return presetUi.selectedChordPresetIds;
+  if (kind === "active") return presetUi.selectedActiveNoteIds;
+  return new Set();
+}
+
+function updateBulkBars() {
+  document.querySelectorAll("[data-bulk-kind]").forEach((bar) => {
+    if (!(bar instanceof HTMLElement)) return;
+    const selected = selectedIdsForKind(bar.dataset.bulkKind || "");
+    const count = selected.size;
+    bar.hidden = count === 0;
+    const countLabel = bar.querySelector("[data-bulk-count]");
+    if (countLabel) {
+      countLabel.textContent = count > 0 ? `${count}件選択中` : "";
+    }
+  });
+}
+
+function applyBulkEdit(kind) {
+  const selected = selectedIdsForKind(kind);
+  if (selected.size === 0) return;
+  const bar = document.querySelector(`[data-bulk-kind="${kind}"]`);
+  if (!(bar instanceof HTMLElement)) return;
+
+  if (kind === "pitch") {
+    const before = snapshotState();
+    const tags = parseCsvList(bar.querySelector('[data-bulk-field="tags"]')?.value || "");
+    const memo = String(bar.querySelector('[data-bulk-field="memo"]')?.value || "").trim();
+    state.pitchPresets.forEach((preset) => {
+      if (!selected.has(preset.id)) return;
+      preset.tags = tags.slice();
+      preset.memo = memo;
+    });
+    const after = snapshotState();
+    trackStateChange("bulk_edit_pitch_presets", "pitch preset bulk edit", before, after);
+    render();
+    return;
+  }
+
+  if (kind === "chord") {
+    const before = snapshotState();
+    const tags = parseCsvList(bar.querySelector('[data-bulk-field="tags"]')?.value || "");
+    const memo = String(bar.querySelector('[data-bulk-field="memo"]')?.value || "").trim();
+    state.chordPresets.forEach((chord) => {
+      if (!selected.has(chord.id)) return;
+      chord.tags = tags.slice();
+      chord.memo = memo;
+    });
+    const after = snapshotState();
+    trackStateChange("bulk_edit_chord_presets", "chord preset bulk edit", before, after);
+    render();
+    return;
+  }
+
+  if (kind === "active") {
+    const delta = Number(String(bar.querySelector('[data-bulk-field="centDelta"]')?.value || "").replace(",", "."));
+    if (!Number.isFinite(delta) || delta === 0) return;
+    const before = snapshotState();
+    state.activeNotes.slice().forEach((note) => {
+      if (!selected.has(note.id)) return;
+      const absolute = (note.octave * OCTAVE_MICROSTEP) + note.microStepInOctave + centToMicroStep(delta);
+      const normalized = normalizePitch(0, absolute);
+      note.octave = normalized.octave;
+      note.microStepInOctave = normalized.microStepInOctave;
+      note.cent = Number(microStepToCent(normalized.microStepInOctave));
+      note.id = buildNoteId(note.octave, note.microStepInOctave);
+      dedupeActiveNotes(note);
+    });
+    selected.clear();
+    const after = snapshotState();
+    trackStateChange("bulk_edit_active_notes", "active note bulk edit", before, after);
+    syncFormFromState();
+    render();
+    void refreshAudibleVoices();
+  }
+}
+
+function deleteSelectedPitchPresets() {
+  const ids = presetUi.selectedPitchPresetIds;
+  if (ids.size === 0) return;
+  const before = snapshotState();
+  state.pitchPresets = state.pitchPresets.filter((preset) => !ids.has(preset.id));
+  ids.clear();
+  presetUi.editingPitchPresetId = null;
+  const after = snapshotState();
+  trackStateChange("delete_pitch_presets", "音高プリセットを一括削除", before, after);
+  render();
+}
+
+function deleteSelectedChordPresets() {
+  const ids = presetUi.selectedChordPresetIds;
+  if (ids.size === 0) return;
+  const before = snapshotState();
+  state.chordPresets = state.chordPresets.filter((chord) => !ids.has(chord.id));
+  ids.clear();
+  presetUi.editingChordPresetId = null;
+  const after = snapshotState();
+  trackStateChange("delete_chord_presets", "コードプリセットを一括削除", before, after);
+  render();
+}
+
+function deleteSelectedActiveNotes() {
+  const ids = presetUi.selectedActiveNoteIds;
+  if (ids.size === 0) return;
+  const before = snapshotState();
+  state.activeNotes = state.activeNotes.filter((note) => {
+    const keep = !ids.has(note.id);
+    if (!keep) audio.stopVoice(note.id);
+    return keep;
+  });
+  ids.clear();
+  const after = snapshotState();
+  trackStateChange("delete_active_notes", "現音高を一括削除", before, after);
+  render();
+  void syncAudioToActiveNotes();
+}
+
+function attachEvents() {
+  attachWorkspaceResizers();
+  attachTableColumnResizers();
+  selectMenuPanel("settings");
+  document.getElementById("settingsMenuBtn")?.addEventListener("click", () => toggleSettingsDrawer());
+  document.getElementById("settingsDrawerCloseBtn")?.addEventListener("click", () => toggleSettingsDrawer(false));
+  document.getElementById("settingsDrawer")?.addEventListener("click", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLElement)) return;
+    const menuButton = target.closest("[data-menu-focus]");
+    if (menuButton instanceof HTMLElement) {
+      selectMenuPanel(menuButton.dataset.menuFocus || "settings");
+    }
+  });
+  document.getElementById("waveformButtonGroup")?.addEventListener("click", (ev) => {
+    const rawTarget = ev.target;
+    if (!(rawTarget instanceof Element)) return;
+    const target = rawTarget.closest("button");
+    if (!(target instanceof HTMLButtonElement)) return;
+    const waveform = target.dataset.waveform;
+    if (!waveform) return;
+    void updateWaveformSetting(waveform);
+  });
+  els.navButtons.forEach((btn) => {
+    btn.addEventListener("click", () => setView(btn.dataset.view));
+  });
+
+  els.undoBtn.addEventListener("click", () => applyHistoryAction("undo"));
+  els.redoBtn.addEventListener("click", () => applyHistoryAction("redo"));
+
+  els.installPwaBtn?.addEventListener("click", async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice.catch(() => null);
+    deferredInstallPrompt = null;
+    renderPwaPrompt();
+  });
+  els.runtimeWarningCloseBtn?.addEventListener("click", () => {
+    state.settings.dismissedRuntimeNotice = true;
+    renderRuntimeBanner();
+    renderRuntimeInfo();
+  });
+  els.pwaPromptCloseBtn?.addEventListener("click", () => {
+    state.settings.dismissedPwaNotice = true;
+    renderPwaPrompt();
+    renderRuntimeInfo();
+  });
+
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") {
+      toggleSettingsDrawer(false);
+    }
+    const meta = ev.ctrlKey || ev.metaKey;
+    if (!meta) return;
+    if (isNativeUndoTarget(ev.target)) return;
+    if (ev.key.toLowerCase() === "z" && !ev.shiftKey) {
+      ev.preventDefault();
+      applyHistoryAction("undo");
+      return;
+    }
+    if ((ev.key.toLowerCase() === "z" && ev.shiftKey) || ev.key.toLowerCase() === "y") {
+      ev.preventDefault();
+      applyHistoryAction("redo");
+    }
+  });
+  document.addEventListener("pointerdown", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLElement)) return;
+    const drawer = document.getElementById("settingsDrawer");
+    if (drawer && !drawer.hidden && !target.closest("#settingsDrawer") && !target.closest("#settingsMenuBtn")) {
+      toggleSettingsDrawer(false);
+    }
+    if (target.closest(".progression-popover") || target.closest(".progression-token")) return;
+    closeProgressionPopovers();
+  });
+  document.addEventListener("pointerup", () => {
+    popoverUi.pointerDown = false;
+  });
+  document.addEventListener("click", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLElement)) return;
+    const bulkButton = target.closest("[data-bulk-action]");
+    if (bulkButton instanceof HTMLElement) {
+      const kind = bulkButton.dataset.kind || bulkButton.closest("[data-bulk-kind]")?.dataset.bulkKind || "";
+      if (bulkButton.dataset.bulkAction === "apply") applyBulkEdit(kind);
+      if (bulkButton.dataset.bulkAction === "delete") {
+        if (kind === "pitch") deleteSelectedPitchPresets();
+        if (kind === "chord") deleteSelectedChordPresets();
+        if (kind === "active") deleteSelectedActiveNotes();
+      }
+      if (bulkButton.dataset.bulkAction === "clear") {
+        selectedIdsForKind(kind).clear();
+        render();
+      }
+      return;
+    }
+    const sortHeader = target.closest("[data-sort]");
+    if (sortHeader instanceof HTMLElement && !target.closest(".column-resize-handle")) {
+      const [kind, column] = String(sortHeader.dataset.sort || "").split(":");
+      if (kind === "pitch") toggleSortState(presetUi.pitchSort, column);
+      if (kind === "chord") toggleSortState(presetUi.chordSort, column);
+      if (kind === "active") toggleSortState(presetUi.activeSort, column);
+      render();
+    }
+  });
+  document.addEventListener("change", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    const selectAll = target.dataset.selectAll;
+    if (selectAll) {
+      const ids = [...document.querySelectorAll(`[data-row-select="${selectAll}"]`)].map((input) => input.dataset.id).filter(Boolean);
+      const set = selectAll === "pitch"
+        ? presetUi.selectedPitchPresetIds
+        : selectAll === "chord"
+          ? presetUi.selectedChordPresetIds
+          : presetUi.selectedActiveNoteIds;
+      ids.forEach((id) => target.checked ? set.add(id) : set.delete(id));
+      render();
+      return;
+    }
+    const rowSelect = target.dataset.rowSelect;
+    if (rowSelect && target.dataset.id) {
+      const set = rowSelect === "pitch"
+        ? presetUi.selectedPitchPresetIds
+        : rowSelect === "chord"
+          ? presetUi.selectedChordPresetIds
+          : presetUi.selectedActiveNoteIds;
+      if (target.checked) set.add(target.dataset.id);
+      else set.delete(target.dataset.id);
+      render();
+    }
+  });
+
+  els.octaveInput.addEventListener("change", () => {
+    const before = snapshotState();
+    syncDraftFromCent(state.pitchDraft.cent, Number(els.octaveInput.value));
+    const after = snapshotState();
+    trackStateChange("update_octave", "oct 変更", before, after);
+    syncFormFromState();
+    render();
+  });
+
+  els.snapCentInput.addEventListener("change", () => {
+    const before = snapshotState();
+    state.settings.snapCent = clamp(Number(els.snapCentInput.value) || 0, 0, 600);
+    syncDraftFromCent(Number(els.centInput.value), state.pitchDraft.octave);
+    const after = snapshotState();
+    trackStateChange("update_snap", "snap ¢ 変更", before, after);
+    syncFormFromState();
+    render();
+  });
+
+  const centCommit = () => {
+    const before = snapshotState();
+    const parsedCent = Number(String(els.centInput.value).replace(",", "."));
+    const nextCent = Number.isFinite(parsedCent) ? parsedCent : state.pitchDraft.cent;
+    const currentNote = currentPitchEditTarget();
+    if (currentNote) {
+      const normalized = normalizePitch(currentNote.octave, centToMicroStep(nextCent));
+      currentNote.octave = normalized.octave;
+      currentNote.microStepInOctave = normalized.microStepInOctave;
+      currentNote.cent = Number(microStepToCent(normalized.microStepInOctave));
+      currentNote.id = buildNoteId(currentNote.octave, currentNote.microStepInOctave);
+      dedupeActiveNotes(currentNote);
+      syncDraftFromNote(currentNote);
+    } else {
+      syncDraftFromCent(nextCent, state.pitchDraft.octave);
+    }
+    const after = snapshotState();
+    trackStateChange("update_cent", "¢ 変更", before, after);
+    syncFormFromState();
+    render();
+    void refreshAudibleVoices();
+  };
+  els.centInput.addEventListener("change", centCommit);
+
+  els.centDownBtn.addEventListener("click", () => {
+    els.centInput.value = String((Number(els.centInput.value) || 0) - state.settings.snapCent);
+    centCommit();
+  });
+
+  els.centUpBtn.addEventListener("click", () => {
+    els.centInput.value = String((Number(els.centInput.value) || 0) + state.settings.snapCent);
+    centCommit();
+  });
+
+  els.sustainModeInput.addEventListener("change", () => {
+    const before = snapshotState();
+    state.settings.playMode = els.sustainModeInput.checked ? "toggle" : "momentary";
+    els.sustainModeInput.closest("label")?.setAttribute("title", `\u6301\u7d9a: ${els.sustainModeInput.checked ? "ON" : "OFF"}`);
+    audio.stopVoice(MOMENTARY_VOICE_ID);
+    audio.stopVoice(DRAG_PREVIEW_VOICE_ID);
+    const after = snapshotState();
+    trackStateChange("update_mode", "再生モード変更", before, after);
+    render();
+  });
+
+  els.waveformSelect.addEventListener("change", () => {
+    void updateWaveformSetting(els.waveformSelect.value);
+  });
+
+  els.masterVolumeInput.addEventListener("input", () => {
+    const before = snapshotState();
+    state.settings.masterVolume = Number(els.masterVolumeInput.value);
+    audio.setMasterVolume(state.settings.masterVolume);
+    const after = snapshotState();
+    trackStateChange("update_master_gain", "master 音量変更", before, after);
+  });
+
+  els.activeNotesVolumeInput.addEventListener("input", () => {
+    const before = snapshotState();
+    state.settings.activeNotesVolume = Number(els.activeNotesVolumeInput.value);
+    els.activeNotesVolumeInput.closest("label")?.setAttribute("title", `現音高 音量 ${Math.round(state.settings.activeNotesVolume * 100)}%`);
+    const after = snapshotState();
+    trackStateChange("update_active_gain", "現音高 音量変更", before, after);
+    applyActiveNoteGain();
+  });
+
+  els.a4HzInput.addEventListener("change", () => {
+    const before = snapshotState();
+    state.settings.a4Hz = Number(els.a4HzInput.value);
+    const after = snapshotState();
+    trackStateChange("update_a4", "A4 変更", before, after);
+    void syncAudioToActiveNotes();
+  });
+
+  els.bpmInput.addEventListener("change", () => {
+    const before = snapshotState();
+    state.settings.bpm = clamp(Number(els.bpmInput.value) || 130, 5, 300);
+    const after = snapshotState();
+    trackStateChange("update_bpm", "BPM 変更", before, after);
+    syncFormFromState();
+  });
+
+  els.phaseModeSelect?.addEventListener("change", () => {
+    const before = snapshotState();
+    state.settings.phaseMode = els.phaseModeSelect.value === "continue" ? "continue" : "reset";
+    const after = snapshotState();
+    trackStateChange("update_phase_mode", "位相モード変更", before, after);
+    syncFormFromState();
+    void refreshAudibleVoices();
+  });
+
+  els.roundUnitInput.addEventListener("change", () => {
+    const before = snapshotState();
+    state.settings.roundUnitCent = Math.max(0, Number(els.roundUnitInput.value) || 0);
+    const after = snapshotState();
+    trackStateChange("update_round_unit", "丸め込み単位変更", before, after);
+    syncFormFromState();
+  });
+
+  els.roundingModeSelect.addEventListener("change", () => {
+    const before = snapshotState();
+    state.settings.roundingMode = els.roundingModeSelect.value;
+    const after = snapshotState();
+    trackStateChange("update_round_mode", "丸め込みモード変更", before, after);
+  });
+
+  els.savePitchPresetBtn.addEventListener("click", saveCurrentPitchPreset);
+  els.saveChordBtn.addEventListener("click", saveChordFromActiveNotes);
+  els.loadChordBtn.addEventListener("click", () => {
+    void loadChordIntoActiveNotes();
+  });
+  els.recallChordSelect.addEventListener("change", renderRecallSummary);
+  els.clearActiveNotesBtn.addEventListener("click", () => {
+    void clearAllActiveNotes();
+  });
+  els.recallRootModeSelect.addEventListener("change", renderRecallSummary);
+  els.recallRootTextInput.addEventListener("input", () => {
+    renderRecallSummary();
+    renderChordPresetsV2();
+  });
+  els.recallRootPresetSelect.addEventListener("change", () => {
+    renderRecallSummary();
+    renderChordPresetsV2();
+  });
+  els.addProgPartBtn.addEventListener("click", addProgressionPart);
+  els.addProgChunkBtn?.addEventListener("click", addProgressionChunk);
+  els.addProgSectionBtn?.addEventListener("click", addProgressionSection);
+  els.deleteProgPartBtn.addEventListener("click", deleteSelectedProgressionPart);
+  els.progPrevBtn.addEventListener("click", () => stepSelectedProgressionPart(-1));
+  els.progNextBtn.addEventListener("click", () => stepSelectedProgressionPart(1));
+  els.progMenuToggleBtn.addEventListener("click", () => {
+    progressionUi.isMenuOpen = !progressionUi.isMenuOpen;
+    syncProgressionLayoutState();
+  });
+  els.progEditorToggleBtn.addEventListener("click", () => {
+    progressionUi.isEditorExpanded = !progressionUi.isEditorExpanded;
+    syncProgressionLayoutState();
+  });
+  els.playProgBtn.addEventListener("click", () => {
+    if (state.progression.playingPartId) {
+      stopProgressionPlayback();
+      setStatus(els.progStatus, "再生を停止しました。", "success");
+      render();
+      return;
+    }
+    if (state.progression.parts.length === 0) {
+      setStatus(els.progStatus, "再生対象がありません。", "error");
+      return;
+    }
+    const selectedId = state.progression.selectedPartId || state.progression.parts[0]?.id;
+    const startIndex = Math.max(0, state.progression.parts.findIndex((part) => part.id === selectedId));
+    void playProgressionPart(state.progression.parts[startIndex] || state.progression.parts[0], startIndex);
+      setStatus(els.progStatus, "再生を開始しました。", "success");
+  });
+  els.stopProgBtn.addEventListener("click", () => {
+    stopProgressionPlayback();
+    setStatus(els.progStatus, "停止しました。", "success");
+  });
+  els.progRootNoteInput.addEventListener("change", () => {
+    const parsed = resolveProgressionRootInput();
+    if (!parsed) {
+      setStatus(els.progStatus, "ルート音は C, D#, Bb などの形式で入力してください。", "error");
+      const parts = rootEditorParts();
+      els.progRootNoteInput.value = `${parts.letter}${parts.accidental}`;
+      if (els.progRootOctaveInput) els.progRootOctaveInput.value = parts.octave;
+      return;
+    }
+    const previousParts = rootEditorParts();
+    state.progressionEditor.rootNoteText = parsed.noteText;
+    const previousOctave = Number(previousParts.octave);
+    if (Number.isFinite(previousOctave)) {
+      const offset = Number(state.progressionEditor.voicingOctave || previousOctave) - previousOctave;
+      state.progressionEditor.voicingOctave = clamp(parsed.octave + offset, -2, 9);
+    } else {
+      state.progressionEditor.voicingOctave = parsed.octave;
+    }
+    setStatus(els.progStatus, "", "");
+    syncProgressionSelectionFromEditor("進行セルのルート変更", true);
+  });
+  const syncProgressionRootOctave = () => {
+    const parsed = resolveProgressionRootInput();
+    if (!parsed) {
+      const parts = rootEditorParts();
+      if (els.progRootOctaveInput) els.progRootOctaveInput.value = parts.octave;
+      return;
+    }
+    state.progressionEditor.rootNoteText = parsed.noteText;
+    syncProgressionSelectionFromEditor("進行セルのオクターブ変更", true);
+  };
+  els.progRootOctaveInput?.addEventListener("input", syncProgressionRootOctave);
+  els.progRootOctaveInput?.addEventListener("change", syncProgressionRootOctave);
+  els.progSectionNameInput?.addEventListener("input", () => {
+    state.progressionEditor.sectionName = String(els.progSectionNameInput.value || "");
+    syncProgressionSelectionFromEditor("進行セルのセクション変更", true);
+  });
+  const syncProgressionBeatInputs = () => {
+    const beats = clamp(Number(els.progBeatsNumeratorInput?.value) || 4, 1, 32);
+    const beatUnit = clamp(Number(els.progBeatsDenominatorInput?.value) || 4, 1, 32);
+    if (beats === state.progressionEditor.beats && beatUnit === state.progressionEditor.beatUnit) return;
+    state.progressionEditor.beats = beats;
+    state.progressionEditor.beatUnit = beatUnit;
+    syncProgressionSelectionFromEditor("進行セルの拍変更", true);
+  };
+  els.progBeatsNumeratorInput?.addEventListener("input", syncProgressionBeatInputs);
+  els.progBeatsNumeratorInput?.addEventListener("change", syncProgressionBeatInputs);
+  els.progBeatsDenominatorInput?.addEventListener("input", syncProgressionBeatInputs);
+  els.progBeatsDenominatorInput?.addEventListener("change", syncProgressionBeatInputs);
+  els.progBassInput?.addEventListener("focus", () => openProgressionPopover("bass"));
+  els.progBassInput?.addEventListener("pointerdown", () => openProgressionPopover("bass"));
+  els.progBassInput?.addEventListener("change", () => {
+    const raw = String(els.progBassInput.value || "").trim();
+    if (!raw || /^(root|p1)$/i.test(raw)) {
+      selectBassPreset(ROOT_BASS_TOKEN, "進行セルの bass 変更");
+      els.progBassInput.value = bassTokenLabel();
+      return;
+    }
+    if (selectBassAbsoluteNote(raw, "進行セルの bass 固定音変更")) {
+      els.progBassInput.value = bassTokenLabel();
+      return;
+    }
+    const preset = state.pitchPresets.find((item) =>
+      item.id === raw ||
+      item.name === raw ||
+      item.shortName === raw ||
+      formatPresetDisplayName(item) === raw
+    ) || null;
+    if (preset) {
+      selectBassPreset(preset.id, "進行セルの bass 変更");
+    }
+    els.progBassInput.value = bassTokenLabel();
+  });
+  els.progBassPopoverBtn?.addEventListener("click", () => openProgressionPopover("bass"));
+      selectBassPreset(ROOT_BASS_TOKEN, "進行セルの bass 変更");
+  els.progBassButtonGrid?.addEventListener("click", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLButtonElement)) return;
+    selectBassPreset(target.dataset.bassPresetId || "", "進行セルの bass 変更");
+  });
+  els.progBassButtonGrid?.addEventListener("pointerdown", (ev) => {
+    popoverUi.pointerDown = true;
+    const button = buttonAtClientPoint(els.progBassButtonGrid, ev.clientX, ev.clientY);
+    if (!(button instanceof HTMLButtonElement)) return;
+    selectBassPreset(button.dataset.bassPresetId || "", "進行セルの bass 変更");
+  });
+  els.progBassButtonGrid?.addEventListener("pointermove", (ev) => {
+    if (!popoverUi.pointerDown) return;
+    const button = buttonAtClientPoint(els.progBassButtonGrid, ev.clientX, ev.clientY);
+    if (!(button instanceof HTMLButtonElement)) return;
+    const presetId = button.dataset.bassPresetId || ROOT_BASS_TOKEN;
+    if (
+      state.progressionEditor.bassMode === "relative" &&
+      presetId === (state.progressionEditor.bassValue || ROOT_BASS_TOKEN)
+    ) return;
+    selectBassPreset(presetId, "進行セルの bass 変更");
+  });
+  els.progInversionPopoverBtn?.addEventListener("click", () => openProgressionPopover("inversion"));
+  els.progInversionButtonGrid?.addEventListener("click", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLButtonElement)) return;
+    selectInversionStep(Number(target.dataset.inversionStep), "進行セルの転回形変更");
+  });
+  els.progInversionButtonGrid?.addEventListener("pointerdown", (ev) => {
+    popoverUi.pointerDown = true;
+    const button = buttonAtClientPoint(els.progInversionButtonGrid, ev.clientX, ev.clientY);
+    if (!(button instanceof HTMLButtonElement)) return;
+    selectInversionStep(Number(button.dataset.inversionStep), "進行セルの転回形変更");
+  });
+  els.progInversionButtonGrid?.addEventListener("pointermove", (ev) => {
+    if (!popoverUi.pointerDown) return;
+    const button = buttonAtClientPoint(els.progInversionButtonGrid, ev.clientX, ev.clientY);
+    if (!(button instanceof HTMLButtonElement)) return;
+    const step = Number(button.dataset.inversionStep);
+    if (!Number.isFinite(step) || step === state.progressionEditor.inversionStep) return;
+    selectInversionStep(step, "進行セルの転回形変更");
+  });
+  els.progInversionPopoverBtn?.addEventListener("pointerdown", (ev) => {
+    if (!(ev.target instanceof HTMLElement)) return;
+    openProgressionPopover("inversion");
+    const startX = ev.clientX;
+    const startStep = Number(state.progressionEditor.inversionStep) || 0;
+    const startOctave = Number(state.progressionEditor.voicingOctave) || 4;
+    let appliedOffset = 0;
+    const move = (moveEv) => {
+      const offset = Math.trunc((moveEv.clientX - startX) / 24);
+      if (offset === appliedOffset) return;
+      appliedOffset = offset;
+      selectInversionStep(startStep + offset, "進行セルの転回形変更", startOctave);
+    };
+    const cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", cleanup);
+      window.removeEventListener("pointercancel", cleanup);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", cleanup);
+    window.addEventListener("pointercancel", cleanup);
+  });
+  els.progFlatBtn.addEventListener("click", () => {
+    applyRootAccidentalChange("b");
+  });
+  els.progNaturalBtn.addEventListener("click", () => {
+    applyRootAccidentalChange("");
+  });
+  els.progSharpBtn.addEventListener("click", () => {
+    applyRootAccidentalChange("#");
+  });
+  els.progRootLetterButtons.addEventListener("click", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLButtonElement)) return;
+    const note = target.dataset.note;
+    if (!note) return;
+    const parts = rootEditorParts();
+    setProgressionEditorRoot({ ...parts, letter: note });
+  });
+  els.progOctaveButtons.addEventListener("click", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLButtonElement)) return;
+    const octave = target.dataset.octave;
+    if (!octave) return;
+    const parts = rootEditorParts();
+    setProgressionEditorRoot({ ...parts, octave });
+  });
+  els.progChordButtonGrid.addEventListener("click", (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLButtonElement)) return;
+    const chordId = target.dataset.chordId;
+    if (!chordId) return;
+    state.progressionEditor.chordId = chordId;
     syncProgressionSelectionFromEditor("進行セルのコード変更", true);
   });
   els.chordTagFilterInput.addEventListener("input", () => {
