@@ -25,6 +25,7 @@
   --chord-tags-col: 5.8rem;
   --chord-memo-col: 6.9rem;
   --chord-choice-width: 124px;
+  --text-compact: clamp(0.75rem, 0.78vw, 0.875rem);
 }
 
 * { box-sizing: border-box; }
@@ -386,6 +387,12 @@ body.workspace-combined .chord-library-panel {
   min-height: 0;
   overflow: hidden;
 }
+body.workspace-combined .chord-library-search {
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin-block: 0;
+}
 body.workspace-combined #chordLibraryDetails {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -658,14 +665,14 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
 .preset-id,
 .composer-note,
 .cell-meta {
-  font-size: clamp(0.25rem, 0.42vw, 0.48rem);
+  font-size: var(--text-compact);
   line-height: 1.1;
 }
 .label-lead,
 .inline-check,
 .progression-columns,
 .loop-inline {
-  font-size: clamp(0.25rem, 0.42vw, 0.48rem);
+  font-size: var(--text-compact);
   line-height: 1.1;
 }
 .readout {

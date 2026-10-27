@@ -8,6 +8,18 @@ try {
     const errors = [];
     page.on("pageerror", (e)=>errors.push(String(e)));
     await page.goto("http://127.0.0.1:4173/", {waitUntil:"domcontentloaded"});
+    const smallTextRoles = await page.evaluate(() => {
+      const selectors = [".readout", ".panel-note", ".status-text", ".preset-id", ".composer-note",
+        ".cell-meta", ".label-lead", ".inline-check", ".progression-columns", ".loop-inline"];
+      return selectors.flatMap((selector) => [...document.querySelectorAll(selector)].map((node) => ({
+        selector, text: node.textContent.trim().slice(0, 24),
+        fontSize: Number.parseFloat(getComputedStyle(node).fontSize)
+      }))).filter((entry) => entry.text);
+    });
+    for (const role of smallTextRoles) {
+      assert.ok(role.fontSize >= 12,
+        "small UI text is unreadable below 12px at " + width + ": " + JSON.stringify(role));
+    }
     if (width <= 640) {
       const header = await page.evaluate(() => {
         const bounds = (selector) => {
@@ -255,10 +267,12 @@ try {
       const libraryBeforeResize = await page.evaluate(() => {
         const panel = document.querySelector(".chord-library-panel").getBoundingClientRect();
         const details = document.querySelector("#chordLibraryDetails").getBoundingClientRect();
+        const search = document.querySelector(".chord-library-search").getBoundingClientRect();
         const list = document.querySelector("#chordPresetList");
         const rect = list.getBoundingClientRect();
         return {
           panel:{top:panel.top,bottom:panel.bottom},
+          search:{height:search.height},
           details:{top:details.top,bottom:details.bottom},
           list:{top:rect.top,bottom:rect.bottom,height:rect.height,clientHeight:list.clientHeight,scrollHeight:list.scrollHeight,overflowY:getComputedStyle(list).overflowY}
         };
@@ -266,6 +280,8 @@ try {
       assert.ok(libraryBeforeResize.list.height >= 48 && libraryBeforeResize.list.clientHeight > 0,
         "chord library list has no usable viewport at " + width + ": " + JSON.stringify(libraryBeforeResize));
       assert.equal(libraryBeforeResize.list.overflowY,"auto","chord library rows must scroll in their own list at " + width);
+      assert.ok(libraryBeforeResize.search.height <= 40,
+        "desktop chord library search occupies an unnecessary row at " + width + ": " + JSON.stringify(libraryBeforeResize));
       assert.ok(libraryBeforeResize.list.bottom <= libraryBeforeResize.details.bottom + 1 &&
         libraryBeforeResize.details.bottom <= libraryBeforeResize.panel.bottom + 1,
         "chord library content escapes its allocated region at " + width + ": " + JSON.stringify(libraryBeforeResize));
