@@ -71,6 +71,31 @@ try {
       assert.ok(shell.progressionWidth <= shell.viewportWidth, "progression workspace wider than viewport at " + width);
       if (width > 640) assert.equal(shell.layoutDisplay,"block","intermediate tablet progression must use natural block flow at " + width);
     }
+    if (width <= 640) {
+      const task = await page.evaluate(() => {
+        const top = (sel) => document.querySelector(sel)?.getBoundingClientRect().top ?? -1;
+        const bottom = (sel) => document.querySelector(sel)?.getBoundingClientRect().bottom ?? -1;
+        return {
+          rootsBottom: bottom("#progRootLetterButtons"),
+          beatsTop: top(".beat-token"),
+          voicingTop: top(".progression-voice-row"),
+          chordTop: top("#progChordButtonGrid"),
+          viewport: innerHeight
+        };
+      });
+      assert.ok(task.rootsBottom <= task.beatsTop + 2, "root and duration controls not adjacent/order mismatch " + width + " " + JSON.stringify(task));
+      assert.ok(task.beatsTop <= task.chordTop + 2 && task.chordTop < task.voicingTop,
+        "advanced controls displaced main editor " + width + " " + JSON.stringify(task));
+      assert.ok(task.chordTop < task.viewport, "chord type selection outside first viewport " + width + " " + JSON.stringify(task));
+      const bassPanel = page.locator("#progBassPopover");
+      assert.equal(await bassPanel.isVisible(), false, "secondary Bass panel should be collapsed on phone");
+      await page.locator("#progBassPopoverBtn").click();
+      assert.equal(await bassPanel.isVisible(), true, "Bass options cannot be opened");
+      assert.equal(await page.locator("#progBassPopoverBtn").getAttribute("aria-expanded"), "true");
+      await page.locator("#progInversionPopoverBtn").click();
+      assert.equal(await page.locator("#progInversionPopover").isVisible(), true, "inversion options cannot be opened");
+      assert.equal(await bassPanel.isVisible(), false, "switching secondary panel leaves Bass overlay visible");
+    }
     const columnInput = page.locator("#progColumnsSelect");
     if (width >= 800) {
       const shell = await page.evaluate(()=>({

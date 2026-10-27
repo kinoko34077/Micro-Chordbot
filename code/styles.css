@@ -1029,6 +1029,7 @@ body.workspace-combined .chord-library-panel .panel-note {
 #progRootNoteInput {
   min-width: 0;
 }
+.progression-voice-row #progBassPopoverBtn { display: none; }
 .progression-voice-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, max-content));
@@ -1739,9 +1740,14 @@ body.workspace-combined .chord-library-panel .panel-note {
     font-size: 0.68rem;
   }
   #view-progression .progression-editor-body {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
     margin-top: 6px;
   }
-  /* Preserve the base editor body's grid display when expanded. */
+  /* Phone editing follows its actual document order rather than desktop
+     two-column placement rules. */
   #view-progression .progression-root-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
@@ -1755,13 +1761,20 @@ body.workspace-combined .chord-library-panel .panel-note {
     gap: 3px;
   }
   #view-progression .progression-voice-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr) minmax(72px, auto) minmax(72px, auto);
     gap: 4px;
   }
+  #view-progression .progression-voice-row #progBassPopoverBtn {
+    display: inline-flex;
+    justify-content: center;
+  }
+  /* Secondary Bass/voicing options are directly discoverable from their
+     adjacent buttons, without occupying the initial chord-choice viewport. */
   #view-progression .progression-popover-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 4px;
+    display: block;
   }
+  #view-progression .progression-popover:not(.active) { display: none; }
+  #view-progression .progression-popover.active { display: grid; }
   #view-progression .progression-popover {
     padding: 4px;
   }
