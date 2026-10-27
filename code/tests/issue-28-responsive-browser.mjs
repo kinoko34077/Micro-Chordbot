@@ -98,8 +98,9 @@ try {
         "duration selection did not persist in editor at " + width);
       const chordChoices = page.locator("#progChordButtonGrid button[data-chord-id]");
       assert.ok(await chordChoices.count() > 0, "chord choices not populated at " + width);
+      const pickedChordId = await chordChoices.first().getAttribute("data-chord-id");
       await chordChoices.first().click();
-      assert.ok(await chordChoices.first().evaluate(el => el.classList.contains("active")),
+      assert.ok(await page.locator(`#progChordButtonGrid button[data-chord-id="${pickedChordId}"]`).evaluate(el => el.classList.contains("active")),
         "chord choice not selected at " + width);
       const bassPanel = page.locator("#progBassPopover");
       assert.equal(await bassPanel.isVisible(), false, "secondary Bass panel should be collapsed on phone");
