@@ -1542,7 +1542,7 @@ body.workspace-combined .chord-library-panel .panel-note {
   .compact-grid { grid-template-columns: 1fr; }
   .library-controls-grid { grid-template-columns: 1fr; }
   .sustain-toggle { min-height: 40px; }
-  .view#view-progression { display: block; }
+  .view#view-progression.active { display: block; }
   .progression-chunk-grid { grid-template-columns: repeat(var(--progression-columns), minmax(0, 1fr)); }
   .progression-toolbar { flex-wrap: wrap; align-items: flex-start; }
   /* JS-owned hidden controls menu visibility; CSS owns only its layout. */
