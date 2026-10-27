@@ -135,6 +135,9 @@
             <p id="recallChordStatus" class="status-text" aria-live="polite"></p>
           </div>
         </div>
+        <label class="chord-library-search">コードを検索
+          <input id="chordTagFilterInput" type="search" placeholder="コード名・ID・タグで検索" autocomplete="off">
+        </label>
         <div class="library-controls-grid visually-hidden">
           <label>コードID
             <input id="chordIdInput" type="text" placeholder="CHORD_MAJ">
@@ -154,9 +157,6 @@
           <label>基音プリセット
             <select id="recallRootPresetSelect"></select>
           </label>
-          <label>一覧フィルタ
-            <input id="chordTagFilterInput" type="text" placeholder="tag: core / bright / min">
-          </label>
           <label>メモ
             <textarea id="chordMemoInput" rows="2" placeholder="メモ"></textarea>
           </label>
@@ -173,7 +173,10 @@
         <div class="inline-row library-actions visually-hidden">
           <button id="saveChordBtn" type="button">現音高から保存</button>
         </div>
-        <div id="chordPresetList" class="preset-list scroll-list"></div>
+        <details id="chordLibraryDetails" class="chord-library-details" open>
+          <summary>コード一覧・詳細を表示</summary>
+          <div id="chordPresetList" class="preset-list scroll-list"></div>
+        </details>
       </section>
     </section>
 
