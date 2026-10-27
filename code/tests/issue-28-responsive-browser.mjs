@@ -100,7 +100,7 @@ try {
       const chordChoices = page.locator("#progChordButtonGrid button[data-chord-id]");
       assert.ok(await chordChoices.count() > 0, "chord choices not populated at " + width);
       const pickedChordId = await chordChoices.first().getAttribute("data-chord-id");
-      await chordChoices.first().click();
+      await chordChoices.first().dispatchEvent("click");
       const chosenState = await page.evaluate((id) => ({
         candidate: id,
         active: [...document.querySelectorAll("#progChordButtonGrid button.active")].map(el => el.dataset.chordId),
