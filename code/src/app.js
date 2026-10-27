@@ -754,7 +754,6 @@ function attachWorkspaceResizers() {
     if (!(resizer instanceof HTMLElement)) return;
     if (resizer.dataset.workspaceResizer !== "pitch-progression") return;
     const rect = els.workspaceMain.getBoundingClientRect();
-    const start = readWorkspaceColumns(rect.width);
     const minLeft = 280;
     const minRight = 480;
     const dividerWidth = 8;
