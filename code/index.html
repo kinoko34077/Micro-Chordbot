@@ -262,17 +262,19 @@
             <button type="button" data-note="B">B</button>
           </div>
 
-          <label class="progression-token progression-token-input beat-token">
-            <span class="progression-token-label">拍:</span>
-            <span class="beat-inline">
-              <input id="progBeatsNumeratorInput" type="number" min="1" max="32" step="1" value="4" aria-label="beats numerator">
-              <span>/</span>
-              <input id="progBeatsDenominatorInput" type="number" min="1" max="32" step="1" value="4" aria-label="beats denominator">
-            </span>
-          </label>
-          <label class="progression-filter-label">🔎
-            <input id="progChordTagFilterInput" type="text" placeholder="tag: core / min / sus">
-          </label>
+          <div class="progression-choice-tools">
+            <label class="progression-token progression-token-input beat-token">
+              <span class="progression-token-label">拍:</span>
+              <span class="beat-inline">
+                <input id="progBeatsNumeratorInput" type="number" min="1" max="32" step="1" value="4" aria-label="beats numerator">
+                <span>/</span>
+                <input id="progBeatsDenominatorInput" type="number" min="1" max="32" step="1" value="4" aria-label="beats denominator">
+              </span>
+            </label>
+            <label class="progression-filter-label">🔎
+              <input id="progChordTagFilterInput" type="text" placeholder="tag: core / min / sus" aria-label="コード種類を検索">
+            </label>
+          </div>
           <div id="progChordButtonGrid" class="quick-grid chord-grid"></div>
 
           <div class="progression-voice-row">
