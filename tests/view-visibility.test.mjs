@@ -8,7 +8,8 @@ const app = readFileSync(new URL("../code/src/app.js", import.meta.url), "utf8")
 test("inactive progression view is not displayed by phone-specific CSS", () => {
   assert.match(css, /\.view\s*\{\s*display:\s*none\s*;/);
   assert.match(css, /\.view#view-progression\.active\s*\{\s*display:\s*block\s*;/);
-  assert.doesNotMatch(css, /\.view#view-progression\s*\{\s*display:\s*block\s*;/);
+  assert.match(css, /\.view#view-progression\.active\s*\{\s*display:\s*grid\s*;/);
+  assert.doesNotMatch(css, /\.view#view-progression\s*\{\s*display:\s*(?:block|grid)\s*;/);
 });
 
 test("the single view-state controller keeps selected and combined visibility distinct", () => {
