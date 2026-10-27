@@ -202,6 +202,32 @@ try {
       assert.equal(afterResize.selectedPart,beforeResize.selectedPart,"divider drag moved the selected progression target at " + width);
       assert.equal(afterResize.root,beforeResize.root,"divider drag changed the selected progression value at " + width);
       assert.ok(afterResize.saved?.left >= 280,"divider drag was not persisted at " + width);
+      const mainRect = await page.locator("main").boundingBox();
+      const minRightX = mainRect.x + mainRect.width - 480 - 8;
+      await page.mouse.move(divider.x + divider.width / 2, divider.y + 80);
+      await page.mouse.down();
+      await page.mouse.move(minRightX, divider.y + 80, {steps:4});
+      await page.mouse.up();
+      const minimumWidthLayout = await page.evaluate(() => {
+        const bounds = (selector) => {
+          const rect = document.querySelector(selector).getBoundingClientRect();
+          return {left:rect.left,right:rect.right,width:rect.width};
+        };
+        return {
+          progression:bounds("#view-progression"),
+          toolbar:bounds(".progression-toolbar"),
+          grid:bounds("#progressionGrid"),
+          editor:bounds("#progressionEditor"),
+          library:bounds(".chord-library-panel")
+        };
+      });
+      assert.ok(minimumWidthLayout.progression.width >= 470,
+        "right workspace did not preserve its resize minimum at " + width + ": " + JSON.stringify(minimumWidthLayout));
+      for (const part of ["toolbar","grid","editor","library"]) {
+        assert.ok(minimumWidthLayout[part].left >= minimumWidthLayout.progression.left - 1 &&
+          minimumWidthLayout[part].right <= minimumWidthLayout.progression.right + 1,
+        part + " is clipped when progression workspace is resized to minimum at " + width + ": " + JSON.stringify(minimumWidthLayout));
+      }
     }
     if (width <= 640) {
       const menu = page.locator("#progMenuToggleBtn");
