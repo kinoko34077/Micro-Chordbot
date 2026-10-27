@@ -29,6 +29,7 @@ test("desktop workspaces keep pitch on the left and progression editing on the r
   assert.match(pitch, /grid-column:\s*1\s*;/);
   assert.match(progression, /display:\s*grid\s*;/);
   assert.match(progression, /grid-column:\s*3\s*;/);
+  assert.match(progression, /grid-template-columns:\s*minmax\(0,\s*1fr\)\s*;/);
   assert.doesNotMatch(progression, /display:\s*contents\s*;/);
   assert.match(app, /data-workspace-resizer="pitch-progression"/);
   assert.doesNotMatch(app, /workspace-mid-col|workspace-resizer-right/);
