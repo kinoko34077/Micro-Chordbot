@@ -57,6 +57,7 @@ try {
           "phone " + name + " search field remains too narrow at " + width + ": " + JSON.stringify(pitchSearches));
         assert.ok(input.left >= 0 && input.right <= width + 1,
           "phone " + name + " search field exceeds the viewport at " + width + ": " + JSON.stringify(pitchSearches));
+        // A declared 40px box can measure 39.99997px after flex/grid subpixel layout.
         assert.ok(input.height >= 39.5 && input.fontSize >= 16,
           "phone " + name + " search field is too small to tap or triggers iOS focus zoom at " + width + ": " + JSON.stringify(pitchSearches));
       }
@@ -102,6 +103,7 @@ try {
           beatsTop: top(".beat-token"),
           voicingTop: top(".progression-voice-row"),
           chordTop: top("#progChordButtonGrid"),
+          chordSearchHeight: document.querySelector("#progChordTagFilterInput").getBoundingClientRect().height,
           firstChordChoicesBottom: Math.max(...[...document.querySelectorAll("#progChordButtonGrid button[data-chord-id]")]
             .slice(0, 3).map((button) => button.getBoundingClientRect().bottom)),
           viewport: innerHeight
@@ -111,8 +113,10 @@ try {
       assert.ok(task.beatsTop <= task.chordTop + 2 && task.chordTop < task.voicingTop,
         "advanced controls displaced main editor " + width + " " + JSON.stringify(task));
       assert.ok(task.chordTop < task.viewport, "chord type selection outside first viewport " + width + " " + JSON.stringify(task));
-      assert.ok(task.firstChordChoicesBottom <= task.viewport + 1,
-        "first chord choices are only partly visible at the initial phone viewport " + width + " " + JSON.stringify(task));
+      assert.ok(task.firstChordChoicesBottom <= task.viewport - 8,
+        "first chord choices must fit with a visible margin at the phone viewport edge " + width + " " + JSON.stringify(task));
+      assert.ok(task.chordSearchHeight >= 39.5,
+        "chord search tap target is too small at " + width + " " + JSON.stringify(task));
       await page.locator("#progressionGrid .progression-cell").first().click();
       // Verify primary editor actions actually change their selected state.
       await page.locator('#progRootLetterButtons button[data-note="G"]').click();
