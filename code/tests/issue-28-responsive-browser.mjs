@@ -97,6 +97,15 @@ try {
       assert.equal(await page.locator("#progInversionPopover").isVisible(), true, "inversion options cannot be opened");
       assert.equal(await bassPanel.isVisible(), false, "switching secondary panel leaves Bass overlay visible");
     }
+    const libraryFilter = page.locator("#chordTagFilterInput");
+    assert.equal(await libraryFilter.isVisible(), true, "library search is hidden at " + width);
+    const detailPanel = page.locator("#chordLibraryDetails");
+    if (width <= 640) {
+      assert.equal(await detailPanel.evaluate(el => el.open), false, "phone chord detail list should start collapsed at " + width);
+      await libraryFilter.fill("core");
+      assert.equal(await detailPanel.evaluate(el => el.open), true, "search did not reveal detailed results at " + width);
+      await libraryFilter.fill("");
+    }
     const columnInput = page.locator("#progColumnsSelect");
     if (width >= 1200) {
       const shell = await page.evaluate(()=>({

@@ -1154,6 +1154,25 @@ body.workspace-combined .chord-library-panel .panel-note {
   margin-top: 8px;
   overflow-x: auto;
 }
+.chord-library-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  margin-block: 8px;
+  font-size: 0.82rem;
+}
+.chord-library-search input {
+  width: 100%;
+  min-width: 0;
+}
+.chord-library-details > summary {
+  cursor: pointer;
+  padding: 8px 4px;
+  color: var(--fg);
+  font-size: 0.86rem;
+}
+.chord-library-details > summary:focus-visible { outline: 2px solid var(--accent); }
+.chord-library-details > .scroll-list { margin-top: 4px; }
 .scroll-list {
   max-height: min(70vh, 720px);
   overflow: auto;

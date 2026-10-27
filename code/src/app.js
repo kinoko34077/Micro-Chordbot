@@ -663,6 +663,10 @@ function ensureWorkspaceDom() {
   if (els.chordLibraryPanel && els.progressionView && els.chordLibraryPanel.parentElement !== els.progressionView) {
     els.progressionView.appendChild(els.chordLibraryPanel);
   }
+  const libraryDetails = document.getElementById("chordLibraryDetails");
+  if (libraryDetails && window.matchMedia("(max-width: 640px)").matches) {
+    libraryDetails.open = false;
+  }
   document.querySelectorAll("#view-settings .panel-heading h3").forEach((node, index) => {
     node.textContent = ["Runtime / PWA", "一覧幅", "丸め / 再生", "保存 / 読込"][index] || node.textContent;
   });
@@ -4387,7 +4391,13 @@ function attachEvents() {
     state.progressionEditor.chordId = chordId;
     syncProgressionSelectionFromEditor("進行セルのコード変更", true);
   });
-  els.chordTagFilterInput.addEventListener("input", render);
+  els.chordTagFilterInput.addEventListener("input", () => {
+    if (els.chordTagFilterInput.value.trim()) {
+      const details = document.getElementById("chordLibraryDetails");
+      if (details) details.open = true;
+    }
+    render();
+  });
   els.activeNotesFilterInput?.addEventListener("input", render);
   els.pitchPresetFilterInput?.addEventListener("input", render);
   els.progChordTagFilterInput.addEventListener("input", render);
