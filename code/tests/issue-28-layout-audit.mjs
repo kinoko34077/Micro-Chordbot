@@ -62,6 +62,8 @@ try {
           pitchToolbar: box(".pitch-toolbar"),
           pitchLine: box(".line-wrap"),
           activeNotes: box(".active-notes-panel"),
+          activeNotesSearch: box("#activeNotesFilterInput"),
+          pitchPresetSearch: box("#pitchPresetFilterInput"),
           pitchPresets: box("#pitchPresetList"),
           progressionToolbar: box(".progression-toolbar"),
           progressionGrid: box("#progressionGrid"),
