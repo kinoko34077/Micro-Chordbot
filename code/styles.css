@@ -1539,11 +1539,11 @@ body.workspace-combined .chord-library-panel .panel-note {
     width: 100%;
     min-width: 0;
     display: grid;
-    grid-template-columns: 34px minmax(0, 1fr);
+    grid-template-columns: 36px minmax(0, 1fr);
     align-items: center;
     gap: 6px;
   }
-  .brand-title { width: 34px; height: 34px; font-size: 1.15rem; }
+  .brand-title { width: 36px; height: 36px; font-size: 1.15rem; }
   .view-nav {
     width: 100%;
     min-width: 0;
@@ -1551,17 +1551,17 @@ body.workspace-combined .chord-library-panel .panel-note {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
   }
-  .view-nav button { min-width: 0; min-height: 36px; padding: 5px 6px; font-size: 0.9rem; }
+  .view-nav button { min-width: 0; min-height: 40px; padding: 5px 6px; font-size: 0.9rem; }
   .history-buttons {
     width: 100%;
     min-width: 0;
     display: grid;
-    grid-template-columns: 36px 36px minmax(0, 1fr) 36px;
+    grid-template-columns: 40px 40px minmax(0, 1fr) 40px;
     align-items: center;
     justify-content: stretch;
     gap: 6px;
   }
-  .history-buttons .icon-button { width: 36px; min-width: 36px; height: 36px; }
+  .history-buttons .icon-button { width: 40px; min-width: 40px; height: 40px; }
   .history-buttons .settings-menu-button { grid-column: 4; }
   .master-volume-inline {
     width: 100%;
