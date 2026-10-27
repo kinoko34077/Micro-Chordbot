@@ -33,3 +33,13 @@ jobs:
           if test -f code/tests/issue-28-pitch-browser.mjs; then
             node code/tests/issue-28-pitch-browser.mjs
           fi
+          node code/tests/issue-28-layout-audit.mjs
+
+      - name: Upload viewport screenshots and geometry measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-28-layout-audit
+          path: artifacts/issue-28-layout-audit/
+          if-no-files-found: warn
+          retention-days: 30
