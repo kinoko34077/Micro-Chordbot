@@ -306,6 +306,7 @@ body.workspace-combined #view-progression.active {
   display: grid;
   grid-column: 3;
   grid-row: 1;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto minmax(220px, 0.8fr) minmax(0, 1fr);
   gap: 6px;
   min-width: 0;
