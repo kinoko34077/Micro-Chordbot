@@ -84,7 +84,7 @@ try {
         };
       });
       assert.ok(task.rootsBottom <= task.beatsTop + 2, "root and duration controls not adjacent/order mismatch " + width + " " + JSON.stringify(task));
-      assert.ok(task.beatsTop <= task.voicingTop + 2 && task.voicingTop < task.chordTop,
+      assert.ok(task.beatsTop <= task.chordTop + 2 && task.chordTop < task.voicingTop,
         "advanced controls displaced main editor " + width + " " + JSON.stringify(task));
       assert.ok(task.chordTop < task.viewport, "chord type selection outside first viewport " + width + " " + JSON.stringify(task));
       const bassPanel = page.locator("#progBassPopover");
