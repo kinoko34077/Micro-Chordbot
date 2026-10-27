@@ -292,6 +292,31 @@ try {
         });
         assert.equal(reachable,true,"chord library list cannot reach its final rows at " + width);
       }
+      const libraryFilter = page.locator("#chordTagFilterInput");
+      await libraryFilter.fill("core");
+      const beforeReflow = await page.evaluate(() => {
+        const list = document.querySelector("#chordPresetList");
+        list.scrollTop = list.scrollHeight;
+        return {
+          filter: document.querySelector("#chordTagFilterInput").value,
+          scrollTop: list.scrollTop,
+          scrollHeight: list.scrollHeight,
+          clientHeight: list.clientHeight
+        };
+      });
+      assert.ok(beforeReflow.scrollHeight > beforeReflow.clientHeight && beforeReflow.scrollTop > 0,
+        "desktop filter fixture does not overflow its list at " + width + ": " + JSON.stringify(beforeReflow));
+      await page.setViewportSize({width,height:799});
+      await page.waitForTimeout(80);
+      const afterReflow = await page.evaluate(() => ({
+        filter: document.querySelector("#chordTagFilterInput").value,
+        scrollTop: document.querySelector("#chordPresetList").scrollTop
+      }));
+      assert.equal(afterReflow.filter,beforeReflow.filter,"desktop library search changed during viewport reflow at " + width);
+      assert.ok(Math.abs(afterReflow.scrollTop-beforeReflow.scrollTop) <= 1,
+        "desktop library scroll position reset during viewport reflow at " + width + ": " + JSON.stringify({beforeReflow,afterReflow}));
+      await page.setViewportSize({width,height:800});
+      await page.waitForTimeout(80);
       const beforeResize = await page.evaluate(() => ({
         pitchWidth:document.querySelector("#view-pitch").getBoundingClientRect().width,
         selectedPart:document.querySelector("#progressionGrid .progression-cell.active")?.dataset.partId || null,
