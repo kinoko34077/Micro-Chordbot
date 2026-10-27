@@ -101,8 +101,14 @@ try {
       assert.ok(await chordChoices.count() > 0, "chord choices not populated at " + width);
       const pickedChordId = await chordChoices.first().getAttribute("data-chord-id");
       await chordChoices.first().click();
-      assert.ok(await page.locator(`#progChordButtonGrid button[data-chord-id="${pickedChordId}"]`).evaluate(el => el.classList.contains("active")),
-        "chord choice not selected at " + width);
+      const chosenState = await page.evaluate((id) => ({
+        candidate: id,
+        active: [...document.querySelectorAll("#progChordButtonGrid button.active")].map(el => el.dataset.chordId),
+        selectedCell: document.querySelector("#progressionGrid .progression-cell.active")?.dataset.partId,
+        status: document.querySelector("#progStatus")?.textContent
+      }), pickedChordId);
+      assert.ok(chosenState.active.includes(pickedChordId),
+        "chord choice not selected at " + width + ": " + JSON.stringify(chosenState));
       const bassPanel = page.locator("#progBassPopover");
       assert.equal(await bassPanel.isVisible(), false, "secondary Bass panel should be collapsed on phone");
       await page.locator("#progBassPopoverBtn").click();
