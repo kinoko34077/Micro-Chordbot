@@ -2499,34 +2499,30 @@ function paintProgressionGridReorderState() {
   });
 }
 
-function exportProject() {
-  const payload = buildProjectPayloadForSave();
+function downloadJsonFile(filename, payload) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "project.mcb";
-  a.click();
-  URL.revokeObjectURL(a.href);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.hidden = true;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Safari and other browsers may start reading the Blob after the click task.
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportProject() {
+  downloadJsonFile("project.mcb", buildProjectPayloadForSave());
 }
 
 function exportLibrary() {
-  const payload = buildLibraryPayloadForSave();
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "library.mcbl";
-  a.click();
-  URL.revokeObjectURL(a.href);
+  downloadJsonFile("library.mcbl", buildLibraryPayloadForSave());
 }
 
 function exportProgressionProject() {
-  const payload = buildProgressionPayloadForSave();
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "progression.mcbp";
-  a.click();
-  URL.revokeObjectURL(a.href);
+  downloadJsonFile("progression.mcbp", buildProgressionPayloadForSave());
 }
 
 function mergeById(existingItems, incomingItems) {
