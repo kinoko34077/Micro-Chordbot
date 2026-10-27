@@ -678,10 +678,6 @@ function ensureWorkspaceDom() {
   setLabelLead(els.phaseModeSelect, "位相");
   setLabelLead(els.roundUnitInput, "丸め ¢");
   setLabelLead(els.roundingModeSelect, "丸め");
-  const beatToken = els.progBeatsNumeratorInput?.closest(".beat-token");
-  if (beatToken && els.progInversionPopover && beatToken.previousElementSibling !== els.progInversionPopover) {
-    els.progInversionPopover.after(beatToken);
-  }
   if (els.pitchPresetFilterInput) {
     const pitchPresetBlock = els.pitchPresetFilterInput.closest(".library-block");
     const head = pitchPresetBlock?.querySelector(".library-block-head");
