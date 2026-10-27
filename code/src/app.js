@@ -5501,6 +5501,10 @@ function render() {
       renderPitchPresetsV2
     );
 
+
+  }
+
+  if (progressionVisible) {
     renderIfChanged(
       "chordPresets",
       [
@@ -5520,9 +5524,6 @@ function render() {
       ].join("|"),
       renderChordPresetsV2
     );
-  }
-
-  if (progressionVisible) {
     renderIfChanged(
       "progressionGrid",
       `${dataRevision.progression}|${dataRevision.chord}|${state.settings.progressionCellWidth}|${state.progression.selectedPartId || ""}|${state.progression.playingPartId || ""}|${progressionUi.draggingPartId || ""}|${progressionUi.dragOverPartId || ""}|${progressionUi.dragPlacement || ""}`,
