@@ -1716,10 +1716,11 @@ body.workspace-combined .chord-library-panel .panel-note {
     position: sticky;
     top: 0;
     z-index: 8;
-    display: flex;
-    flex-wrap: nowrap;
+    display: grid;
+    grid-template-columns: repeat(7, 40px);
     align-items: center;
-    gap: 4px;
+    justify-content: start;
+    gap: 1px;
     min-width: 0;
     padding: 5px 4px;
     background: var(--bg, #101827);
@@ -1727,17 +1728,45 @@ body.workspace-combined .chord-library-panel .panel-note {
   }
   #view-progression .progression-toolbar > button,
   #view-progression .progression-toolbar .progression-counter {
-    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
     min-width: 0;
+    min-height: 40px;
+    padding: 2px;
+    justify-self: stretch;
+  }
+  #view-progression .progression-toolbar > button {
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+  #view-progression .progression-toolbar .progression-counter {
+    display: grid;
+    place-items: center;
+    padding-inline: 1px;
+    font-size: 0.62rem;
+    letter-spacing: 0;
   }
   #view-progression .progression-toolbar .progression-columns {
-    flex: 1 1 auto;
+    display: block;
+    width: 40px;
+    height: 40px;
     min-width: 0;
-    overflow: hidden;
+    overflow: visible;
+  }
+  #view-progression .progression-columns-label {
+    display: none;
   }
   #view-progression .progression-toolbar .progression-columns select {
-    max-width: 100%;
-    min-width: 0;
+    width: 40px;
+    height: 40px;
+    max-width: 40px;
+    min-width: 40px;
+    padding: 0 2px;
+    font-size: 0.72rem;
+  }
+  #view-progression .progression-menu-toggle {
+    font-size: 0.62rem !important;
+    padding-inline: 1px !important;
   }
   #view-progression .progression-toolbar-actions {
     position: absolute;

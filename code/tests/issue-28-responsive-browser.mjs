@@ -74,6 +74,30 @@ try {
     }
     await page.locator('button[data-view="progression"]').click();
     await page.waitForTimeout(150);
+    if (width <= 640) {
+      const toolbarControls = await page.evaluate(() => {
+        const rect = (node) => {
+          const r = node.getBoundingClientRect();
+          return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
+        };
+        const toolbar = document.querySelector(".progression-toolbar");
+        return {
+          toolbar: rect(toolbar),
+          viewport: innerHeight,
+          controls: ["#progPrevBtn", "#progCounter", "#progNextBtn", "#playProgBtn", "#stopProgBtn", "#progChunkSelect", "#progMenuToggleBtn"]
+            .map((selector) => ({ selector, ...rect(document.querySelector(selector)) }))
+        };
+      });
+      for (const control of toolbarControls.controls) {
+        assert.ok(control.left >= toolbarControls.toolbar.left - 1 && control.right <= toolbarControls.toolbar.right + 1,
+          "mobile toolbar control is clipped at " + width + ": " + JSON.stringify({toolbarControls,control}));
+        assert.ok(control.top >= 0 && control.bottom <= toolbarControls.viewport + 1,
+          "mobile toolbar control is outside the initial viewport at " + width + ": " + JSON.stringify(control));
+        assert.ok(control.height >= 39.5, "mobile toolbar touch target is too short at " + width + ": " + JSON.stringify(control));
+      }
+      assert.equal(await page.locator("#progChunkSelect").getAttribute("aria-label"), "チャンクを選択");
+      assert.equal(await page.locator("#progMenuToggleBtn").getAttribute("aria-label"), "進行メニューを開く");
+    }
     if (width > 640 && width < 1200) {
       const choiceBounds = await page.evaluate(() => {
         const box = (selector) => {
@@ -303,7 +327,9 @@ try {
     if (width <= 640) {
       const menu = page.locator("#progMenuToggleBtn");
       assert.equal(await menu.isVisible(), true, "mobile menu toggle missing at " + width);
+      assert.equal(await menu.getAttribute("aria-label"), "進行メニューを開く");
       await menu.click();
+      assert.equal(await menu.getAttribute("aria-label"), "進行メニューを閉じる");
       assert.equal(await page.locator("#progToolbarActions").isVisible(), true, "menu clipped or hidden at " + width);
       const menuDisplay = await page.locator("#progToolbarActions").evaluate(e=>getComputedStyle(e).display);
       assert.equal(menuDisplay,"flex","opened menu must preserve the base flex layout at " + width);

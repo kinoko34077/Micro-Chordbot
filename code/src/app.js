@@ -1598,7 +1598,8 @@ function syncProgressionLayoutState() {
   els.progEditorToggleBtn.hidden = !compact;
   els.progMenuToggleBtn.setAttribute("aria-expanded", compact && progressionUi.isMenuOpen ? "true" : "false");
   els.progEditorToggleBtn.setAttribute("aria-expanded", editorExpanded ? "true" : "false");
-  els.progMenuToggleBtn.textContent = compact && progressionUi.isMenuOpen ? "メニューを閉じる" : "メニューを開く";
+  els.progMenuToggleBtn.textContent = "その他";
+  els.progMenuToggleBtn.setAttribute("aria-label", compact && progressionUi.isMenuOpen ? "進行メニューを閉じる" : "進行メニューを開く");
   els.progEditorToggleBtn.textContent = editorExpanded ? "エディタを閉じる" : "エディタを開く";
 }
 

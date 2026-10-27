@@ -187,10 +187,11 @@
         <button id="progNextBtn" type="button" aria-label="次のチャンク">▶</button>
         <button id="playProgBtn" type="button" aria-label="再生">▶</button>
         <button id="stopProgBtn" type="button" aria-label="停止">■</button>
-        <label class="progression-columns">チャンク
-          <select id="progChunkSelect"></select>
+        <label class="progression-columns">
+          <span class="progression-columns-label">チャンク</span>
+          <select id="progChunkSelect" aria-label="チャンクを選択"></select>
         </label>
-        <button id="progMenuToggleBtn" class="progression-menu-toggle" type="button" aria-expanded="false" aria-controls="progToolbarActions">メニュー</button>
+        <button id="progMenuToggleBtn" class="progression-menu-toggle" type="button" aria-label="進行メニューを開く" aria-expanded="false" aria-controls="progToolbarActions">その他</button>
         <div id="progToolbarActions" class="progression-toolbar-actions">
           <label class="inline-check loop-inline">
             <input id="progLoopInput" type="checkbox">
