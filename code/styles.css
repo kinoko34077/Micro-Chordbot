@@ -378,9 +378,24 @@ body.workspace-combined .progression-grid {
 body.workspace-combined .chord-library-panel {
   grid-column: auto;
   grid-row: auto;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
   margin-top: 0;
   max-height: none;
   min-height: 0;
+  overflow: hidden;
+}
+body.workspace-combined #chordLibraryDetails {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+body.workspace-combined #chordPresetList {
+  min-height: 0;
+  max-height: none;
+  height: 100%;
+  overflow: auto;
 }
 body.workspace-combined .panel,
 body.workspace-combined .line-wrap,
