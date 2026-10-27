@@ -116,7 +116,7 @@ try {
         "chord choice not selected at " + width + ": " + JSON.stringify(chosenState));
       // Validate that an edited progression cell is an undoable, redoable action.
       const selectedChord = await page.locator("#progChordButtonGrid button.active").getAttribute("data-chord-id");
-      const differentChord = page.locator("#progChordButtonGrid button[data-chord-id]").filter({visible:true}).first();
+      const differentChord = page.locator("#progChordButtonGrid button[data-chord-id]").nth(1);
       const nextChord = await differentChord.getAttribute("data-chord-id");
       if (nextChord && nextChord !== selectedChord) {
         await differentChord.click();
