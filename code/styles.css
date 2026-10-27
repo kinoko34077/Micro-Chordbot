@@ -1382,7 +1382,6 @@ body.workspace-combined .chord-library-panel .panel-note {
 }
 .table-filter-input {
   flex: 1 1 10ch;
-  width: min(22rem, 100%);
   min-width: 0;
   max-width: 22rem;
   font-size: 0.78rem;
@@ -1652,6 +1651,8 @@ body.workspace-combined .chord-library-panel .panel-note {
   .pitch-options > label { min-width: 0; }
   .pitch-options select,
   .pitch-options input[type="range"] { min-width: 0; max-width: 100%; }
+  /* Keep search usable by touch and prevent iOS Safari focus auto-zoom. */
+  .table-filter-input { min-height: 40px; font-size: max(16px, 0.78rem); }
   #view-pitch .line-wrap { min-height: 118px; }
   .library-controls-grid { grid-template-columns: 1fr; }
   .sustain-toggle { min-height: 40px; }
