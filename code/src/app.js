@@ -4260,8 +4260,11 @@ function attachEvents() {
     syncProgressionSelectionFromEditor("進行セルのセクション変更", true);
   });
   const syncProgressionBeatInputs = () => {
-    state.progressionEditor.beats = clamp(Number(els.progBeatsNumeratorInput?.value) || 4, 1, 32);
-    state.progressionEditor.beatUnit = clamp(Number(els.progBeatsDenominatorInput?.value) || 4, 1, 32);
+    const beats = clamp(Number(els.progBeatsNumeratorInput?.value) || 4, 1, 32);
+    const beatUnit = clamp(Number(els.progBeatsDenominatorInput?.value) || 4, 1, 32);
+    if (beats === state.progressionEditor.beats && beatUnit === state.progressionEditor.beatUnit) return;
+    state.progressionEditor.beats = beats;
+    state.progressionEditor.beatUnit = beatUnit;
     syncProgressionSelectionFromEditor("進行セルの拍変更", true);
   };
   els.progBeatsNumeratorInput?.addEventListener("input", syncProgressionBeatInputs);
