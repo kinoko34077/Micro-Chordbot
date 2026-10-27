@@ -8,6 +8,18 @@ try {
     const errors = [];
     page.on("pageerror", (e)=>errors.push(String(e)));
     await page.goto("http://127.0.0.1:4173/", {waitUntil:"domcontentloaded"});
+    const smallTextRoles = await page.evaluate(() => {
+      const selectors = [".readout", ".panel-note", ".status-text", ".preset-id", ".composer-note",
+        ".cell-meta", ".label-lead", ".inline-check", ".progression-columns", ".loop-inline"];
+      return selectors.flatMap((selector) => [...document.querySelectorAll(selector)].map((node) => ({
+        selector, text: node.textContent.trim().slice(0, 24),
+        fontSize: Number.parseFloat(getComputedStyle(node).fontSize)
+      }))).filter((entry) => entry.text);
+    });
+    for (const role of smallTextRoles) {
+      assert.ok(role.fontSize >= 12,
+        "small UI text is unreadable below 12px at " + width + ": " + JSON.stringify(role));
+    }
     if (width <= 640) {
       const header = await page.evaluate(() => {
         const bounds = (selector) => {
