@@ -34,3 +34,11 @@ test("desktop workspaces keep pitch on the left and progression editing on the r
   assert.match(app, /data-workspace-resizer="pitch-progression"/);
   assert.doesNotMatch(app, /workspace-mid-col|workspace-resizer-right/);
 });
+
+test("desktop chord-library rows scroll inside the library's allocated area", () => {
+  const library = css.match(/body\.workspace-combined \.chord-library-panel\s*\{([\s\S]*?)\n\}/)?.[1] || "";
+  const details = css.match(/body\.workspace-combined #chordLibraryDetails\s*\{([\s\S]*?)\n\}/)?.[1] || "";
+  assert.match(library, /min-height:\s*0\s*;/);
+  assert.match(library, /overflow:\s*hidden\s*;/);
+  assert.match(details, /grid-template-rows:\s*auto minmax\(0,\s*1fr\)\s*;/);
+});
