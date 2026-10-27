@@ -38,6 +38,8 @@ test("desktop workspaces keep pitch on the left and progression editing on the r
 test("desktop chord-library rows scroll inside the library's allocated area", () => {
   const library = css.match(/body\.workspace-combined \.chord-library-panel\s*\{([\s\S]*?)\n\}/)?.[1] || "";
   const details = css.match(/body\.workspace-combined #chordLibraryDetails\s*\{([\s\S]*?)\n\}/)?.[1] || "";
+  const progression = css.match(/body\.workspace-combined #view-progression\.active\s*\{([\s\S]*?)\n\}/)?.[1] || "";
+  assert.match(progression, /align-items:\s*stretch\s*;/);
   assert.match(library, /min-height:\s*0\s*;/);
   assert.match(library, /overflow:\s*hidden\s*;/);
   assert.match(details, /grid-template-rows:\s*auto minmax\(0,\s*1fr\)\s*;/);
