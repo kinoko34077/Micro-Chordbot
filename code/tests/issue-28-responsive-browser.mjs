@@ -226,7 +226,7 @@ try {
     const detailPanel = page.locator("#chordLibraryDetails");
     if (width <= 640) {
       assert.equal(await detailPanel.evaluate(el => el.open), false, "phone chord detail list should start collapsed at " + width);
-      await libraryFilter.fill("core");
+      await libraryFilter.fill("7");
       assert.equal(await detailPanel.evaluate(el => el.open), true, "search did not reveal detailed results at " + width);
       await libraryFilter.fill("missing_chord_test_token");
       assert.equal(await page.locator("#chordPresetList tbody tr[data-chord-preset-id]").count(), 0, "library result filtering failed at " + width);
