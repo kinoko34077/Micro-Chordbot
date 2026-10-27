@@ -1740,9 +1740,14 @@ body.workspace-combined .chord-library-panel .panel-note {
     font-size: 0.68rem;
   }
   #view-progression .progression-editor-body {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
     margin-top: 6px;
   }
-  /* Preserve the base editor body's grid display when expanded. */
+  /* Phone editing follows its actual document order rather than desktop
+     two-column placement rules. */
   #view-progression .progression-root-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
