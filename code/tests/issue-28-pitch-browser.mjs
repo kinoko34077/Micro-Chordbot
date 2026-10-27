@@ -8,6 +8,7 @@ try {
   page.on("pageerror", e=>errors.push(String(e)));
   await page.goto("http://127.0.0.1:4173/", {waitUntil:"domcontentloaded"});
   const presets = page.locator("#pitchPresetList tbody tr[data-pitch-preset-id]");
+  await presets.first().waitFor({state:"visible",timeout:5000});
   const initialPresetCount = await presets.count();
   assert.ok(initialPresetCount > 0,"pitch library seed data not rendered");
   const searchText = (await presets.first().locator("td").nth(1).innerText()).trim();
