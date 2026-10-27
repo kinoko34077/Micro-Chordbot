@@ -102,6 +102,8 @@ try {
           beatsTop: top(".beat-token"),
           voicingTop: top(".progression-voice-row"),
           chordTop: top("#progChordButtonGrid"),
+          firstChordChoicesBottom: Math.max(...[...document.querySelectorAll("#progChordButtonGrid button[data-chord-id]")]
+            .slice(0, 3).map((button) => button.getBoundingClientRect().bottom)),
           viewport: innerHeight
         };
       });
@@ -109,6 +111,8 @@ try {
       assert.ok(task.beatsTop <= task.chordTop + 2 && task.chordTop < task.voicingTop,
         "advanced controls displaced main editor " + width + " " + JSON.stringify(task));
       assert.ok(task.chordTop < task.viewport, "chord type selection outside first viewport " + width + " " + JSON.stringify(task));
+      assert.ok(task.firstChordChoicesBottom <= task.viewport + 1,
+        "first chord choices are only partly visible at the initial phone viewport " + width + " " + JSON.stringify(task));
       await page.locator("#progressionGrid .progression-cell").first().click();
       // Verify primary editor actions actually change their selected state.
       await page.locator('#progRootLetterButtons button[data-note="G"]').click();
