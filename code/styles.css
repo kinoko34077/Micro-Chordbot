@@ -1525,12 +1525,51 @@ body.workspace-combined .chord-library-panel .panel-note {
 
 /* Phone-specific interaction density; JS compact-menu breakpoint is 640px. */
 @media (max-width: 640px) {
-  .topbar { flex-direction: column; align-items: flex-start; gap: 8px; }
-  .brand-nav { width: 100%; }
-  .view-nav { width: 100%; }
-  .history-buttons { width: 100%; flex-wrap: wrap; }
-  .master-volume-inline { width: 100%; justify-content: space-between; }
-  .master-volume-inline input { width: min(180px, 56vw); }
+  /* Two intentional header bands: context/navigation above persistent tools.
+     The existing controls remain adjacent and are never collapsed into hidden menus. */
+  .topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: center;
+    gap: 4px;
+    padding-block: 4px;
+  }
+  .brand-nav {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    align-items: center;
+    gap: 6px;
+  }
+  .brand-title { width: 36px; height: 36px; font-size: 1.15rem; }
+  .view-nav {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .view-nav button { min-width: 0; min-height: 40px; padding: 5px 6px; font-size: 0.9rem; }
+  .history-buttons {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 40px 40px minmax(0, 1fr) 40px;
+    align-items: center;
+    justify-content: stretch;
+    gap: 6px;
+  }
+  .history-buttons .icon-button { width: 40px; min-width: 40px; height: 40px; }
+  .history-buttons .settings-menu-button { grid-column: 4; }
+  .master-volume-inline {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+    gap: 5px;
+  }
+  .master-volume-inline input { flex: 1 1 auto; width: 100%; min-width: 0; max-width: none; }
   .pwa-prompt { flex-direction: column; align-items: flex-start; }
   .panel-heading { align-items: flex-start; flex-direction: column; }
   .panel-heading-actions { width: 100%; justify-content: space-between; }

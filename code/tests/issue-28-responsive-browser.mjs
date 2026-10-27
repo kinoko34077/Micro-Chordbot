@@ -8,6 +8,30 @@ try {
     const errors = [];
     page.on("pageerror", (e)=>errors.push(String(e)));
     await page.goto("http://127.0.0.1:4173/", {waitUntil:"domcontentloaded"});
+    if (width <= 640) {
+      const header = await page.evaluate(() => {
+        const bounds = (selector) => {
+          const r = document.querySelector(selector).getBoundingClientRect();
+          return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width,height:r.height};
+        };
+        return {
+          topbar: bounds(".topbar"),
+          navigation: bounds(".view-nav"),
+          tools: bounds(".history-buttons"),
+          undo: bounds("#undoBtn"),
+          redo: bounds("#redoBtn"),
+          volume: bounds(".master-volume-inline"),
+          menu: bounds("#settingsMenuBtn")
+        };
+      });
+      assert.ok(header.topbar.height <= 140, "phone header exceeds first-viewport budget at " + width + ": " + JSON.stringify(header));
+      assert.ok(header.navigation.bottom <= header.tools.top + 1, "navigation overlaps tools at " + width);
+      for (const action of ["undo","redo","menu"]) {
+        assert.ok(header[action].width >= 40 && header[action].height >= 40, "header action too small at " + width + ": " + action);
+      }
+      assert.ok(header.volume.width >= 64, "volume becomes unreachable at " + width);
+      assert.ok(header.tools.right <= width + 1, "header tools extend outside phone viewport at " + width);
+    }
     if (width < 800) {
       const visibleOnly = async (selected) => {
         for (const name of ["pitch", "progression"]) {
