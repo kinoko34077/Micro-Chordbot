@@ -707,16 +707,15 @@ function ensureWorkspaceDom() {
     ]);
   }
   if (!els.workspaceMain) return;
-  ["left", "right"].forEach((side) => {
-    if (els.workspaceMain.querySelector(`[data-workspace-resizer="${side}"]`)) return;
+  if (!els.workspaceMain.querySelector('[data-workspace-resizer="pitch-progression"]')) {
     const resizer = document.createElement("div");
-    resizer.className = `workspace-resizer workspace-resizer-${side}`;
-    resizer.dataset.workspaceResizer = side;
+    resizer.className = "workspace-resizer workspace-resizer-left";
+    resizer.dataset.workspaceResizer = "pitch-progression";
     resizer.role = "separator";
     resizer.ariaOrientation = "vertical";
-    resizer.ariaLabel = `${side} workspace width`;
+    resizer.ariaLabel = "音高領域とコード進行領域の幅";
     els.workspaceMain.appendChild(resizer);
-  });
+  }
 }
 
 function restoreWorkspaceColumns() {
@@ -726,16 +725,13 @@ function restoreWorkspaceColumns() {
     if (Number.isFinite(saved.left)) {
       document.documentElement.style.setProperty("--workspace-left-col", `${saved.left}px`);
     }
-    if (Number.isFinite(saved.mid)) {
-      document.documentElement.style.setProperty("--workspace-mid-col", `${saved.mid}px`);
-    }
   } catch {
     // keep CSS defaults
   }
 }
 
-function saveWorkspaceColumns(left, mid) {
-  localStorage.setItem(WORKSPACE_COLUMNS_STORAGE_KEY, JSON.stringify({ left, mid }));
+function saveWorkspaceColumns(left) {
+  localStorage.setItem(WORKSPACE_COLUMNS_STORAGE_KEY, JSON.stringify({ left }));
 }
 
 function parseCssPixel(value, fallback) {
@@ -746,8 +742,7 @@ function parseCssPixel(value, fallback) {
 function readWorkspaceColumns(totalWidth) {
   const style = getComputedStyle(document.documentElement);
   const left = parseCssPixel(style.getPropertyValue("--workspace-left-col"), totalWidth * 0.31);
-  const mid = parseCssPixel(style.getPropertyValue("--workspace-mid-col"), totalWidth * 0.27);
-  return { left, mid };
+  return { left };
 }
 
 function attachWorkspaceResizers() {
@@ -757,26 +752,17 @@ function attachWorkspaceResizers() {
     if (!(target instanceof HTMLElement)) return;
     const resizer = target.closest("[data-workspace-resizer]");
     if (!(resizer instanceof HTMLElement)) return;
-    const side = resizer.dataset.workspaceResizer;
+    if (resizer.dataset.workspaceResizer !== "pitch-progression") return;
     const rect = els.workspaceMain.getBoundingClientRect();
-    const start = readWorkspaceColumns(rect.width);
-    const minLeft = 240;
-    const minMid = 220;
-    const minRight = 300;
-    const gutters = 16;
+    const minLeft = 280;
+    const minRight = 480;
+    const dividerWidth = 8;
     document.body.classList.add("workspace-resizing");
     resizer.setPointerCapture?.(ev.pointerId);
     const move = (moveEv) => {
-      const x = clamp(moveEv.clientX - rect.left, minLeft, rect.width - minRight - gutters);
-      let nextLeft = start.left;
-      let nextMid = start.mid;
-      if (side === "left") {
-        nextLeft = clamp(x, minLeft, rect.width - minMid - minRight - gutters);
-      } else {
-        nextMid = clamp(x - start.left - gutters, minMid, rect.width - start.left - minRight - gutters);
-      }
+      const x = clamp(moveEv.clientX - rect.left, minLeft, rect.width - minRight - dividerWidth);
+      const nextLeft = x;
       document.documentElement.style.setProperty("--workspace-left-col", `${Math.round(nextLeft)}px`);
-      document.documentElement.style.setProperty("--workspace-mid-col", `${Math.round(nextMid)}px`);
     };
     const cleanup = () => {
       window.removeEventListener("pointermove", move);
@@ -784,8 +770,7 @@ function attachWorkspaceResizers() {
       window.removeEventListener("pointercancel", cleanup);
       document.body.classList.remove("workspace-resizing");
       const current = readWorkspaceColumns(rect.width);
-      saveWorkspaceColumns(Math.round(current.left), Math.round(current.mid));
-      render();
+      saveWorkspaceColumns(Math.round(current.left));
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", cleanup);

@@ -151,14 +151,83 @@ try {
     }
     const columnInput = page.locator("#progColumnsSelect");
     if (width >= 1200) {
-      const shell = await page.evaluate(()=>({
-        display:getComputedStyle(document.querySelector("main")).display,
-        viewport:window.innerWidth,
-        mainWidth:document.querySelector("main").getBoundingClientRect().width,
-        minimumPaneWidth: 220 + 8 + 220 + 8 + 280
-      }));
+      const shell = await page.evaluate(()=>{
+        const bounds = (selector) => {
+          const rect = document.querySelector(selector).getBoundingClientRect();
+          return {left:rect.left,right:rect.right,width:rect.width};
+        };
+        const main = document.querySelector("main");
+        return {
+          display:getComputedStyle(main).display,
+          columns:getComputedStyle(main).gridTemplateColumns.split(" ").filter(Boolean),
+          viewport:window.innerWidth,
+          mainWidth:main.getBoundingClientRect().width,
+          pitch:bounds("#view-pitch"),
+          progression:bounds("#view-progression"),
+          toolbar:bounds(".progression-toolbar"),
+          grid:bounds("#progressionGrid"),
+          editor:bounds("#progressionEditor"),
+          library:bounds(".chord-library-panel"),
+          separator:getComputedStyle(document.querySelector('[data-workspace-resizer="pitch-progression"]')).display,
+          separatorCount:document.querySelectorAll(".workspace-resizer").length
+        };
+      });
       assert.equal(shell.display,"grid","combined workspace missing at " + width);
-      assert.ok(shell.mainWidth>=shell.minimumPaneWidth,"combined workspace narrower than minimum panes at "+width);
+      assert.equal(shell.columns.length,3,"desktop must have pitch, divider, and progression tracks at " + width + ": " + JSON.stringify(shell));
+      assert.ok(shell.pitch.right < shell.progression.left,"pitch workspace must remain left of progression at " + width);
+      for (const part of ["toolbar","grid","editor","library"]) {
+        assert.ok(shell[part].left >= shell.progression.left - 1 && shell[part].right <= shell.progression.right + 1,
+          part + " must stay inside the right progression workspace at " + width + ": " + JSON.stringify(shell));
+      }
+      assert.equal(shell.separator,"block","pitch/progression divider unavailable at " + width);
+      assert.equal(shell.separatorCount,1,"desktop must have exactly one workspace divider at " + width);
+      const beforeResize = await page.evaluate(() => ({
+        pitchWidth:document.querySelector("#view-pitch").getBoundingClientRect().width,
+        selectedPart:document.querySelector("#progressionGrid .progression-cell.active")?.dataset.partId || null,
+        root:document.querySelector("#progRootNoteInput").value
+      }));
+      const divider = await page.locator('[data-workspace-resizer="pitch-progression"]').boundingBox();
+      await page.mouse.move(divider.x + divider.width / 2, divider.y + 80);
+      await page.mouse.down();
+      await page.mouse.move(divider.x + divider.width / 2 + 64, divider.y + 80, {steps:4});
+      await page.mouse.up();
+      const afterResize = await page.evaluate(() => ({
+        pitchWidth:document.querySelector("#view-pitch").getBoundingClientRect().width,
+        selectedPart:document.querySelector("#progressionGrid .progression-cell.active")?.dataset.partId || null,
+        root:document.querySelector("#progRootNoteInput").value,
+        saved:JSON.parse(localStorage.getItem("uchordbot.workspaceColumns.v1") || "null")
+      }));
+      assert.ok(afterResize.pitchWidth >= beforeResize.pitchWidth + 50,
+        "desktop divider drag did not resize pitch workspace at " + width + ": " + JSON.stringify({beforeResize,afterResize}));
+      assert.equal(afterResize.selectedPart,beforeResize.selectedPart,"divider drag moved the selected progression target at " + width);
+      assert.equal(afterResize.root,beforeResize.root,"divider drag changed the selected progression value at " + width);
+      assert.ok(afterResize.saved?.left >= 280,"divider drag was not persisted at " + width);
+      const mainRect = await page.locator("main").boundingBox();
+      const minRightX = mainRect.x + mainRect.width - 480 - 8;
+      await page.mouse.move(divider.x + divider.width / 2, divider.y + 80);
+      await page.mouse.down();
+      await page.mouse.move(minRightX, divider.y + 80, {steps:4});
+      await page.mouse.up();
+      const minimumWidthLayout = await page.evaluate(() => {
+        const bounds = (selector) => {
+          const rect = document.querySelector(selector).getBoundingClientRect();
+          return {left:rect.left,right:rect.right,width:rect.width};
+        };
+        return {
+          progression:bounds("#view-progression"),
+          toolbar:bounds(".progression-toolbar"),
+          grid:bounds("#progressionGrid"),
+          editor:bounds("#progressionEditor"),
+          library:bounds(".chord-library-panel")
+        };
+      });
+      assert.ok(minimumWidthLayout.progression.width >= 470,
+        "right workspace did not preserve its resize minimum at " + width + ": " + JSON.stringify(minimumWidthLayout));
+      for (const part of ["toolbar","grid","editor","library"]) {
+        assert.ok(minimumWidthLayout[part].left >= minimumWidthLayout.progression.left - 1 &&
+          minimumWidthLayout[part].right <= minimumWidthLayout.progression.right + 1,
+        part + " is clipped when progression workspace is resized to minimum at " + width + ": " + JSON.stringify(minimumWidthLayout));
+      }
     }
     if (width <= 640) {
       const menu = page.locator("#progMenuToggleBtn");
@@ -174,6 +243,10 @@ try {
       assert.notEqual(clip,"hidden","mobile menu parent clips at " + width);
     } else {
       assert.equal(await page.locator("#progToolbarActions").isVisible(), true, "desktop toolbar hidden at " + width);
+    }
+    if (width <= 640) {
+      assert.equal(await page.locator('[data-view="pitch"]').isVisible(),true,"pitch tab unavailable on phone at " + width);
+      assert.equal(await page.locator('[data-view="progression"]').isVisible(),true,"progression tab unavailable on phone at " + width);
     }
     await columnInput.fill("3");
     await columnInput.dispatchEvent("change");
