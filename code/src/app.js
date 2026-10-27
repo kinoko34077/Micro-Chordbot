@@ -1543,6 +1543,8 @@ function applySnapshot(snap) {
   state.chordPresets = snap.chordPresets ?? [];
   state.progression = snap.progression ?? state.progression;
   state.progressionEditor = snap.progressionEditor ?? state.progressionEditor;
+  const selectedPart = state.progression.parts.find((part) => part.id === state.progression.selectedPartId);
+  if (selectedPart) loadProgressionEditorFromPart(selectedPart);
   bumpAllDataRevisions();
   pitchUi.lastTouchedNoteId = state.activeNotes[0]?.id || null;
   syncFormFromState();

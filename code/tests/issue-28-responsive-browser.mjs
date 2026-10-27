@@ -114,6 +114,21 @@ try {
       }), pickedChordId);
       assert.ok(chosenState.active.includes(pickedChordId),
         "chord choice not selected at " + width + ": " + JSON.stringify(chosenState));
+      // Validate that an edited progression cell is an undoable, redoable action.
+      const selectedChord = await page.locator("#progChordButtonGrid button.active").getAttribute("data-chord-id");
+      const differentChord = page.locator("#progChordButtonGrid button[data-chord-id]").nth(1);
+      const nextChord = await differentChord.getAttribute("data-chord-id");
+      if (nextChord && nextChord !== selectedChord) {
+        await differentChord.click();
+        assert.ok(await page.locator('#progChordButtonGrid button[data-chord-id="' + nextChord + '"]').evaluate(el => el.classList.contains("active")),
+          "chord edit did not apply at " + width);
+        await page.locator("#undoBtn").click();
+        assert.ok(await page.locator('#progChordButtonGrid button[data-chord-id="' + selectedChord + '"]').evaluate(el => el.classList.contains("active")),
+          "undo did not restore progression chord at " + width);
+        await page.locator("#redoBtn").click();
+        assert.ok(await page.locator('#progChordButtonGrid button[data-chord-id="' + nextChord + '"]').evaluate(el => el.classList.contains("active")),
+          "redo did not restore progression chord at " + width);
+      }
       const bassPanel = page.locator("#progBassPopover");
       assert.equal(await bassPanel.isVisible(), false, "secondary Bass panel should be collapsed on phone");
       await page.locator("#progBassPopoverBtn").click();
