@@ -5551,7 +5551,7 @@ function render() {
       renderProgressionSummary
     );
 
-    renderIfChanged("progressionEditor", `${dataRevision.progression}|${dataRevision.chord}|${dataRevision.pitch}|${state.progression.selectedPartId || ""}|${els.progChordTagFilterInput?.value || ""}`, () => {
+    renderIfChanged("progressionEditor", `${dataRevision.progression}|${dataRevision.chord}|${dataRevision.pitch}|${state.progression.selectedPartId || ""}|${state.progressionEditor.chordId || ""}|${state.progressionEditor.rootNoteText || ""}|${state.progressionEditor.beats || ""}|${state.progressionEditor.beatUnit || ""}|${els.progChordTagFilterInput?.value || ""}`, () => {
       renderProgressionChordButtons();
       renderProgressionEditorButtons();
       renderRecallSummary();
