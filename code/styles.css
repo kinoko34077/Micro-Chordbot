@@ -826,7 +826,7 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); mi
   flex-wrap: wrap;
   min-width: 0;
 }
-.view#view-progression {
+.view#view-progression.active {
   display: grid;
   grid-template-columns: minmax(440px, 1.2fr) minmax(320px, 0.95fr);
   gap: 12px;
