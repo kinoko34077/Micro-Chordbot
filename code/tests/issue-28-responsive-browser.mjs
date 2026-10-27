@@ -74,6 +74,24 @@ try {
     }
     await page.locator('button[data-view="progression"]').click();
     await page.waitForTimeout(150);
+    if (width > 640 && width < 1200) {
+      const choiceBounds = await page.evaluate(() => {
+        const box = (selector) => {
+          const r = document.querySelector(selector).getBoundingClientRect();
+          return { left: r.left, right: r.right, width: r.width };
+        };
+        return {
+          editor: box("#progressionEditor"),
+          label: box(".progression-choice-tools .progression-filter-label"),
+          input: box("#progChordTagFilterInput")
+        };
+      });
+      assert.ok(choiceBounds.label.left >= choiceBounds.editor.left - 1 &&
+        choiceBounds.label.right <= choiceBounds.editor.right + 1 &&
+        choiceBounds.input.left >= choiceBounds.label.left - 1 &&
+        choiceBounds.input.right <= choiceBounds.label.right + 1,
+      "tablet chord search escapes its allocated edit row at " + width + ": " + JSON.stringify(choiceBounds));
+    }
     if (width < 1200) {
       for (const name of ["pitch"]) {
         const display = await page.locator("#view-" + name).evaluate(el => getComputedStyle(el).display);
