@@ -212,6 +212,17 @@ try {
         assert.ok(await page.locator('#progChordButtonGrid button[data-chord-id="' + nextChord + '"]').evaluate(el => el.classList.contains("active")),
           "redo did not restore progression chord at " + width);
       }
+      if (width === 390) {
+        const play = page.locator("#playProgBtn");
+        if (await play.isDisabled()) await page.locator("#addProgPartBtn").click();
+        assert.equal(await play.isDisabled(), false, "progression playback unavailable after adding a chord");
+        await play.click();
+        await page.waitForFunction(() => document.querySelector("#playProgBtn")?.getAttribute("aria-label") === "進行を一時停止",null,{timeout:3000});
+        assert.equal(await page.locator("#stopProgBtn").isDisabled(), false, "stop control not enabled during playback");
+        await page.locator("#stopProgBtn").click();
+        await page.waitForFunction(() => document.querySelector("#playProgBtn")?.getAttribute("aria-label") === "進行を再生",null,{timeout:3000});
+        assert.equal(await page.locator("#stopProgBtn").isDisabled(), true, "stop control remained enabled after playback");
+      }
       const bassPanel = page.locator("#progBassPopover");
       assert.equal(await bassPanel.isVisible(), false, "secondary Bass panel should be collapsed on phone");
       await page.locator("#progBassPopoverBtn").click();
