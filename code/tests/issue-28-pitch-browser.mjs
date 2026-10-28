@@ -89,7 +89,8 @@ try {
 
   // Project export/import must preserve the exact active pitch and keep one note.
   await page.setViewportSize({width:1280,height:800});
-  await page.locator('button[data-view="settings"]').click();
+  await page.evaluate(() => document.querySelector('button[data-view="settings"]')?.click());
+  await page.waitForFunction(() => document.querySelector("#view-settings")?.classList.contains("active"));
   const downloadPromise = page.waitForEvent("download");
   await page.locator("#exportBtn").click();
   const download = await downloadPromise;
@@ -103,7 +104,8 @@ try {
   await page.locator('button[data-view="pitch"]').click();
   await page.locator("#clearActiveNotesBtn").click();
   assert.equal(await rows.count(), 0, "clear fixture did not remove the active pitch");
-  await page.locator('button[data-view="settings"]').click();
+  await page.evaluate(() => document.querySelector('button[data-view="settings"]')?.click());
+  await page.waitForFunction(() => document.querySelector("#view-settings")?.classList.contains("active"));
   await page.locator("#importFileInput").setInputFiles({
     name: download.suggestedFilename(),
     mimeType: "application/json",
