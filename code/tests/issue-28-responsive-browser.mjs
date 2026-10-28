@@ -51,12 +51,22 @@ try {
       assert.ok(header.tools.right <= width + 1, "header tools extend outside phone viewport at " + width);
       const pitchFold = await page.evaluate(() => {
         const toolbar = document.querySelector(".pitch-toolbar").getBoundingClientRect();
+        const lineWrap = document.querySelector(".line-wrap").getBoundingClientRect();
         const line = document.querySelector("#pitchLine").getBoundingClientRect();
-        return {toolbarHeight: toolbar.height, lineTop: line.top, lineBottom: line.bottom, viewport: innerHeight};
+        return {
+          toolbarHeight: toolbar.height,
+          lineTop: line.top,
+          lineBottom: line.bottom,
+          lineWrapHeight: lineWrap.height,
+          lineCanvasHeight: line.height,
+          viewport: innerHeight
+        };
       });
       assert.ok(pitchFold.toolbarHeight <= 180, "phone pitch controls are stacked beyond working height at " + width + ": " + JSON.stringify(pitchFold));
       assert.ok(pitchFold.lineTop < Math.min(400, pitchFold.viewport * 0.65),
         "pitch line not reachable in no-scroll initial viewport at " + width + ": " + JSON.stringify(pitchFold));
+      assert.ok(pitchFold.lineCanvasHeight >= pitchFold.lineWrapHeight - 2 && pitchFold.lineCanvasHeight >= 100,
+        "pitch interaction surface does not use its allocated height at " + width + ": " + JSON.stringify(pitchFold));
       const pitchSearches = await page.evaluate(() => {
         const bounds = (selector) => {
           const rect = document.querySelector(selector).getBoundingClientRect();
