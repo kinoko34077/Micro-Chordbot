@@ -98,8 +98,13 @@ try {
   const buffer = Buffer.concat(chunks);
   const exported = JSON.parse(buffer.toString("utf8"));
   assert.equal(exported.exportType, "project", "project export did not create a project file");
-  assert.equal(exported.payload.activeNotes.length, 1, "project export omitted the active pitch");
-  assert.equal(exported.payload.activeNotes[0].id, touchDraggedId, "project export changed the active pitch");
+  assert.equal(exported.payload.activeNotes, undefined, "project export should preserve the established transient-note format");
+  const pitchPresetCount = exported.payload.pitchPresets.length;
+  const chordPresetCount = exported.payload.chordPresets.length;
+  assert.equal(pitchPresetCount, initialPresetCount, "project export omitted pitch presets");
+  assert.ok(chordPresetCount > 0, "project export omitted chord presets");
+  assert.equal(exported.payload.pitchPresets[0].id, "PITCH_P1_0", "project export changed the first pitch preset identity");
+  assert.ok(exported.payload.progression && Array.isArray(exported.payload.progression.parts), "project export omitted the progression");
   await page.locator("#settingsDrawerCloseBtn").click();
   await page.locator("#clearActiveNotesBtn").click();
   assert.equal(await rows.count(), 0, "clear fixture did not remove the active pitch");
@@ -107,8 +112,20 @@ try {
   await page.locator("#importFileInput").setInputFiles({name:download.suggestedFilename(),mimeType:"application/json",buffer});
   await page.waitForFunction(() => document.querySelector("#manageStatus")?.textContent.includes("project を読込"),null,{timeout:5000});
   await page.locator("#settingsDrawerCloseBtn").click();
-  assert.equal(await rows.count(), 1, "project import did not restore exactly one active pitch");
-  assert.equal(await rows.first().getAttribute("data-note-id"),touchDraggedId, "project import changed the active pitch");
+  assert.equal(await rows.count(), 0, "project import should retain the established transient-note behavior");
+  assert.equal(await presets.count(), pitchPresetCount, "project import did not restore the exported pitch library");
+  const restoredPitchId = await presets.first().getAttribute("data-pitch-preset-id");
+  assert.equal(restoredPitchId, exported.payload.pitchPresets[0].id, "project import changed pitch preset identity");
+  const secondDrawer = page.locator("#settingsMenuBtn");
+  await secondDrawer.click();
+  const roundtripDownloadPromise = page.waitForEvent("download");
+  await page.locator("#exportBtn").click();
+  const roundtripDownload = await roundtripDownloadPromise;
+  const roundtripStream = await roundtripDownload.createReadStream();
+  const roundtripChunks = [];
+  for await (const chunk of roundtripStream) roundtripChunks.push(chunk);
+  const roundtrip = JSON.parse(Buffer.concat(roundtripChunks).toString("utf8"));
+  assert.deepEqual(roundtrip.payload, exported.payload, "project import/export changed the established project payload");
 
   assert.deepEqual(errors,[],"pitch view emitted uncaught browser errors");
   await page.close();
