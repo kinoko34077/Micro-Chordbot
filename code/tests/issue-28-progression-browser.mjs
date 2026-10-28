@@ -26,7 +26,7 @@ try {
     return {scrollTop:node.scrollTop,scrollHeight:node.scrollHeight,clientHeight:node.clientHeight};
   });
   assert.ok(before.scrollTop > 0,"long progression did not create an internal scroll range");
-  const target = cells.nth(14);
+  const target = cells.nth(cellCount-2);
   const targetId = await target.getAttribute("data-part-id");
   const rect = await target.boundingBox();
   const gridRect = await grid.boundingBox();
