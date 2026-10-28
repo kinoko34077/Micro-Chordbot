@@ -86,6 +86,30 @@ try {
   assert.equal(await rows.first().getAttribute("data-note-id"),touchDraggedId,
     "redo did not restore the touch-dragged pitch");
 
+  // Export/import the current project through the phone settings drawer.
+  await page.locator("#settingsMenuBtn").click();
+  assert.equal(await page.locator("#settingsDrawer").isVisible(), true, "settings drawer did not open");
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("#exportBtn").click();
+  const download = await downloadPromise;
+  const stream = await download.createReadStream();
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  const buffer = Buffer.concat(chunks);
+  const exported = JSON.parse(buffer.toString("utf8"));
+  assert.equal(exported.exportType, "project", "project export did not create a project file");
+  assert.equal(exported.payload.activeNotes.length, 1, "project export omitted the active pitch");
+  assert.equal(exported.payload.activeNotes[0].id, touchDraggedId, "project export changed the active pitch");
+  await page.locator("#settingsDrawerCloseBtn").click();
+  await page.locator("#clearActiveNotesBtn").click();
+  assert.equal(await rows.count(), 0, "clear fixture did not remove the active pitch");
+  await page.locator("#settingsMenuBtn").click();
+  await page.locator("#importFileInput").setInputFiles({name:download.suggestedFilename(),mimeType:"application/json",buffer});
+  await page.waitForFunction(() => document.querySelector("#manageStatus")?.textContent.includes("project を読込"),null,{timeout:5000});
+  await page.locator("#settingsDrawerCloseBtn").click();
+  assert.equal(await rows.count(), 1, "project import did not restore exactly one active pitch");
+  assert.equal(await rows.first().getAttribute("data-note-id"),touchDraggedId, "project import changed the active pitch");
+
   assert.deepEqual(errors,[],"pitch view emitted uncaught browser errors");
   await page.close();
 }finally{
