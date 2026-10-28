@@ -84,6 +84,15 @@ try {
       };
       await visibleOnly("pitch");
       const settingsTab = page.locator('button[data-view="settings"]');
+      const settingsDebug = await page.evaluate(() => {
+        const node = document.querySelector('button[data-view="settings"]');
+        const box = node?.getBoundingClientRect();
+        return {found:Boolean(node),hidden:node?.hidden,html:node?.outerHTML,
+          display:node ? getComputedStyle(node).display : null,visibility:node ? getComputedStyle(node).visibility : null,
+          rect:box ? {left:box.left,right:box.right,top:box.top,bottom:box.bottom,width:box.width,height:box.height} : null,
+          nav:document.querySelector(".view-nav")?.outerHTML};
+      });
+      console.log("PHONE_SETTINGS_DEBUG " + JSON.stringify(settingsDebug));
       assert.equal(await settingsTab.isVisible(), true, "phone settings tab is not visible at " + width);
       const headerGeometry = await page.evaluate(() => {
         const tab = document.querySelector('button[data-view="settings"]').getBoundingClientRect();
