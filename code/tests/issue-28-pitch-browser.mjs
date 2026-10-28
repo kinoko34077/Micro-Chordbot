@@ -88,6 +88,7 @@ try {
     "redo did not restore the touch-dragged pitch");
 
   // Project export/import must preserve the exact active pitch and keep one note.
+  await page.locator('button[data-view="settings"]').click();
   const downloadPromise = page.waitForEvent("download");
   await page.locator("#exportBtn").click();
   const download = await downloadPromise;
@@ -98,14 +99,17 @@ try {
   assert.equal(exported.exportType, "project", "export control did not create a project file");
   assert.equal(exported.payload.activeNotes.length, 1, "project export omitted the active pitch");
   assert.equal(exported.payload.activeNotes[0].id, touchDraggedId, "project export changed the active pitch");
+  await page.locator('button[data-view="pitch"]').click();
   await page.locator("#clearActiveNotesBtn").click();
   assert.equal(await rows.count(), 0, "clear fixture did not remove the active pitch");
+  await page.locator('button[data-view="settings"]').click();
   await page.locator("#importFileInput").setInputFiles({
     name: download.suggestedFilename(),
     mimeType: "application/json",
     buffer: Buffer.concat(chunks)
   });
   await page.waitForFunction(() => document.querySelector("#manageStatus")?.textContent.includes("project を読込"),null,{timeout:5000});
+  await page.locator('button[data-view="pitch"]').click();
   assert.equal(await rows.count(), 1, "project import did not restore exactly one active pitch");
   assert.equal(await rows.first().getAttribute("data-note-id"), touchDraggedId, "project import changed the active pitch");
 
