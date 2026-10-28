@@ -83,6 +83,18 @@ try {
         }
       };
       await visibleOnly("pitch");
+      const settingsMenu = page.locator("#settingsMenuBtn");
+      assert.equal(await settingsMenu.isVisible(), true, "phone settings menu is not visible at " + width);
+      const settingsMenuBounds = await settingsMenu.boundingBox();
+      const topbarBounds = await page.locator(".topbar").boundingBox();
+      assert.ok(settingsMenuBounds.x >= topbarBounds.x - 1 && settingsMenuBounds.x + settingsMenuBounds.width <= topbarBounds.x + topbarBounds.width + 1 &&
+        settingsMenuBounds.y >= topbarBounds.y - 1 && settingsMenuBounds.y + settingsMenuBounds.height <= topbarBounds.y + topbarBounds.height + 1,
+        "phone settings menu escapes the header at " + width + ": " + JSON.stringify({settingsMenuBounds,topbarBounds}));
+      await settingsMenu.click();
+      assert.equal(await page.locator("#settingsDrawer").isVisible(), true, "phone settings drawer did not open at " + width);
+      assert.equal(await page.locator("#settingsDrawerBody").isVisible(), true, "phone settings panel is not available at " + width);
+      await page.locator("#settingsDrawerCloseBtn").click();
+      await visibleOnly("pitch");
     }
     await page.locator('button[data-view="progression"]').click();
     await page.waitForTimeout(150);

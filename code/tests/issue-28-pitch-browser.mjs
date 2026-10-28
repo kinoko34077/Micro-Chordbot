@@ -11,6 +11,7 @@ try {
   await presets.first().waitFor({state:"visible",timeout:5000});
   const initialPresetCount = await presets.count();
   assert.ok(initialPresetCount > 0,"pitch library seed data not rendered");
+  const initialPitchPresetIds = await presets.evaluateAll(rows => rows.map(row => row.getAttribute("data-pitch-preset-id")).sort());
   const search = page.locator("#pitchPresetFilterInput");
   assert.equal(await search.getAttribute("aria-label"),"音高プリセットを検索","pitch preset search needs an accessible name");
   await search.fill("完全1度");
@@ -85,6 +86,47 @@ try {
   await page.waitForTimeout(100);
   assert.equal(await rows.first().getAttribute("data-note-id"),touchDraggedId,
     "redo did not restore the touch-dragged pitch");
+
+  // Export/import the current project through the phone settings drawer.
+  await page.locator("#settingsMenuBtn").click();
+  assert.equal(await page.locator("#settingsDrawer").isVisible(), true, "settings drawer did not open");
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("#exportBtn").click();
+  const download = await downloadPromise;
+  const stream = await download.createReadStream();
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  const buffer = Buffer.concat(chunks);
+  const exported = JSON.parse(buffer.toString("utf8"));
+  assert.equal(exported.exportType, "project", "project export did not create a project file");
+  assert.equal(exported.payload.activeNotes, undefined, "project export should preserve the established transient-note format");
+  const pitchPresetCount = exported.payload.pitchPresets.length;
+  const chordPresetCount = exported.payload.chordPresets.length;
+  assert.equal(pitchPresetCount, initialPresetCount, "project export omitted pitch presets");
+  assert.ok(chordPresetCount > 0, "project export omitted chord presets");
+  assert.deepEqual(exported.payload.pitchPresets.map(preset => preset.id).sort(), initialPitchPresetIds, "project export changed the pitch preset identities");
+  assert.ok(exported.payload.progression && Array.isArray(exported.payload.progression.parts), "project export omitted the progression");
+  await page.locator("#settingsDrawerCloseBtn").click();
+  await page.locator("#clearActiveNotesBtn").click();
+  assert.equal(await rows.count(), 0, "clear fixture did not remove the active pitch");
+  await page.locator("#settingsMenuBtn").click();
+  await page.locator("#importFileInput").setInputFiles({name:download.suggestedFilename(),mimeType:"application/json",buffer});
+  await page.waitForFunction(() => document.querySelector("#manageStatus")?.textContent.includes("project を読込"),null,{timeout:5000});
+  await page.locator("#settingsDrawerCloseBtn").click();
+  assert.equal(await rows.count(), 0, "project import should retain the established transient-note behavior");
+  assert.equal(await presets.count(), pitchPresetCount, "project import did not restore the exported pitch library");
+  const restoredPitchPresetIds = await presets.evaluateAll(rows => rows.map(row => row.getAttribute("data-pitch-preset-id")).sort());
+  assert.deepEqual(restoredPitchPresetIds, initialPitchPresetIds, "project import changed pitch preset identities");
+  const secondDrawer = page.locator("#settingsMenuBtn");
+  await secondDrawer.click();
+  const roundtripDownloadPromise = page.waitForEvent("download");
+  await page.locator("#exportBtn").click();
+  const roundtripDownload = await roundtripDownloadPromise;
+  const roundtripStream = await roundtripDownload.createReadStream();
+  const roundtripChunks = [];
+  for await (const chunk of roundtripStream) roundtripChunks.push(chunk);
+  const roundtrip = JSON.parse(Buffer.concat(roundtripChunks).toString("utf8"));
+  assert.deepEqual(roundtrip.payload, exported.payload, "project import/export changed the established project payload");
 
   assert.deepEqual(errors,[],"pitch view emitted uncaught browser errors");
   await page.close();
