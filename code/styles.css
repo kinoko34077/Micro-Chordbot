@@ -1580,7 +1580,7 @@ body.workspace-combined .chord-library-panel .panel-note {
      within reach on touch-sized workspaces. */
   #view-progression .chord-grid {
     min-height: 160px;
-    max-height: min(34dvh, 280px);
+    max-height: clamp(160px, 34dvh, 280px);
     overflow-y: auto;
     overscroll-behavior: contain;
     align-content: start;
