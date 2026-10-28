@@ -33,6 +33,7 @@ jobs:
           if test -f code/tests/issue-28-pitch-browser.mjs; then
             node code/tests/issue-28-pitch-browser.mjs
           fi
+          node code/tests/issue-28-progression-browser.mjs
           node code/tests/issue-28-layout-audit.mjs
 
       - name: Upload viewport screenshots and geometry measurements
