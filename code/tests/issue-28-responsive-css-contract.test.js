@@ -34,5 +34,5 @@ test("phone pitch canvas has an explicit height to fill its interactive surface"
 });
 
 test("tablet and phone chord choices scroll inside a bounded list", () => {
-  assert.match(css, /@media\s*\(max-width:\s*1199px\)[\s\S]*?#view-progression\s+\.chord-grid\s*\{[^}]*max-height:\s*min\(34dvh,\s*280px\);[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior:\s*contain;/s);
+  assert.match(css, /@media\s*\(max-width:\s*1199px\)[\s\S]*?#view-progression\s+\.chord-grid\s*\{[^}]*max-height:\s*clamp\(160px,\s*34dvh,\s*280px\);[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior:\s*contain;/s);
 });
