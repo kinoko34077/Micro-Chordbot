@@ -28,3 +28,7 @@ test("phone navigation and persistent actions share one row when width permits",
   assert.match(css, /@media\s*\(min-width:\s*390px\)\s*and\s*\(max-width:\s*640px\)[\s\S]*?\.topbar\s*\{[^}]*grid-template-columns:\s*36px\s+minmax\(132px,\s*1fr\)\s+auto/s);
   assert.match(css, /@media\s*\(min-width:\s*390px\)\s*and\s*\(max-width:\s*640px\)[\s\S]*?\.history-buttons\s*\{[^}]*grid-template-columns:\s*40px\s+40px\s+64px\s+40px/s);
 });
+
+test("phone pitch canvas has an explicit height to fill its interactive surface", () => {
+  assert.match(css, /#view-pitch\s+\.line-wrap\s*\{[^}]*min-height:\s*118px;[^}]*height:\s*118px/s);
+});
