@@ -87,8 +87,8 @@ try {
       assert.equal(await settingsMenu.isVisible(), true, "phone settings menu is not visible at " + width);
       const settingsMenuBounds = await settingsMenu.boundingBox();
       const topbarBounds = await page.locator(".topbar").boundingBox();
-      assert.ok(settingsMenuBounds.left >= topbarBounds.left - 1 && settingsMenuBounds.right <= topbarBounds.right + 1 &&
-        settingsMenuBounds.top >= topbarBounds.top - 1 && settingsMenuBounds.bottom <= topbarBounds.bottom + 1,
+      assert.ok(settingsMenuBounds.x >= topbarBounds.x - 1 && settingsMenuBounds.x + settingsMenuBounds.width <= topbarBounds.x + topbarBounds.width + 1 &&
+        settingsMenuBounds.y >= topbarBounds.y - 1 && settingsMenuBounds.y + settingsMenuBounds.height <= topbarBounds.y + topbarBounds.height + 1,
         "phone settings menu escapes the header at " + width + ": " + JSON.stringify({settingsMenuBounds,topbarBounds}));
       await settingsMenu.click();
       assert.equal(await page.locator("#settingsDrawer").isVisible(), true, "phone settings drawer did not open at " + width);
