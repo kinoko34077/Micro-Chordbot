@@ -88,6 +88,7 @@ try {
     "redo did not restore the touch-dragged pitch");
 
   // Project export/import must preserve the exact active pitch and keep one note.
+  await page.setViewportSize({width:1280,height:800});
   await page.locator('button[data-view="settings"]').click();
   const downloadPromise = page.waitForEvent("download");
   await page.locator("#exportBtn").click();
@@ -109,6 +110,7 @@ try {
     buffer: Buffer.concat(chunks)
   });
   await page.waitForFunction(() => document.querySelector("#manageStatus")?.textContent.includes("project を読込"),null,{timeout:5000});
+  await page.setViewportSize({width:390,height:844});
   await page.locator('button[data-view="pitch"]').click();
   assert.equal(await rows.count(), 1, "project import did not restore exactly one active pitch");
   assert.equal(await rows.first().getAttribute("data-note-id"), touchDraggedId, "project import changed the active pitch");
