@@ -11,6 +11,7 @@ try {
   await presets.first().waitFor({state:"visible",timeout:5000});
   const initialPresetCount = await presets.count();
   assert.ok(initialPresetCount > 0,"pitch library seed data not rendered");
+  const initialPitchPresetId = await presets.first().getAttribute("data-pitch-preset-id");
   const search = page.locator("#pitchPresetFilterInput");
   assert.equal(await search.getAttribute("aria-label"),"音高プリセットを検索","pitch preset search needs an accessible name");
   await search.fill("完全1度");
@@ -103,7 +104,7 @@ try {
   const chordPresetCount = exported.payload.chordPresets.length;
   assert.equal(pitchPresetCount, initialPresetCount, "project export omitted pitch presets");
   assert.ok(chordPresetCount > 0, "project export omitted chord presets");
-  assert.equal(exported.payload.pitchPresets[0].id, "PITCH_P1_0", "project export changed the first pitch preset identity");
+  assert.equal(exported.payload.pitchPresets[0].id, initialPitchPresetId, "project export changed the first pitch preset identity");
   assert.ok(exported.payload.progression && Array.isArray(exported.payload.progression.parts), "project export omitted the progression");
   await page.locator("#settingsDrawerCloseBtn").click();
   await page.locator("#clearActiveNotesBtn").click();
