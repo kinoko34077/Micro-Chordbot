@@ -32,3 +32,7 @@ test("phone navigation and persistent actions share one row when width permits",
 test("phone pitch canvas has an explicit height to fill its interactive surface", () => {
   assert.match(css, /#view-pitch\s+\.line-wrap\s*\{[^}]*min-height:\s*118px;[^}]*height:\s*118px/s);
 });
+
+test("tablet and phone chord choices scroll inside a bounded list", () => {
+  assert.match(css, /@media\\s*\\(max-width:\\s*1199px\\)[\\s\\S]*?#view-progression\\s+\\.chord-grid\\s*\\{[^}]*max-height:\\s*min\\(34dvh,\\s*280px\\);[^}]*overflow-y:\\s*auto;[^}]*overscroll-behavior:\\s*contain;/s);
+});
