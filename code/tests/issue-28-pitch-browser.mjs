@@ -4,7 +4,7 @@ import {chromium} from "playwright";
 
 const browser = await chromium.launch({headless:true});
 try {
-  const page = await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
+  const page = await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,acceptDownloads:true});
   const errors = [];
   page.on("pageerror", e=>errors.push(String(e)));
   await page.goto("http://127.0.0.1:4173/", {waitUntil:"domcontentloaded"});
