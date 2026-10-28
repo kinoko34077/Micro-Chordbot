@@ -1576,6 +1576,15 @@ body.workspace-combined .chord-library-panel .panel-note {
   }
   /* Narrow tablet and landscape-phone widths keep one linear editing flow. */
   .view#view-progression.active { display: block; min-width: 0; }
+  /* Preserve the full chord catalog while keeping the editor's other controls
+     within reach on touch-sized workspaces. */
+  #view-progression .chord-grid {
+    min-height: 160px;
+    max-height: clamp(160px, 34dvh, 280px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    align-content: start;
+  }
 }
 /* Wider tablets: the selected progression editor and its overview/library
    occupy two deliberately sized columns, not a compressed desktop tri-pane. */

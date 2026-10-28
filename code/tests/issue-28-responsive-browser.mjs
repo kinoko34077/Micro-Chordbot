@@ -163,6 +163,20 @@ try {
       }
     }
     if (width < 1200) {
+      const chordChoices = await page.locator("#progChordButtonGrid").evaluate(node => ({
+        count: node.querySelectorAll("button[data-chord-id]").length,
+        height: node.getBoundingClientRect().height,
+        viewportHeight: window.innerHeight,
+        overflowY: getComputedStyle(node).overflowY
+      }));
+      assert.ok(chordChoices.count > 20,
+        "the full chord catalog is not available at " + width + ": " + JSON.stringify(chordChoices));
+      assert.ok(chordChoices.height <= Math.max(160, Math.min(chordChoices.viewportHeight * 0.34, 280)) + 1,
+        "chord choices expand the editor beyond the touch layout at " + width + ": " + JSON.stringify(chordChoices));
+      assert.equal(chordChoices.overflowY, "auto",
+        "chord catalog must remain directly scrollable at " + width + ": " + JSON.stringify(chordChoices));
+    }
+    if (width < 1200) {
       const shell = await page.evaluate(() => ({
         bodyOverflowY: getComputedStyle(document.body).overflowY,
         mainOverflow: getComputedStyle(document.querySelector("main")).overflow,
