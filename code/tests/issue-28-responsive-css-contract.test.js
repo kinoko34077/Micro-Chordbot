@@ -21,3 +21,10 @@ test("user-configured progression columns remain authoritative on narrow screens
   assert.match(app, /--progression-columns/);
   assert.match(app, /progColumnsSelect/);
 });
+
+test("phone navigation and persistent actions share one row when width permits", () => {
+  assert.match(css, /@media\s*\(min-width:\s*390px\)\s*and\s*\(max-width:\s*640px\)\s*\{/);
+  assert.match(css, /@media\s*\(min-width:\s*390px\)\s*and\s*\(max-width:\s*640px\)[\s\S]*?\.brand-nav\s*\{\s*display:\s*contents/s);
+  assert.match(css, /@media\s*\(min-width:\s*390px\)\s*and\s*\(max-width:\s*640px\)[\s\S]*?\.topbar\s*\{[^}]*grid-template-columns:\s*36px\s+minmax\(132px,\s*1fr\)\s+auto/s);
+  assert.match(css, /@media\s*\(min-width:\s*390px\)\s*and\s*\(max-width:\s*640px\)[\s\S]*?\.history-buttons\s*\{[^}]*grid-template-columns:\s*40px\s+40px\s+64px\s+40px/s);
+});
