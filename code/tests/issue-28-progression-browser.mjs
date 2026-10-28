@@ -15,10 +15,12 @@ try {
   await page.locator("#progMenuToggleBtn").click();
   await page.locator("#progChordButtonGrid button[data-chord-id]").first().click();
   const addPart = page.locator("#addProgPartBtn");
-  for (let i=0;i<16;i++) await addPart.click();
   const grid = page.locator("#progressionGrid");
   const cells = page.locator("#progressionGrid .progression-cell");
-  assert.equal(await cells.count(),16,"progression fixture should contain sixteen editable cells");
+  const initialCount = await cells.count();
+  for (let i=0;i<16;i++) await addPart.click();
+  const cellCount = await cells.count();
+  assert.equal(cellCount,initialCount+16,"progression fixture should add sixteen editable cells");
   const before = await grid.evaluate(node=>{
     node.scrollTop=node.scrollHeight;
     return {scrollTop:node.scrollTop,scrollHeight:node.scrollHeight,clientHeight:node.clientHeight};
