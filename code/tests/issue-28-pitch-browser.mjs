@@ -11,7 +11,7 @@ try {
   await presets.first().waitFor({state:"visible",timeout:5000});
   const initialPresetCount = await presets.count();
   assert.ok(initialPresetCount > 0,"pitch library seed data not rendered");
-  const initialPitchPresetId = await presets.first().getAttribute("data-pitch-preset-id");
+  const initialPitchPresetIds = await presets.evaluateAll(rows => rows.map(row => row.getAttribute("data-pitch-preset-id")).sort());
   const search = page.locator("#pitchPresetFilterInput");
   assert.equal(await search.getAttribute("aria-label"),"音高プリセットを検索","pitch preset search needs an accessible name");
   await search.fill("完全1度");
@@ -104,7 +104,7 @@ try {
   const chordPresetCount = exported.payload.chordPresets.length;
   assert.equal(pitchPresetCount, initialPresetCount, "project export omitted pitch presets");
   assert.ok(chordPresetCount > 0, "project export omitted chord presets");
-  assert.equal(exported.payload.pitchPresets[0].id, initialPitchPresetId, "project export changed the first pitch preset identity");
+  assert.deepEqual(exported.payload.pitchPresets.map(preset => preset.id).sort(), initialPitchPresetIds, "project export changed the pitch preset identities");
   assert.ok(exported.payload.progression && Array.isArray(exported.payload.progression.parts), "project export omitted the progression");
   await page.locator("#settingsDrawerCloseBtn").click();
   await page.locator("#clearActiveNotesBtn").click();
@@ -115,8 +115,8 @@ try {
   await page.locator("#settingsDrawerCloseBtn").click();
   assert.equal(await rows.count(), 0, "project import should retain the established transient-note behavior");
   assert.equal(await presets.count(), pitchPresetCount, "project import did not restore the exported pitch library");
-  const restoredPitchId = await presets.first().getAttribute("data-pitch-preset-id");
-  assert.equal(restoredPitchId, exported.payload.pitchPresets[0].id, "project import changed pitch preset identity");
+  const restoredPitchPresetIds = await presets.evaluateAll(rows => rows.map(row => row.getAttribute("data-pitch-preset-id")).sort());
+  assert.deepEqual(restoredPitchPresetIds, initialPitchPresetIds, "project import changed pitch preset identities");
   const secondDrawer = page.locator("#settingsMenuBtn");
   await secondDrawer.click();
   const roundtripDownloadPromise = page.waitForEvent("download");
