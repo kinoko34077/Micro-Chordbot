@@ -37,7 +37,13 @@ try {
         };
       });
       assert.ok(header.topbar.height <= 140, "phone header exceeds first-viewport budget at " + width + ": " + JSON.stringify(header));
-      assert.ok(header.navigation.bottom <= header.tools.top + 1, "navigation overlaps tools at " + width);
+      if (width >= 390) {
+        assert.ok(header.topbar.height <= 48, "phone navigation and persistent actions should share a compact row at " + width + ": " + JSON.stringify(header));
+        assert.ok(Math.abs(header.navigation.top - header.tools.top) <= 1 && header.navigation.bottom <= header.tools.bottom + 1,
+          "phone navigation and persistent actions are not aligned in the shared row at " + width + ": " + JSON.stringify(header));
+      } else {
+        assert.ok(header.navigation.bottom <= header.tools.top + 1, "navigation overlaps tools at " + width);
+      }
       for (const action of ["undo","redo","menu"]) {
         assert.ok(header[action].width >= 40 && header[action].height >= 40, "header action too small at " + width + ": " + action);
       }
