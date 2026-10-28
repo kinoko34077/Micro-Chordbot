@@ -83,33 +83,17 @@ try {
         }
       };
       await visibleOnly("pitch");
-      const settingsTab = page.locator('button[data-view="settings"]');
-      const settingsDebug = await page.evaluate(() => {
-        const node = document.querySelector('button[data-view="settings"]');
-        const box = node?.getBoundingClientRect();
-        return {found:Boolean(node),hidden:node?.hidden,html:node?.outerHTML,
-          display:node ? getComputedStyle(node).display : null,visibility:node ? getComputedStyle(node).visibility : null,
-          rect:box ? {left:box.left,right:box.right,top:box.top,bottom:box.bottom,width:box.width,height:box.height} : null,
-          nav:document.querySelector(".view-nav")?.outerHTML};
-      });
-      console.log("PHONE_SETTINGS_DEBUG " + JSON.stringify(settingsDebug));
-      assert.equal(await settingsTab.isVisible(), true, "phone settings tab is not visible at " + width);
-      const headerGeometry = await page.evaluate(() => {
-        const tab = document.querySelector('button[data-view="settings"]').getBoundingClientRect();
-        const nav = document.querySelector(".view-nav").getBoundingClientRect();
-        const history = document.querySelector(".history-buttons").getBoundingClientRect();
-        return {tab:{left:tab.left,right:tab.right,top:tab.top,bottom:tab.bottom},
-          nav:{left:nav.left,right:nav.right,top:nav.top,bottom:nav.bottom},
-          history:{left:history.left,right:history.right,top:history.top,bottom:history.bottom}};
-      });
-      assert.ok(headerGeometry.tab.left >= headerGeometry.nav.left - 1 && headerGeometry.tab.right <= headerGeometry.nav.right + 1,
-        "phone settings tab escapes its navigation row at " + width + ": " + JSON.stringify(headerGeometry));
-      assert.ok(headerGeometry.tab.bottom <= headerGeometry.history.top + 1,
-        "phone settings tab overlaps the history controls at " + width + ": " + JSON.stringify(headerGeometry));
-      await settingsTab.click();
-      assert.notEqual(await page.locator("#view-settings").evaluate(el => getComputedStyle(el).display), "none",
-        "phone settings view could not be opened at " + width);
-      await page.locator('button[data-view="pitch"]').click();
+      const settingsMenu = page.locator("#settingsMenuBtn");
+      assert.equal(await settingsMenu.isVisible(), true, "phone settings menu is not visible at " + width);
+      const settingsMenuBounds = await settingsMenu.boundingBox();
+      const topbarBounds = await page.locator(".topbar").boundingBox();
+      assert.ok(settingsMenuBounds.left >= topbarBounds.left - 1 && settingsMenuBounds.right <= topbarBounds.right + 1 &&
+        settingsMenuBounds.top >= topbarBounds.top - 1 && settingsMenuBounds.bottom <= topbarBounds.bottom + 1,
+        "phone settings menu escapes the header at " + width + ": " + JSON.stringify({settingsMenuBounds,topbarBounds}));
+      await settingsMenu.click();
+      assert.equal(await page.locator("#settingsDrawer").isVisible(), true, "phone settings drawer did not open at " + width);
+      assert.equal(await page.locator("#settingsDrawerBody").isVisible(), true, "phone settings panel is not available at " + width);
+      await page.locator("#settingsDrawerCloseBtn").click();
       await visibleOnly("pitch");
     }
     await page.locator('button[data-view="progression"]').click();
