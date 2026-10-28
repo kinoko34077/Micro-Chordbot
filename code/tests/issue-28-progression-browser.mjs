@@ -8,9 +8,11 @@ try {
   page.on("pageerror", error=>errors.push(String(error)));
   await page.goto("http://127.0.0.1:4173/", {waitUntil:"domcontentloaded"});
   await page.locator('button[data-view="progression"]').click();
+  await page.locator("#progMenuToggleBtn").click();
   const columns = page.locator("#progColumnsSelect");
   await columns.fill("1");
   await columns.dispatchEvent("change");
+  await page.locator("#progMenuToggleBtn").click();
   await page.locator("#progChordButtonGrid button[data-chord-id]").first().click();
   const addPart = page.locator("#addProgPartBtn");
   for (let i=0;i<16;i++) await addPart.click();
