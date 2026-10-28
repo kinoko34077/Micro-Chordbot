@@ -83,6 +83,25 @@ try {
         }
       };
       await visibleOnly("pitch");
+      const settingsTab = page.locator('button[data-view="settings"]');
+      assert.equal(await settingsTab.isVisible(), true, "phone settings tab is not visible at " + width);
+      const headerGeometry = await page.evaluate(() => {
+        const tab = document.querySelector('button[data-view="settings"]').getBoundingClientRect();
+        const nav = document.querySelector(".view-nav").getBoundingClientRect();
+        const history = document.querySelector(".history-buttons").getBoundingClientRect();
+        return {tab:{left:tab.left,right:tab.right,top:tab.top,bottom:tab.bottom},
+          nav:{left:nav.left,right:nav.right,top:nav.top,bottom:nav.bottom},
+          history:{left:history.left,right:history.right,top:history.top,bottom:history.bottom}};
+      });
+      assert.ok(headerGeometry.tab.left >= headerGeometry.nav.left - 1 && headerGeometry.tab.right <= headerGeometry.nav.right + 1,
+        "phone settings tab escapes its navigation row at " + width + ": " + JSON.stringify(headerGeometry));
+      assert.ok(headerGeometry.tab.bottom <= headerGeometry.history.top + 1,
+        "phone settings tab overlaps the history controls at " + width + ": " + JSON.stringify(headerGeometry));
+      await settingsTab.click();
+      assert.notEqual(await page.locator("#view-settings").evaluate(el => getComputedStyle(el).display), "none",
+        "phone settings view could not be opened at " + width);
+      await page.locator('button[data-view="pitch"]').click();
+      await visibleOnly("pitch");
     }
     await page.locator('button[data-view="progression"]').click();
     await page.waitForTimeout(150);
