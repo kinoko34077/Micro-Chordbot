@@ -85,6 +85,8 @@ try {
     await page.close();
   }
 
+  await writeFile(path.join(outputDir, "measurements.json"), `${JSON.stringify(measurements, null, 2)}\n`);
+
   // Capture the deployed main UI directly so the audit reflects the live site.
   const liveSettingsViewports = [
     [320,800], [390,360], [768,1024], [834,1194], [1024,768],
@@ -123,6 +125,7 @@ try {
     const screenshot=`live-settings_${width}x${height}.png`;
     await page.screenshot({path:path.join(outputDir,screenshot),fullPage:false});
     liveSettings.push({viewport:`${width}x${height}`,screenshot,httpStatus:response.status(),...geometry,pageErrors:errors});
+    await writeFile(path.join(outputDir,"live-settings-measurements.json"), `${JSON.stringify(liveSettings, null, 2)}\n`);
     assert.equal(geometry.controls.filter(control=>control.exists).length,16,"all deployed settings/actions must exist at "+width);
     assert.ok(geometry.body.scrollWidth<=geometry.body.clientWidth+1,"live settings overflow horizontally at "+width);
     assert.deepEqual(errors,[],"live Pages must not produce browser errors at "+width);
