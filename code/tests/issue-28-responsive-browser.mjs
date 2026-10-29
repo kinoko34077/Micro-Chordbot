@@ -128,6 +128,7 @@ try {
           bpmHeight:document.querySelector("#bpmInput").getBoundingClientRect().height
         };
       });
+      console.log("SETTINGS_LAYOUT", width, JSON.stringify(settingsLayout));
       assert.equal(settingsLayout.groups, 2, "display and audio settings are not grouped by role at " + width);
       assert.equal(settingsLayout.controls, 16, "settings layout lost an existing setting or action at " + width);
       assert.ok(settingsLayout.body.width > 0 && settingsLayout.body.overflowY === "auto",
@@ -150,6 +151,38 @@ try {
       assert.equal(await bpm.inputValue(), "131", "BPM preference stopped responding at " + width);
       await page.locator("#settingsDrawerCloseBtn").click();
       await visibleOnly("pitch");
+    }
+    if (width >= 1200) {
+      const settingsMenu = page.locator("#settingsMenuBtn");
+      assert.equal(await settingsMenu.isVisible(), true, "desktop settings menu is unavailable at " + width);
+      await settingsMenu.click();
+      const settingsLayout = await page.evaluate(() => {
+        const drawer = document.querySelector("#settingsDrawer");
+        const body = document.querySelector("#settingsDrawerBody");
+        const rect = drawer.getBoundingClientRect();
+        const ids = [
+          "runtimeInfoText", "runtimeRefreshBtn", "presetNameWidthInput", "presetCentWidthInput",
+          "presetShortWidthInput", "presetTagWidthInput", "presetMemoWidthInput", "progressionCellWidthInput",
+          "a4HzInput", "bpmInput", "phaseModeSelect", "roundUnitInput", "roundingModeSelect",
+          "exportBtn", "exportLibraryBtn", "importFileInput"
+        ];
+        return {
+          drawer:{left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,width:rect.width,height:rect.height},
+          viewport:{width:innerWidth,height:innerHeight},
+          body:{width:body.clientWidth,scrollWidth:body.scrollWidth,height:body.clientHeight,scrollHeight:body.scrollHeight,overflowY:getComputedStyle(body).overflowY},
+          groups:document.querySelectorAll(".settings-control-sections > .settings-subgroup").length,
+          controls:ids.filter(id => document.getElementById(id)).length
+        };
+      });
+      console.log("SETTINGS_LAYOUT", width, JSON.stringify(settingsLayout));
+      assert.equal(settingsLayout.groups, 2, "desktop settings groups missing at " + width);
+      assert.equal(settingsLayout.controls, 16, "desktop settings lost an existing control at " + width);
+      assert.ok(settingsLayout.drawer.width <= 721 && settingsLayout.drawer.width >= 600,
+        "desktop settings surface does not use its available width at " + width + ": " + JSON.stringify(settingsLayout));
+      assert.ok(settingsLayout.body.overflowY === "auto" && settingsLayout.body.width > 0 &&
+        settingsLayout.body.scrollWidth <= settingsLayout.body.width + 1,
+        "desktop settings content does not stay within its scroll region at " + width + ": " + JSON.stringify(settingsLayout));
+      await page.locator("#settingsDrawerCloseBtn").click();
     }
     await page.locator('button[data-view="progression"]').click();
     await page.waitForTimeout(150);
