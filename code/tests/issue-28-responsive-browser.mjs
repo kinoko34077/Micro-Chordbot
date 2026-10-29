@@ -255,6 +255,43 @@ try {
           "redo did not restore progression chord at " + width);
       }
       if (width === 390) {
+        const choiceFilter = page.locator("#progChordTagFilterInput");
+        const searchTerm = await page.locator("#progChordButtonGrid").evaluate((grid) => {
+          const ids = [...grid.querySelectorAll("button[data-chord-id]")].map((button) => button.dataset.chordId.toLowerCase());
+          return [..."abcdefghijklmnopqrstuvwxyz0123456789"]
+            .map((character) => ({ character, count: ids.filter((id) => id.includes(character)).length }))
+            .sort((left, right) => right.count - left.count)[0].character;
+        });
+        await choiceFilter.fill(searchTerm);
+        const beforeChordEdit = await page.locator("#progChordButtonGrid").evaluate((grid) => {
+          grid.scrollTop = grid.scrollHeight;
+          return {
+            filter: document.querySelector("#progChordTagFilterInput").value,
+            scrollTop: grid.scrollTop,
+            scrollHeight: grid.scrollHeight,
+            clientHeight: grid.clientHeight
+          };
+        });
+        assert.ok(beforeChordEdit.scrollHeight > beforeChordEdit.clientHeight && beforeChordEdit.scrollTop > 0,
+          "chord choice fixture must have a filtered, scrollable result set: " + JSON.stringify(beforeChordEdit));
+        await page.locator("#progChordButtonGrid button[data-chord-id]").last().click();
+        const afterChordEdit = await page.locator("#progChordButtonGrid").evaluate((grid) => ({
+          filter: document.querySelector("#progChordTagFilterInput").value,
+          scrollTop: grid.scrollTop
+        }));
+        assert.equal(afterChordEdit.filter, beforeChordEdit.filter, "chord selection changed its search condition");
+        assert.ok(Math.abs(afterChordEdit.scrollTop - beforeChordEdit.scrollTop) <= 1,
+          "chord selection reset the filtered choice scroll position: " + JSON.stringify({beforeChordEdit,afterChordEdit}));
+        assert.ok(await page.locator("#progressionGrid .progression-cell").count() > 1,
+          "scroll preservation fixture needs a second progression cell");
+        await page.locator("#progressionGrid .progression-cell").nth(1).click();
+        const afterCellChange = await page.locator("#progChordButtonGrid").evaluate((grid) => ({
+          filter: document.querySelector("#progChordTagFilterInput").value,
+          scrollTop: grid.scrollTop
+        }));
+        assert.equal(afterCellChange.filter, beforeChordEdit.filter, "cell selection changed the chord search condition");
+        assert.ok(Math.abs(afterCellChange.scrollTop - beforeChordEdit.scrollTop) <= 1,
+          "progression cell selection reset the filtered choice scroll position: " + JSON.stringify({beforeChordEdit,afterCellChange}));
         const play = page.locator("#playProgBtn");
         if (await play.isDisabled()) await page.locator("#addProgPartBtn").click();
         assert.equal(await play.isDisabled(), false, "progression playback unavailable after adding a chord");

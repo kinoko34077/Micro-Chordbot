@@ -264,7 +264,8 @@ const progressionUi = {
   pointerStartY: 0,
   suppressClick: false,
   isMenuOpen: false,
-  isEditorExpanded: false
+  isEditorExpanded: false,
+  chordChoiceFilter: null
 };
 const presetUi = {
   editingPitchPresetId: null,
@@ -1874,25 +1875,32 @@ function buttonAtClientPoint(container, clientX, clientY) {
 }
 
 function renderProgressionChordButtons() {
-  els.progChordButtonGrid.innerHTML = "";
-  const chords = filteredChordPresets(els.progChordTagFilterInput?.value);
+  const filterText = els.progChordTagFilterInput?.value ?? "";
+  const grid = els.progChordButtonGrid;
+  const keepScrollPosition = progressionUi.chordChoiceFilter === filterText;
+  const previousScrollTop = keepScrollPosition ? grid.scrollTop : 0;
+  grid.innerHTML = "";
+  const chords = filteredChordPresets(filterText);
   if (chords.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
     empty.textContent = "条件に合うコードがありません。";
-    els.progChordButtonGrid.appendChild(empty);
-    return;
+    grid.appendChild(empty);
+  } else {
+    chords.forEach((chord) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.chordId = chord.id;
+      button.textContent = chord.name;
+      if (state.progressionEditor.chordId === chord.id) {
+        button.classList.add("active");
+      }
+      grid.appendChild(button);
+    });
   }
-  chords.forEach((chord) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.dataset.chordId = chord.id;
-    button.textContent = chord.name;
-    if (state.progressionEditor.chordId === chord.id) {
-      button.classList.add("active");
-    }
-    els.progChordButtonGrid.appendChild(button);
-  });
+  progressionUi.chordChoiceFilter = filterText;
+  const maxScrollTop = Math.max(0, grid.scrollHeight - grid.clientHeight);
+  grid.scrollTop = keepScrollPosition ? Math.min(previousScrollTop, maxScrollTop) : 0;
 }
 
 function renderBassChoiceButtons() {
