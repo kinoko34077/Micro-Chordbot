@@ -685,10 +685,10 @@ try {
     "settings surface escapes the keyboard-reduced viewport: " + JSON.stringify(compactSettings));
   assert.ok(compactSettings.body.scrollHeight > compactSettings.body.height,
     "settings body cannot scroll in a keyboard-reduced viewport: " + JSON.stringify(compactSettings));
-  const roundingMode = compactSettingsPage.locator("#roundingModeSelect");
-  await roundingMode.scrollIntoViewIfNeeded();
+  const phaseMode = compactSettingsPage.locator("#phaseModeSelect");
+  await phaseMode.scrollIntoViewIfNeeded();
   const scrollBeforeEdit = await compactSettingsPage.locator("#settingsDrawerBody").evaluate(node => node.scrollTop);
-  await roundingMode.selectOption("continue");
+  await phaseMode.selectOption("continue");
   const scrollAfterEdit = await compactSettingsPage.locator("#settingsDrawerBody").evaluate(node => node.scrollTop);
   assert.ok(Math.abs(scrollAfterEdit - scrollBeforeEdit) <= 1,
     "settings scroll moved when a preference changed: " + JSON.stringify({scrollBeforeEdit,scrollAfterEdit,compactSettings}));
