@@ -671,7 +671,7 @@ try {
   await compactSettingsPage.goto("http://127.0.0.1:4173/",{waitUntil:"domcontentloaded"});
   await compactSettingsPage.locator("#settingsMenuBtn").click();
   await compactSettingsPage.locator("#bpmInput").focus();
-  await compactSettingsPage.setViewportSize({width:390,height:480});
+  await compactSettingsPage.setViewportSize({width:390,height:360});
   const compactSettings = await compactSettingsPage.evaluate(() => {
     const drawer = document.querySelector("#settingsDrawer").getBoundingClientRect();
     const body = document.querySelector("#settingsDrawerBody");
