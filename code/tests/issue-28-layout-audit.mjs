@@ -14,6 +14,7 @@ const viewports = [
 ];
 const browser = await chromium.launch({ headless: true });
 const measurements = [];
+const liveSettings = [];
 
 try {
   for (const [width, height] of viewports) {
@@ -101,7 +102,7 @@ try {
     page.on("pageerror",(error)=>errors.push(error.message));
     const response=await page.goto("https://kinoko34077.github.io/Micro-Chordbot/",{waitUntil:"domcontentloaded"});
     assert.equal(response?.status(),200,"live Pages must load at "+width);
-    await page.waitForFunction(()=>document.querySelectorAll("#pitchPresetList tr").length > 0,{timeout:30000});
+    await page.waitForFunction(()=>document.querySelector("#pitchPresetList")?.children.length > 0,{timeout:30000});
     await page.waitForSelector("#settingsMenuBtn",{timeout:10000});
     if (await page.locator("#pwaPromptCloseBtn").isVisible().catch(()=>false)) await page.locator("#pwaPromptCloseBtn").click();
     await page.locator("#settingsMenuBtn").click();
