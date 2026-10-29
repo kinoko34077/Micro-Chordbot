@@ -209,6 +209,7 @@ main {
 }
 .settings-drawer-body {
   display: grid;
+  grid-auto-rows: max-content;
   align-content: start;
   gap: 8px;
   min-height: 0;

@@ -663,6 +663,43 @@ try {
   await zoomPage.locator("#progMenuToggleBtn").click();
   assert.equal(await zoomPage.locator("#progToolbarActions").isVisible(),true);
   await zoomPage.close();
+
+  // A reduced visual viewport models the space left when an on-screen keyboard is open.
+  const compactSettingsPage = await browser.newPage({viewport:{width:390,height:800},deviceScaleFactor:1});
+  const settingsErrors = [];
+  compactSettingsPage.on("pageerror",(error)=>settingsErrors.push(String(error)));
+  await compactSettingsPage.goto("http://127.0.0.1:4173/",{waitUntil:"domcontentloaded"});
+  await compactSettingsPage.locator("#settingsMenuBtn").click();
+  await compactSettingsPage.locator("#bpmInput").focus();
+  await compactSettingsPage.setViewportSize({width:390,height:360});
+  const compactSettings = await compactSettingsPage.evaluate(() => {
+    const drawer = document.querySelector("#settingsDrawer").getBoundingClientRect();
+    const body = document.querySelector("#settingsDrawerBody");
+    return {
+      drawer:{left:drawer.left,top:drawer.top,right:drawer.right,bottom:drawer.bottom,height:drawer.height},
+      viewport:{width:innerWidth,height:innerHeight},
+      body:{height:body.clientHeight,scrollHeight:body.scrollHeight,scrollTop:body.scrollTop}
+    };
+  });
+  assert.ok(compactSettings.drawer.top >= -1 && compactSettings.drawer.bottom <= compactSettings.viewport.height + 1,
+    "settings surface escapes the keyboard-reduced viewport: " + JSON.stringify(compactSettings));
+  assert.ok(compactSettings.body.scrollHeight > compactSettings.body.height,
+    "settings body cannot scroll in a keyboard-reduced viewport: " + JSON.stringify(compactSettings));
+  const phaseMode = compactSettingsPage.locator("#phaseModeSelect");
+  await phaseMode.scrollIntoViewIfNeeded();
+  const scrollBeforeEdit = await compactSettingsPage.locator("#settingsDrawerBody").evaluate(node => node.scrollTop);
+  await phaseMode.selectOption("continue");
+  const scrollAfterEdit = await compactSettingsPage.locator("#settingsDrawerBody").evaluate(node => node.scrollTop);
+  assert.ok(Math.abs(scrollAfterEdit - scrollBeforeEdit) <= 1,
+    "settings scroll moved when a preference changed: " + JSON.stringify({scrollBeforeEdit,scrollAfterEdit,compactSettings}));
+  await compactSettingsPage.locator("#settingsDrawerCloseBtn").click();
+  await compactSettingsPage.locator("#settingsMenuBtn").click();
+  const reopenedScroll = await compactSettingsPage.locator("#settingsDrawerBody").evaluate(node => node.scrollTop);
+  assert.ok(Math.abs(reopenedScroll - scrollAfterEdit) <= 1,
+    "settings scroll position was lost when the menu reopened: " + JSON.stringify({scrollAfterEdit,reopenedScroll}));
+  console.log("SETTINGS_KEYBOARD_VIEWPORT",JSON.stringify({compactSettings,scrollBeforeEdit,scrollAfterEdit,reopenedScroll}));
+  assert.deepEqual(settingsErrors,[]);
+  await compactSettingsPage.close();
 } finally {
   await browser.close();
 }
