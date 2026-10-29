@@ -36,3 +36,10 @@ test("phone pitch canvas has an explicit height to fill its interactive surface"
 test("tablet and phone chord choices scroll inside a bounded list", () => {
   assert.match(css, /@media\s*\(max-width:\s*1199px\)[\s\S]*?#view-progression\s+\.chord-grid\s*\{[^}]*max-height:\s*clamp\(160px,\s*34dvh,\s*280px\);[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior:\s*contain;/s);
 });
+
+
+test("progression chord choices preserve filtered-list scroll across selection rerenders", () => {
+  assert.match(app, /chordChoiceFilter:\s*null/);
+  assert.match(app, /const keepScrollPosition = progressionUi\.chordChoiceFilter === filterText;/);
+  assert.match(app, /grid\.scrollTop = keepScrollPosition \? Math\.min\(previousScrollTop, maxScrollTop\) : 0;/);
+});
