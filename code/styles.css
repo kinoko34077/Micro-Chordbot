@@ -177,10 +177,12 @@ main {
   top: 58px;
   right: 12px;
   z-index: 50;
-  width: min(420px, calc(100vw - 24px));
+  width: min(720px, calc(100vw - 24px));
+  height: min(760px, calc(100vh - 72px));
   max-height: calc(100vh - 72px);
-  overflow: auto;
+  overflow: hidden;
   display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 8px;
   padding: 10px;
   border: 1px solid #334155;
@@ -195,25 +197,77 @@ main {
   align-items: center;
   gap: 6px;
 }
-.settings-drawer-head { justify-content: space-between; }
+.settings-drawer-head { justify-content: space-between; min-height: 36px; }
 .settings-drawer-links button {
   flex: 1 1 0;
-  min-height: 30px;
+  min-width: 0;
+  min-height: 40px;
   padding: 4px 6px;
   font-size: 0.78rem;
+  line-height: 1.2;
+  white-space: normal;
 }
 .settings-drawer-body {
   display: grid;
+  align-content: start;
   gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .settings-drawer-body[hidden],
 .settings-drawer [data-menu-panel][hidden] {
   display: none !important;
 }
+.settings-drawer [data-menu-panel] {
+  grid-row: 3;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .settings-drawer .panel {
   margin: 0;
   padding: 8px;
 }
+.settings-drawer .panel-heading { margin-bottom: 6px; }
+.settings-control-sections {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.settings-subgroup {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+.settings-subgroup h4 {
+  margin: 0;
+  font-size: 0.875rem;
+}
+.settings-drawer .settings-input-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+.settings-input-grid > label { min-width: 0; }
+.settings-input-grid input[type="number"],
+.settings-input-grid select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.settings-input-grid input,
+.settings-input-grid select { min-height: 40px; }
+.settings-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+@media (min-width: 720px) {
+  .settings-control-sections { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 .master-volume-inline {
   width: 36px;
   min-width: 36px;
@@ -1918,6 +1972,16 @@ body.workspace-combined .chord-library-panel .panel-note {
     max-width: none;
     width: fit-content;
   }
+  .settings-drawer {
+    inset: 0;
+    width: auto;
+    height: auto;
+    max-height: none;
+    padding: calc(8px + env(safe-area-inset-top)) 8px calc(8px + env(safe-area-inset-bottom));
+    border: 0;
+    border-radius: 0;
+  }
+  .settings-drawer-links button { font-size: 0.75rem; }
 }
 
 @media (min-width: 390px) and (max-width: 640px) {

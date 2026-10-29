@@ -4,6 +4,7 @@ import test from "node:test";
 
 const css = await readFile(new URL("../styles.css", import.meta.url), "utf8");
 const app = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
+const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
 
 test("mobile rules have a single ordered max-width 640px cascade", () => {
   assert.equal((css.match(/@media\s*\(max-width:\s*640px\)/g) || []).length, 1);
@@ -42,4 +43,15 @@ test("progression chord choices preserve filtered-list scroll across selection r
   assert.match(app, /chordChoiceFilter:\s*null/);
   assert.match(app, /const keepScrollPosition = progressionUi\.chordChoiceFilter === filterText;/);
   assert.match(app, /grid\.scrollTop = keepScrollPosition \? Math\.min\(previousScrollTop, maxScrollTop\) : 0;/);
+});
+
+
+test("settings use role groups and a bounded single content scroller", () => {
+  assert.match(css, /\.settings-drawer\s*\{[^}]*grid-template-rows:\s*auto\s+auto\s+minmax\(0,\s*1fr\);/s);
+  assert.match(css, /\.settings-drawer\s*\{[^}]*overflow:\s*hidden;/s);
+  assert.match(css, /\.settings-drawer-body\s*\{[^}]*overflow-y:\s*auto;/s);
+  assert.match(css, /\.settings-drawer\s+\.settings-input-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*?\.settings-drawer\s*\{[^}]*inset:\s*0;/s);
+  assert.match(html, /class="panel settings-preferences-panel"[^>]*aria-labelledby="settingsPreferencesHeading"/);
+  assert.match(html, /aria-labelledby="settingsAudioHeading"/);
 });
