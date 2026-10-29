@@ -43,3 +43,13 @@ test("progression chord choices preserve filtered-list scroll across selection r
   assert.match(app, /const keepScrollPosition = progressionUi\.chordChoiceFilter === filterText;/);
   assert.match(app, /grid\.scrollTop = keepScrollPosition \? Math\.min\(previousScrollTop, maxScrollTop\) : 0;/);
 });
+
+
+test("settings use role groups and a bounded single content scroller", () => {
+  assert.match(css, /\.settings-drawer\s*\{[^}]*grid-template-rows:\s*auto\s+auto\s+minmax\(0,\s*1fr\);[^}]*overflow:\s*hidden;/s);
+  assert.match(css, /\.settings-drawer-body\s*\{[^}]*overflow-y:\s*auto;/s);
+  assert.match(css, /\.settings-drawer\s+\.settings-input-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*?\.settings-drawer\s*\{[^}]*inset:\s*0;/s);
+  assert.match(css, /\.settings-preferences-panel/);
+  assert.match(css, /aria-labelledby="settingsAudioHeading"/);
+});
