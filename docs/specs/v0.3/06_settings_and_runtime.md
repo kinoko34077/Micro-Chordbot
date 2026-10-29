@@ -47,6 +47,12 @@
 
 Roadmap link: [09_status_roadmap.md](./09_status_roadmap.md)
 
+## Responsive settings layout
+- 既存の設定項目・入出力・Runtime/PWA 操作を保持し、表示/コード寸法と音/再生を役割ごとに見出しでまとめる。
+- 画面幅 640px 以下では設定面を利用可能な画面全体へ広げ、ヘッダーと設定/ヘルプ/プライバシー切替を残したまま本文だけを縦スクロールする。
+- 入力列は画面幅に収まる二列を基本とし、768px 以上は役割別のまとまりを横に並べて空間を有効利用する。
+- 設定変更は既存の即時反映と保存経路を維持し、入力IDや設定データ形式を変更しない。
+
 ## PWA offline/update cache contract
 
 ### Intent
