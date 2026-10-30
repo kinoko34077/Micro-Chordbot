@@ -312,7 +312,7 @@ try {
       await page.locator("#progColumnsSelect").fill(String(columns));
       await page.waitForFunction(expected=>{
         const select=document.querySelector("#progColumnsSelect");
-        const grid=document.querySelector("#progressionGrid");
+        const grid=document.querySelector("#progressionGrid .progression-chunk-grid");
         return Number(select?.value)===expected&&
           getComputedStyle(grid).gridTemplateColumns.trim().split(/\s+/).length===expected;
       },columns);
@@ -327,7 +327,7 @@ try {
           progressionActive:workspace.classList.contains("active"),
           documentWidth:document.documentElement.scrollWidth,
           columnValue:Number(document.querySelector("#progColumnsSelect").value),
-          renderedColumns:getComputedStyle(grid).gridTemplateColumns.trim().split(/\s+/).length,
+          renderedColumns:getComputedStyle(grid.querySelector(".progression-chunk-grid")).gridTemplateColumns.trim().split(/\s+/).length,
           progressionGrid:box(grid),
           workspace:{...box(workspace),overflowY:getComputedStyle(workspace).overflowY,scrollHeight:workspace.scrollHeight,clientHeight:workspace.clientHeight,scrollTop:workspace.scrollTop},
           editor:box(document.querySelector(".progression-editor")),
