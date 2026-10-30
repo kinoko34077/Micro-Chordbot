@@ -302,7 +302,9 @@ try {
     await progressionPage.locator("#progMenuToggleBtn").evaluate(node=>node.click());
   }
   await progressionPage.waitForFunction(()=>document.querySelector("#progToolbarActions")?.hidden===true,{timeout:15000});
-  await progressionPage.locator("#progEditorToggleBtn").click();
+  if(await progressionPage.locator("#progressionEditorBody").evaluate(node=>node.hidden)) {
+    await progressionPage.locator("#progEditorToggleBtn").click();
+  }
   await progressionPage.waitForFunction(()=>!document.querySelector("#progressionEditorBody")?.hidden,{timeout:15000});
   console.log("LIVE_PROGRESSION_PHASE","editor-open");
   await progressionPage.locator("#progChordButtonGrid button[data-chord-id]").first().click();
