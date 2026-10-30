@@ -10,7 +10,7 @@ await mkdir(outputDir, { recursive: true });
 
 const viewports = [
   [320, 700], [375, 812], [390, 844], [430, 932], [667, 375],
-  [768, 1024], [834, 1194], [1024, 768], [1280, 800], [1440, 900], [1920, 1080]
+  [768, 1024], [834, 1194], [1024, 768], [1280, 400], [1280, 800], [1440, 900], [1920, 1080]
 ];
 const browser = await chromium.launch({ headless: true });
 const measurements = [];
@@ -87,7 +87,14 @@ try {
       const screenshot = `${view}_${width}x${height}.png`;
       await page.screenshot({ path: path.join(outputDir, screenshot), fullPage: false });
       measurements.push({ viewport: `${width}x${height}`, selectedView: view, screenshot, ...geometry, pageErrors: [...errors] });
-      if (view === "progression" && width >= 1200) {
+      if (view === "progression" && width >= 1200 && height < 600) {
+        assert.equal(geometry.progressionEditor.overflowY,"auto",
+          "short desktop windows need an editor scrolling fallback: "+JSON.stringify(geometry.progressionEditor));
+        assert.ok(geometry.progressionEditor.scrollHeight>geometry.progressionEditor.clientHeight,
+          "short desktop editor controls must remain reachable by scrolling: "+JSON.stringify(geometry.progressionEditor));
+        assert.ok(geometry.progressionBassInput.height>0&&geometry.progressionInversionButton.height>0,
+          "short desktop Bass and inversion controls must remain rendered");
+      } else if (view === "progression" && width >= 1200) {
         const editorBottom=geometry.progressionEditor.y+geometry.progressionEditor.height;
         assert.ok(geometry.progressionBassInput.y+geometry.progressionBassInput.height<=editorBottom,
           "Bass must be reachable without scrolling the whole editor at "+width+": "+JSON.stringify(geometry));
