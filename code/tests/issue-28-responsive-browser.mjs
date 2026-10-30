@@ -174,12 +174,12 @@ try {
           drawer:{left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,width:rect.width,height:rect.height},
           viewport:{width:innerWidth,height:innerHeight},
           body:{width:body.clientWidth,scrollWidth:body.scrollWidth,height:body.clientHeight,scrollHeight:body.scrollHeight,overflowY:getComputedStyle(body).overflowY},
-          groups:document.querySelectorAll(".settings-control-sections > .settings-subgroup").length,
+          groups:[...document.querySelectorAll(".settings-preferences-panel .settings-subgroup h3")].map(node => node.textContent.trim()),
           controls:ids.filter(id => document.getElementById(id)).length
         };
       });
       console.log("SETTINGS_LAYOUT", width, JSON.stringify(settingsLayout));
-      assert.equal(settingsLayout.groups, 2, "desktop settings groups missing at " + width);
+      assert.deepEqual(settingsLayout.groups, ["一覧の幅","進行セル","音と再生"], "desktop settings task groups missing at " + width);
       assert.equal(settingsLayout.controls, 16, "desktop settings lost an existing control at " + width);
       assert.ok(settingsLayout.drawer.width <= 721 && settingsLayout.drawer.width >= 600,
         "desktop settings surface does not use its available width at " + width + ": " + JSON.stringify(settingsLayout));
