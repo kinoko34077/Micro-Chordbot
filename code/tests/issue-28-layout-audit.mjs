@@ -99,6 +99,8 @@ try {
           "Bass and inversion actions must retain usable widths at "+width+": "+JSON.stringify(geometry));
         assert.ok(geometry.progressionVoiceEditor.x>=geometry.progressionChordChoices.x+geometry.progressionChordChoices.width-1,
           "Bass/inversion zone must sit beside chord choices at "+width+": "+JSON.stringify(geometry));
+        assert.ok(geometry.progressionVoiceEditor.height>=50,
+          "Bass/inversion zone must retain enough height for its controls at "+width+": "+JSON.stringify(geometry));
         assert.ok(geometry.progressionChordChoices.height<=240&&
           geometry.progressionChordChoices.scrollHeight>geometry.progressionChordChoices.clientHeight+1,
           "desktop chord choices need their own bounded scroll area at "+width+": "+JSON.stringify(geometry.progressionChordChoices));
