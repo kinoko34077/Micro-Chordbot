@@ -15,6 +15,7 @@ const viewports = [
 const browser = await chromium.launch({ headless: true });
 const measurements = [];
 const liveSettings = [];
+const liveProgressionAudit = [];
 
 try {
   for (const [width, height] of viewports) {
@@ -161,6 +162,8 @@ try {
     await page.goto("http://127.0.0.1:4173/",{waitUntil:"networkidle"});
     await page.waitForFunction(()=>document.querySelector("#pitchPresetList")?.children.length > 0);
     if (await page.locator("#pwaPromptCloseBtn").isVisible().catch(()=>false)) await page.locator("#pwaPromptCloseBtn").click();
+    await page.waitForFunction(()=>document.body.dataset.currentView==="pitch"&&document.querySelector("#view-pitch")?.classList.contains("active"));
+    await page.waitForTimeout(300);
     await page.locator("#settingsMenuBtn").click();
     await page.waitForFunction(()=>!document.querySelector("#settingsDrawer")?.hidden);
     const geometry=await page.evaluate((ids)=>{
@@ -240,6 +243,8 @@ try {
       await page.waitForFunction(()=>document.querySelector("#pitchPresetList")?.children.length>0,{timeout:30000});
       await page.waitForFunction(()=>document.querySelector("#settingsDrawer")&&document.querySelector("#settingsDrawerBody"),{timeout:15000});
       if(await page.locator("#pwaPromptCloseBtn").isVisible().catch(()=>false)) await page.locator("#pwaPromptCloseBtn").click();
+      await page.waitForFunction(()=>document.body.dataset.currentView==="pitch"&&document.querySelector("#view-pitch")?.classList.contains("active"));
+      await page.waitForTimeout(300);
       if(await page.locator("#settingsDrawer").evaluate(node=>node.hidden)) {
         await page.locator("#settingsMenuBtn").click();
         await page.waitForFunction(()=>!document.querySelector("#settingsDrawer")?.hidden);
@@ -255,6 +260,144 @@ try {
     assert.deepEqual(errors,[],"live Pages must not produce browser errors at "+width);
     await page.close();
   }
+
+  // Exercise the deployed progression workspace itself, not only its settings drawer.
+  const liveProgressionViewports = [
+    [320,700], [390,844], [834,1194], [1024,768], [1280,800], [1280,768]
+  ];
+  const [initialWidth,initialHeight]=liveProgressionViewports[0];
+  const progressionPage=await browser.newPage({
+    viewport:{width:initialWidth,height:initialHeight},
+    deviceScaleFactor:1,
+    isMobile:initialWidth<=430,
+    hasTouch:initialWidth<=430
+  });
+  const progressionErrors=[];
+  progressionPage.on("pageerror",error=>progressionErrors.push(error.message));
+  const progressionResponse=await progressionPage.goto("https://kinoko34077.github.io/Micro-Chordbot/",{waitUntil:"domcontentloaded"});
+  assert.equal(progressionResponse?.status(),200,"live progression Pages must load");
+  console.log("LIVE_PROGRESSION_PHASE","loaded",progressionResponse.status());
+  await progressionPage.waitForFunction(()=>document.querySelector("#pitchPresetList")?.children.length>0,{timeout:30000});
+  await progressionPage.waitForFunction(()=>document.body.dataset.currentView==="pitch"&&document.querySelector("#view-pitch")?.classList.contains("active"));
+  await progressionPage.waitForTimeout(300);
+  await progressionPage.locator('[data-view="progression"]').click();
+  await progressionPage.waitForFunction(()=>document.body.dataset.currentView==="progression"&&document.querySelector("#view-progression")?.classList.contains("active"),{timeout:15000});
+  console.log("LIVE_PROGRESSION_PHASE","tab",await progressionPage.locator("#view-progression").getAttribute("class"));
+  await progressionPage.waitForFunction(()=>{
+    const button=document.querySelector("#progMenuToggleBtn");
+    return innerWidth<=640&&button&&!button.hidden&&button.textContent.trim()==="☰"&&button.getClientRects().length>0;
+  },{timeout:15000});
+  try {
+    await progressionPage.locator("#progMenuToggleBtn").click({timeout:3000});
+  } catch(error) {
+    if(!String(error?.message).includes("not stable")&&!String(error?.message).includes("not visible")&&!String(error?.message).includes("Timeout")) throw error;
+    await progressionPage.locator("#progMenuToggleBtn").evaluate(node=>node.click());
+  }
+  await progressionPage.waitForFunction(()=>document.querySelector("#progMenuToggleBtn")?.getAttribute("aria-expanded")==="true",{timeout:15000});
+  console.log("LIVE_PROGRESSION_PHASE","menu-open");
+  try {
+    await progressionPage.locator("#progMenuToggleBtn").click({timeout:3000});
+  } catch(error) {
+    if(!String(error?.message).includes("not stable")&&!String(error?.message).includes("not visible")&&!String(error?.message).includes("Timeout")) throw error;
+    await progressionPage.locator("#progMenuToggleBtn").evaluate(node=>node.click());
+  }
+  await progressionPage.waitForFunction(()=>document.querySelector("#progToolbarActions")?.hidden===true,{timeout:15000});
+  if(await progressionPage.locator("#progressionEditorBody").evaluate(node=>node.hidden)) {
+    await progressionPage.locator("#progEditorToggleBtn").click();
+  }
+  await progressionPage.waitForFunction(()=>!document.querySelector("#progressionEditorBody")?.hidden,{timeout:15000});
+  console.log("LIVE_PROGRESSION_PHASE","editor-open");
+  await progressionPage.locator("#progChordButtonGrid button[data-chord-id]").first().click();
+  await progressionPage.locator("#addProgPartBtn").click();
+  await progressionPage.waitForFunction(()=>document.querySelector("#progressionGrid .progression-chunk-grid .progression-cell"),{timeout:15000});
+  console.log("LIVE_PROGRESSION_PHASE","seeded");
+
+  let menuActivation="not-needed";
+  for (const [width,height] of liveProgressionViewports) {
+    console.log("LIVE_PROGRESSION_VIEWPORT",width,height);
+    await progressionPage.setViewportSize({width,height});
+    await progressionPage.waitForTimeout(150);
+    if(width<=640) {
+      await progressionPage.waitForFunction(()=>{
+        const button=document.querySelector("#progMenuToggleBtn");
+        return innerWidth<=640&&window.matchMedia("(max-width: 640px)").matches&&
+          button&&!button.hidden&&button.textContent.trim()==="☰"&&button.getClientRects().length>0;
+      },{timeout:15000});
+      if(await progressionPage.locator("#progToolbarActions").evaluate(node=>node.hidden)) {
+        await progressionPage.locator("#progMenuToggleBtn").click({timeout:10000});
+        menuActivation="pointer";
+      } else if(menuActivation==="not-needed") {
+        menuActivation="already-open";
+      }
+      await progressionPage.waitForFunction(()=>{
+        const button=document.querySelector("#progMenuToggleBtn");
+        return !document.querySelector("#progToolbarActions")?.hidden&&button?.getAttribute("aria-expanded")==="true";
+      });
+    } else {
+      menuActivation="not-needed";
+    }
+    await progressionPage.locator("#progColumnsSelect").waitFor({state:"visible",timeout:15000});
+    const results=[];
+    for(const columns of [1,12]) {
+      console.log("LIVE_PROGRESSION_COLUMNS",width,columns);
+      await progressionPage.locator("#progColumnsSelect").fill(String(columns));
+      await progressionPage.waitForFunction(expected=>{
+        const input=document.querySelector("#progColumnsSelect");
+        const cells=document.querySelector("#progressionGrid .progression-chunk-grid");
+        return Number(input?.value)===expected&&
+          Boolean(cells)&&getComputedStyle(cells).gridTemplateColumns.trim().split(/\s+/).length===expected;
+      },columns);
+      const state=await progressionPage.evaluate(()=>{
+        const grid=document.querySelector("#progressionGrid");
+        const cells=grid.querySelector(".progression-chunk-grid");
+        const workspace=document.querySelector("#view-progression");
+        const library=document.querySelector(".chord-library-panel");
+        const box=node=>{const r=node.getBoundingClientRect();return{x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height),bottom:Math.round(r.bottom)};};
+        return {
+          currentView:document.body.dataset.currentView,
+          pitchActive:document.querySelector("#view-pitch").classList.contains("active"),
+          progressionActive:workspace.classList.contains("active"),
+          documentWidth:document.documentElement.scrollWidth,
+          columnValue:Number(document.querySelector("#progColumnsSelect").value),
+          renderedColumns:getComputedStyle(cells).gridTemplateColumns.trim().split(/\s+/).length,
+          progressionGrid:box(grid),
+          workspace:{...box(workspace),overflowY:getComputedStyle(workspace).overflowY,scrollHeight:workspace.scrollHeight,clientHeight:workspace.clientHeight,scrollTop:workspace.scrollTop},
+          editor:box(document.querySelector(".progression-editor")),
+          library:box(library),
+          renderedPitchPresetRows:document.querySelectorAll("#pitchPresetList tbody tr").length,
+          renderedChordPresetRows:document.querySelectorAll("#chordPresetList tbody tr").length
+        };
+      });
+      assert.equal(state.progressionActive,true,"deployed progression tab must be active at "+width);
+      assert.equal(state.columnValue,columns,"deployed column setting value at "+width);
+      assert.equal(state.renderedColumns,columns,"deployed progression cell grid columns at "+width);
+      assert.ok(state.documentWidth<=width+1,"deployed page must not overflow horizontally at "+width);
+      results.push(state);
+      if(columns===12) {
+        const screenshot=`live-progression_${width}x${height}-12cols.png`;
+        await progressionPage.screenshot({path:path.join(outputDir,screenshot),fullPage:false});
+        if(width>=1200&&height<=768) {
+          await progressionPage.locator("#view-progression").evaluate(node=>node.scrollTo(0,node.scrollHeight));
+          await progressionPage.waitForTimeout(100);
+          const reachable=await progressionPage.evaluate(()=>{
+            const workspace=document.querySelector("#view-progression");
+            const editor=document.querySelector(".progression-editor").getBoundingClientRect();
+            const library=document.querySelector(".chord-library-panel").getBoundingClientRect();
+            const view=workspace.getBoundingClientRect();
+            return {scrollTop:workspace.scrollTop,scrollHeight:workspace.scrollHeight,clientHeight:workspace.clientHeight,editorBottom:Math.round(editor.bottom),libraryY:Math.round(library.y),libraryBottom:Math.round(library.bottom),viewBottom:Math.round(view.bottom)};
+          });
+          assert.ok(reachable.scrollTop>0,"deployed short progression workspace must scroll at "+width+"x"+height);
+          assert.ok(reachable.libraryY>=reachable.editorBottom-1,"deployed editor and library must not overlap at "+width+"x"+height);
+          assert.ok(reachable.libraryBottom<=reachable.viewBottom+1,"deployed chord library must be reachable by workspace scrolling at "+width+"x"+height);
+        }
+      }
+    }
+    liveProgressionAudit.push({viewport:`${width}x${height}`,httpStatus:progressionResponse.status(),menuActivation,columns:results,pageErrors:progressionErrors});
+    await writeFile(path.join(outputDir,"live-progression-measurements.json"),`${JSON.stringify(liveProgressionAudit,null,2)}\n`);
+    assert.deepEqual(progressionErrors,[],"live progression view must not produce browser errors at "+width);
+  }
+  await progressionPage.close();
+
 } finally {
   await browser.close();
 }
@@ -263,4 +406,7 @@ assert.equal(measurements.length, viewports.length * 2, "each viewport must reco
 assert.ok(measurements.every((entry) => entry.pageErrors.length === 0), "layout audit must not produce browser runtime errors");
 await writeFile(path.join(outputDir, "measurements.json"), `${JSON.stringify(measurements, null, 2)}\n`);
 await writeFile(path.join(outputDir,"live-settings-measurements.json"), `${JSON.stringify(liveSettings, null, 2)}\n`);
-console.log(JSON.stringify({localViewports:measurements.length,liveSettings,outputDir},null,2));
+assert.equal(liveProgressionAudit.length,6,"all live progression viewports must be audited");
+assert.ok(liveProgressionAudit.every(entry=>entry.pageErrors.length===0),"live progression must not produce browser runtime errors");
+await writeFile(path.join(outputDir,"live-progression-measurements.json"), `${JSON.stringify(liveProgressionAudit, null, 2)}\n`);
+console.log(JSON.stringify({localViewports:measurements.length,liveSettings,liveProgressionAudit,outputDir},null,2));
