@@ -446,7 +446,7 @@ body.workspace-combined .progression-counter {
   justify-self: start;
 }
 body.workspace-combined #view-progression.active {
-  grid-template-rows: auto auto minmax(280px, 1.15fr) minmax(96px, 0.85fr);
+  grid-template-rows: auto auto minmax(240px, 1fr) minmax(180px, 1fr);
 }
 body.workspace-combined .progression-editor {
   display: grid;
