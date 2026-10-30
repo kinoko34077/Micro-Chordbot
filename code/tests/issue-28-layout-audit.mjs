@@ -272,6 +272,10 @@ try {
     await page.locator('[data-view="progression"]').click();
     await page.waitForFunction(()=>document.querySelector("#progressionGrid")?.getClientRects().length>0);
     if(width<=640) {
+      await page.waitForFunction(()=>{
+        const button=document.querySelector("#progMenuToggleBtn");
+        return button&&!button.hidden&&button.textContent.trim()==="☰"&&button.getClientRects().length>0;
+      },{timeout:15000});
       await page.locator("#progMenuToggleBtn").click();
       await page.waitForFunction(()=>!document.querySelector("#progToolbarActions")?.hidden);
     }
