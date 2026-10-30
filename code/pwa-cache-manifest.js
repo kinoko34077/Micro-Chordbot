@@ -1,5 +1,5 @@
 self.__MU_CHORDBOT_PWA_CACHE__ = Object.freeze({
-  version: "sha256-d4edf7815ff3ab49",
+  version: "sha256-031969b4a9e4ac89",
   assets: Object.freeze([
   "./",
   "./default_project.mcb",
