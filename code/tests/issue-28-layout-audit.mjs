@@ -329,7 +329,7 @@ try {
       }
     }
     liveProgressionAudit.push({viewport:`${width}x${height}`,httpStatus:response.status(),columns:results,pageErrors:errors});
-    await writeFile(path.join(outputDir,"live-progression-measurements.json"),`${JSON.stringify(liveProgressionAudit,null,2)}\\n`);
+    await writeFile(path.join(outputDir,"live-progression-measurements.json"),`${JSON.stringify(liveProgressionAudit,null,2)}\n`);
     assert.deepEqual(errors,[],"live progression view must not produce browser errors at "+width);
     await page.close();
   }
@@ -341,4 +341,7 @@ assert.equal(measurements.length, viewports.length * 2, "each viewport must reco
 assert.ok(measurements.every((entry) => entry.pageErrors.length === 0), "layout audit must not produce browser runtime errors");
 await writeFile(path.join(outputDir, "measurements.json"), `${JSON.stringify(measurements, null, 2)}\n`);
 await writeFile(path.join(outputDir,"live-settings-measurements.json"), `${JSON.stringify(liveSettings, null, 2)}\n`);
+assert.equal(liveProgressionAudit.length,6,"all live progression viewports must be audited");
+assert.ok(liveProgressionAudit.every(entry=>entry.pageErrors.length===0),"live progression must not produce browser runtime errors");
+await writeFile(path.join(outputDir,"live-progression-measurements.json"), `${JSON.stringify(liveProgressionAudit, null, 2)}\n`);
 console.log(JSON.stringify({localViewports:measurements.length,liveSettings,liveProgressionAudit,outputDir},null,2));
