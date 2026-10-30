@@ -310,7 +310,7 @@ try {
         const input=document.querySelector("#progColumnsSelect");
         const cells=document.querySelector("#progressionGrid .progression-chunk-grid");
         return Number(input?.value)===expected&&
-          Boolean(cells)&&getComputedStyle(cells).gridTemplateColumns.trim().split(/\\s+/).length===expected;
+          Boolean(cells)&&getComputedStyle(cells).gridTemplateColumns.trim().split(/\s+/).length===expected;
       },columns);
       const state=await progressionPage.evaluate(()=>{
         const grid=document.querySelector("#progressionGrid");
@@ -324,7 +324,7 @@ try {
           progressionActive:workspace.classList.contains("active"),
           documentWidth:document.documentElement.scrollWidth,
           columnValue:Number(document.querySelector("#progColumnsSelect").value),
-          renderedColumns:getComputedStyle(cells).gridTemplateColumns.trim().split(/\\s+/).length,
+          renderedColumns:getComputedStyle(cells).gridTemplateColumns.trim().split(/\s+/).length,
           progressionGrid:box(grid),
           workspace:{...box(workspace),overflowY:getComputedStyle(workspace).overflowY,scrollHeight:workspace.scrollHeight,clientHeight:workspace.clientHeight,scrollTop:workspace.scrollTop},
           editor:box(document.querySelector(".progression-editor")),
@@ -358,7 +358,7 @@ try {
       }
     }
     liveProgressionAudit.push({viewport:`${width}x${height}`,httpStatus:progressionResponse.status(),menuActivation,columns:results,pageErrors:progressionErrors});
-    await writeFile(path.join(outputDir,"live-progression-measurements.json"),`${JSON.stringify(liveProgressionAudit,null,2)}\\n`);
+    await writeFile(path.join(outputDir,"live-progression-measurements.json"),`${JSON.stringify(liveProgressionAudit,null,2)}\n`);
     assert.deepEqual(progressionErrors,[],"live progression view must not produce browser errors at "+width);
   }
   await progressionPage.close();
