@@ -2154,10 +2154,35 @@ body.workspace-combined .chord-library-panel .panel-note {
 
 @media (min-width: 1200px) and (max-height: 700px) {
   body.workspace-combined #view-progression.active {
-    grid-template-rows: auto auto minmax(0, max-content) minmax(160px, max-content);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior-y: contain;
+  }
+  body.workspace-combined .progression-toolbar,
+  body.workspace-combined .progression-grid,
+  body.workspace-combined .progression-editor,
+  body.workspace-combined .chord-library-panel {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 100%;
+  }
+  body.workspace-combined .progression-toolbar {
+    max-height: none;
+  }
+  body.workspace-combined .progression-grid {
+    max-height: min(24vh, 160px);
+  }
+  body.workspace-combined .progression-editor {
+    height: auto;
+    min-height: 0;
+  }
+  body.workspace-combined .chord-library-panel {
+    height: 200px;
+    min-height: 160px;
   }
   body.workspace-combined .progression-editor {
     display: block;
