@@ -281,6 +281,13 @@ try {
   await progressionPage.waitForTimeout(300);
   await progressionPage.locator('[data-view="progression"]').click();
   await progressionPage.waitForFunction(()=>document.body.dataset.currentView==="progression"&&document.querySelector("#view-progression")?.classList.contains("active"),{timeout:15000});
+  await progressionPage.locator("#progMenuToggleBtn").click({timeout:10000});
+  await progressionPage.waitForFunction(()=>document.querySelector("#progMenuToggleBtn")?.getAttribute("aria-expanded")==="true");
+  await progressionPage.locator("#progEditorToggleBtn").click();
+  await progressionPage.waitForFunction(()=>!document.querySelector("#progressionEditorBody")?.hidden);
+  await progressionPage.locator("#progChordButtonGrid button[data-chord-id]").first().click();
+  await progressionPage.locator("#addProgPartBtn").click();
+  await progressionPage.waitForFunction(()=>document.querySelector("#progressionGrid .progression-chunk-grid .progression-cell"));
 
   const liveProgressionAudit=[];
   let menuActivation="not-needed";
