@@ -282,7 +282,7 @@ main {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  font-size: max(0.78rem, 14px);
+  font-size: 16px;
 }
 .settings-input-grid input,
 .settings-input-grid select { min-height: 40px; }
