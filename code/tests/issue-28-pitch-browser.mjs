@@ -36,8 +36,8 @@ try {
   assert.equal(pitchLibraryLayout.pitchSearchInPresetHeading,true,"preset search should be placed in its own heading in the document");
   assert.ok(pitchLibraryLayout.clearActionHeight>=40,"moving the clear action must retain a touch-sized target");
   assert.ok(pitchLibraryLayout.activeSearchTop-pitchLibraryLayout.panelTop<72,"active-note controls should start near the library panel edge");
-  assert.ok(pitchLibraryLayout.presetListTop-pitchLibraryLayout.panelTop<180,"the preset list should begin higher after removing the redundant wrapper row");
   console.log("PITCH_LIBRARY_DENSITY",JSON.stringify({viewport:"390x844",beforePresetListOffset:249,afterPresetListOffset:Math.round(pitchLibraryLayout.presetListTop-pitchLibraryLayout.panelTop)}));
+  assert.ok(pitchLibraryLayout.presetListTop-pitchLibraryLayout.panelTop<180,"the preset list should begin higher after removing the redundant wrapper row");
   const search = page.locator("#pitchPresetFilterInput");
   assert.equal(await search.getAttribute("aria-label"),"音高プリセットを検索","pitch preset search needs an accessible name");
   await search.fill("完全1度");
