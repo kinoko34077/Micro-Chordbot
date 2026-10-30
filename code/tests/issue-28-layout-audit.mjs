@@ -276,22 +276,28 @@ try {
   progressionPage.on("pageerror",error=>progressionErrors.push(error.message));
   const progressionResponse=await progressionPage.goto("https://kinoko34077.github.io/Micro-Chordbot/",{waitUntil:"domcontentloaded"});
   assert.equal(progressionResponse?.status(),200,"live progression Pages must load");
+  console.log("LIVE_PROGRESSION_PHASE","loaded",progressionResponse.status());
   await progressionPage.waitForFunction(()=>document.querySelector("#pitchPresetList")?.children.length>0,{timeout:30000});
   await progressionPage.waitForFunction(()=>document.body.dataset.currentView==="pitch"&&document.querySelector("#view-pitch")?.classList.contains("active"));
   await progressionPage.waitForTimeout(300);
   await progressionPage.locator('[data-view="progression"]').click();
   await progressionPage.waitForFunction(()=>document.body.dataset.currentView==="progression"&&document.querySelector("#view-progression")?.classList.contains("active"),{timeout:15000});
+  console.log("LIVE_PROGRESSION_PHASE","tab",await progressionPage.locator("#view-progression").getAttribute("class"));
   await progressionPage.locator("#progMenuToggleBtn").click({timeout:10000});
-  await progressionPage.waitForFunction(()=>document.querySelector("#progMenuToggleBtn")?.getAttribute("aria-expanded")==="true");
+  await progressionPage.waitForFunction(()=>document.querySelector("#progMenuToggleBtn")?.getAttribute("aria-expanded")==="true",{timeout:15000});
+  console.log("LIVE_PROGRESSION_PHASE","menu-open");
   await progressionPage.locator("#progEditorToggleBtn").click();
-  await progressionPage.waitForFunction(()=>!document.querySelector("#progressionEditorBody")?.hidden);
+  await progressionPage.waitForFunction(()=>!document.querySelector("#progressionEditorBody")?.hidden,{timeout:15000});
+  console.log("LIVE_PROGRESSION_PHASE","editor-open");
   await progressionPage.locator("#progChordButtonGrid button[data-chord-id]").first().click();
   await progressionPage.locator("#addProgPartBtn").click();
-  await progressionPage.waitForFunction(()=>document.querySelector("#progressionGrid .progression-chunk-grid .progression-cell"));
+  await progressionPage.waitForFunction(()=>document.querySelector("#progressionGrid .progression-chunk-grid .progression-cell"),{timeout:15000});
+  console.log("LIVE_PROGRESSION_PHASE","seeded");
 
   const liveProgressionAudit=[];
   let menuActivation="not-needed";
   for (const [width,height] of liveProgressionViewports) {
+    console.log("LIVE_PROGRESSION_VIEWPORT",width,height);
     await progressionPage.setViewportSize({width,height});
     await progressionPage.waitForTimeout(150);
     if(width<=640) {
@@ -316,6 +322,7 @@ try {
     await progressionPage.locator("#progColumnsSelect").waitFor({state:"visible",timeout:15000});
     const results=[];
     for(const columns of [1,12]) {
+      console.log("LIVE_PROGRESSION_COLUMNS",width,columns);
       await progressionPage.locator("#progColumnsSelect").fill(String(columns));
       await progressionPage.waitForFunction(expected=>{
         const input=document.querySelector("#progColumnsSelect");
