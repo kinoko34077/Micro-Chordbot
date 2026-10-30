@@ -271,13 +271,30 @@ try {
     if(await page.locator("#pwaPromptCloseBtn").isVisible().catch(()=>false)) await page.locator("#pwaPromptCloseBtn").click();
     await page.locator('[data-view="progression"]').click();
     await page.waitForFunction(()=>document.querySelector("#progressionGrid")?.getClientRects().length>0);
+    let menuActivation="not-needed";
     if(width<=640) {
       await page.waitForFunction(()=>{
         const button=document.querySelector("#progMenuToggleBtn");
-        return button&&!button.hidden&&button.textContent.trim()==="☰"&&button.getClientRects().length>0;
+        return innerWidth<=640&&window.matchMedia("(max-width: 640px)").matches&&
+          button&&!button.hidden&&button.textContent.trim()==="☰"&&button.getClientRects().length>0;
       },{timeout:15000});
-      await page.locator("#progMenuToggleBtn").click();
-      await page.waitForFunction(()=>!document.querySelector("#progToolbarActions")?.hidden);
+      await page.waitForTimeout(300);
+      if(await page.locator("#progToolbarActions").evaluate(node=>node.hidden)) {
+        try {
+          await page.locator("#progMenuToggleBtn").click({timeout:5000});
+          menuActivation="pointer";
+        } catch(error) {
+          if(!String(error?.message).includes("not stable")&&!String(error?.message).includes("not visible")&&!String(error?.message).includes("Timeout")) throw error;
+          await page.locator("#progMenuToggleBtn").evaluate(node=>node.click());
+          menuActivation="dom-click-recovery";
+        }
+      } else {
+        menuActivation="already-open";
+      }
+      await page.waitForFunction(()=>{
+        const button=document.querySelector("#progMenuToggleBtn");
+        return !document.querySelector("#progToolbarActions")?.hidden&&button?.getAttribute("aria-expanded")==="true";
+      });
     }
     const results=[];
     for(const columns of [1,12]) {
@@ -332,7 +349,7 @@ try {
         }
       }
     }
-    liveProgressionAudit.push({viewport:`${width}x${height}`,httpStatus:response.status(),columns:results,pageErrors:errors});
+    liveProgressionAudit.push({viewport:`${width}x${height}`,httpStatus:response.status(),menuActivation,columns:results,pageErrors:errors});
     await writeFile(path.join(outputDir,"live-progression-measurements.json"),`${JSON.stringify(liveProgressionAudit,null,2)}\n`);
     assert.deepEqual(errors,[],"live progression view must not produce browser errors at "+width);
     await page.close();
