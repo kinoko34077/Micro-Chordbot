@@ -116,7 +116,7 @@ try {
           "choice panes must be named and keyboard-scrollable at "+width);
         assert.ok(geometry.progressionVoiceEditor.x>=geometry.progressionChordChoices.x+geometry.progressionChordChoices.width-1,
           "Bass/inversion zone must sit beside chord choices at "+width+": "+JSON.stringify(geometry));
-        assert.ok(geometry.progressionVoiceEditor.height>=75,
+        assert.ok(geometry.progressionVoiceEditor.height>=100,
           "Bass/inversion zone must retain enough height for its controls at "+width+": "+JSON.stringify(geometry));
         assert.ok(geometry.progressionToolbarControls.every(control=>control.hidden||control.width>0&&control.height>0),
           "desktop progression toolbar controls must remain visible at "+width+": "+JSON.stringify(geometry.progressionToolbarControls));
