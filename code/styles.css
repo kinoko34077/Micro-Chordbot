@@ -1892,8 +1892,13 @@ body.workspace-combined .chord-library-panel .panel-note {
   /* Keep search usable by touch and prevent iOS Safari focus auto-zoom. */
   .table-filter-input { min-height: 40px; font-size: max(16px, 0.78rem); }
   .active-notes-panel #activeNotesFilterInput {
-    flex: 1 0 100%;
+    order: 3;
+    flex: 1 1 140px;
+    min-width: 140px;
     max-width: none;
+  }
+  .active-notes-panel #clearActiveNotesBtn {
+    order: 2;
   }
   .active-notes-panel .library-block:last-child .library-title-group {
     flex: 0 1 auto;
