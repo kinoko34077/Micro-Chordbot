@@ -447,7 +447,7 @@ body.workspace-combined .progression-counter {
   justify-self: start;
 }
 body.workspace-combined #view-progression.active {
-  grid-template-rows: auto auto minmax(280px, 1fr) minmax(200px, 1fr);
+  grid-template-rows: auto auto minmax(300px, 1fr) minmax(200px, 1fr);
 }
 body.workspace-combined .progression-editor {
   display: grid;
@@ -795,9 +795,10 @@ body.workspace-combined .progression-toolbar-actions > .file-pick {
   white-space: nowrap;
 }
 body.workspace-combined .progression-toolbar-actions > .file-pick input {
-  width: 100%;
-  min-width: 8rem;
-  max-width: 22rem;
+  flex: 1 1 0;
+  width: auto;
+  min-width: 6rem;
+  max-width: none;
   height: 30px;
   min-height: 30px;
 }
