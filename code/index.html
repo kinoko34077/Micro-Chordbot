@@ -311,76 +311,68 @@
     </section>
 
     <section id="view-settings" class="view">
-      <section class="panel settings-runtime-panel" aria-labelledby="settingsRuntimeHeading">
-        <div class="panel-heading">
-          <h3 id="settingsRuntimeHeading">Runtime / PWA</h3>
-        </div>
-        <p id="runtimeInfoText" class="readout"></p>
-        <div class="inline-row">
-          <button id="runtimeRefreshBtn" type="button">更新を反映</button>
-        </div>
+      <section class="settings-task-section settings-preferences-panel" aria-label="表示と再生の設定">
+        <section class="settings-subgroup" aria-labelledby="settingsListHeading">
+          <h3 id="settingsListHeading">一覧の幅</h3>
+          <div class="controls-grid settings-input-grid settings-list-grid">
+            <label>名前列 rem
+              <input id="presetNameWidthInput" type="number" min="3.8" max="24" step="0.1" value="5.8">
+            </label>
+            <label>ID 列 rem
+              <input id="presetShortWidthInput" type="number" min="3.2" max="12" step="0.1" value="3.9">
+            </label>
+            <label>cent 列 rem
+              <input id="presetCentWidthInput" type="number" min="3.2" max="10" step="0.1" value="3.8">
+            </label>
+            <label>タグ列 rem
+              <input id="presetTagWidthInput" type="number" min="3.8" max="18" step="0.1" value="5.8">
+            </label>
+            <label>メモ列 rem
+              <input id="presetMemoWidthInput" type="number" min="4.2" max="20" step="0.1" value="6.8">
+            </label>
+          </div>
+        </section>
+
+        <section class="settings-subgroup" aria-labelledby="settingsCellHeading">
+          <h3 id="settingsCellHeading">進行セル</h3>
+          <div class="controls-grid settings-input-grid settings-cell-grid">
+            <label>コード箱 px
+              <input id="progressionCellWidthInput" type="number" min="88" max="220" step="4" value="124">
+            </label>
+          </div>
+        </section>
+
+        <section class="settings-subgroup" aria-labelledby="settingsAudioHeading">
+          <h3 id="settingsAudioHeading">音と再生</h3>
+          <div class="controls-grid settings-input-grid settings-audio-grid">
+            <label>A4 Hz
+              <input id="a4HzInput" type="number" min="400" max="500" step="0.01" value="440">
+            </label>
+            <label>BPM
+              <input id="bpmInput" type="number" min="5" max="300" step="1" value="130">
+            </label>
+            <label>位相
+              <select id="phaseModeSelect">
+                <option value="reset">頭固定</option>
+                <option value="continue">連続</option>
+              </select>
+            </label>
+            <label>丸め単位 cent
+              <input id="roundUnitInput" type="number" min="0" max="600" step="0.001" value="0">
+            </label>
+            <label>丸めモード
+              <select id="roundingModeSelect">
+                <option value="beforeRoot">beforeRoot</option>
+                <option value="afterRoot">afterRoot</option>
+              </select>
+            </label>
+          </div>
+          <p class="readout">丸め単位を 0 にすると丸め無効です。</p>
+        </section>
       </section>
-      <section class="panel settings-preferences-panel" aria-labelledby="settingsPreferencesHeading">
-        <div class="panel-heading">
-          <h3 id="settingsPreferencesHeading">表示・音</h3>
-        </div>
-        <div class="settings-control-sections">
-          <section class="settings-subgroup" aria-labelledby="settingsListHeading">
-            <h4 id="settingsListHeading">一覧とコード表示</h4>
-            <div class="controls-grid compact-grid settings-input-grid">
-              <label>名前列 rem
-                <input id="presetNameWidthInput" type="number" min="3.8" max="24" step="0.1" value="5.8">
-              </label>
-              <label>cent 列 rem
-                <input id="presetCentWidthInput" type="number" min="3.2" max="10" step="0.1" value="3.8">
-              </label>
-              <label>ID 列 rem
-                <input id="presetShortWidthInput" type="number" min="3.2" max="12" step="0.1" value="3.9">
-              </label>
-              <label>タグ列 rem
-                <input id="presetTagWidthInput" type="number" min="3.8" max="18" step="0.1" value="5.8">
-              </label>
-              <label>メモ列 rem
-                <input id="presetMemoWidthInput" type="number" min="4.2" max="20" step="0.1" value="6.8">
-              </label>
-              <label>コード箱 px
-                <input id="progressionCellWidthInput" type="number" min="88" max="220" step="4" value="124">
-              </label>
-            </div>
-          </section>
-          <section class="settings-subgroup" aria-labelledby="settingsAudioHeading">
-            <h4 id="settingsAudioHeading">音と再生</h4>
-            <div class="controls-grid compact-grid settings-input-grid">
-              <label>A4 Hz
-                <input id="a4HzInput" type="number" min="400" max="500" step="0.01" value="440">
-              </label>
-              <label>BPM
-                <input id="bpmInput" type="number" min="5" max="300" step="1" value="130">
-              </label>
-              <label>位相
-                <select id="phaseModeSelect">
-                  <option value="reset">頭固定</option>
-                  <option value="continue">連続</option>
-                </select>
-              </label>
-              <label>丸め単位 cent
-                <input id="roundUnitInput" type="number" min="0" max="600" step="0.001" value="0">
-              </label>
-              <label>丸めモード
-                <select id="roundingModeSelect">
-                  <option value="beforeRoot">beforeRoot</option>
-                  <option value="afterRoot">afterRoot</option>
-                </select>
-              </label>
-            </div>
-            <p class="readout">丸め単位を 0 にすると丸め無効です。</p>
-          </section>
-        </div>
-      </section>
-      <section class="panel settings-io-panel" aria-labelledby="settingsIoHeading">
-        <div class="panel-heading">
-          <h3 id="settingsIoHeading">入出力</h3>
-        </div>
+
+      <section class="settings-task-section settings-io-panel" aria-labelledby="settingsIoHeading">
+        <h3 id="settingsIoHeading">入出力</h3>
         <div class="inline-row settings-actions">
           <button id="exportBtn" type="button">project.mcb を書き出し</button>
           <button id="exportLibraryBtn" type="button">library.mcbl を書き出し</button>
@@ -393,6 +385,14 @@
         </div>
         <p id="persistenceStatus" class="status-text" aria-live="polite"></p>
         <p id="manageStatus" class="status-text" aria-live="polite"></p>
+      </section>
+
+      <section class="settings-task-section settings-runtime-panel" aria-labelledby="settingsRuntimeHeading">
+        <div class="settings-status-line">
+          <h3 id="settingsRuntimeHeading">アプリ状態</h3>
+          <button id="runtimeRefreshBtn" type="button">更新を反映</button>
+        </div>
+        <p id="runtimeInfoText" class="readout"></p>
       </section>
     </section>
   </main>

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -86,6 +86,51 @@ try {
   }
 
   await writeFile(path.join(outputDir, "measurements.json"), `${JSON.stringify(measurements, null, 2)}\n`);
+
+  const settingsAudit = [];
+  const settingsAuditViewports = [[320,800],[390,844],[768,1024],[1440,900]];
+  const settingsIds = [
+    "runtimeInfoText", "runtimeRefreshBtn", "presetNameWidthInput", "presetCentWidthInput",
+    "presetShortWidthInput", "presetTagWidthInput", "presetMemoWidthInput", "progressionCellWidthInput",
+    "a4HzInput", "bpmInput", "phaseModeSelect", "roundUnitInput", "roundingModeSelect",
+    "exportBtn", "exportLibraryBtn", "importFileInput"
+  ];
+  for (const [width,height] of settingsAuditViewports) {
+    const page = await browser.newPage({viewport:{width,height},deviceScaleFactor:1,isMobile:width<=430,hasTouch:width<=430});
+    const errors=[];
+    page.on("pageerror",(error)=>errors.push(error.message));
+    await page.goto("http://127.0.0.1:4173/",{waitUntil:"networkidle"});
+    await page.waitForFunction(()=>document.querySelector("#pitchPresetList")?.children.length > 0);
+    if (await page.locator("#pwaPromptCloseBtn").isVisible().catch(()=>false)) await page.locator("#pwaPromptCloseBtn").click();
+    await page.locator("#settingsMenuBtn").click();
+    await page.waitForFunction(()=>!document.querySelector("#settingsDrawer")?.hidden);
+    const geometry=await page.evaluate((ids)=>{
+      const box=(node)=>{const r=node.getBoundingClientRect();return {x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height),bottom:Math.round(r.bottom)};};
+      const body=document.querySelector("#settingsDrawerBody");
+      return {
+        body:{...box(body),scrollWidth:body.scrollWidth,clientWidth:body.clientWidth,scrollHeight:body.scrollHeight,clientHeight:body.clientHeight},
+        firstPreference:box(document.getElementById("presetNameWidthInput")),
+        runtimeInfo:box(document.getElementById("runtimeInfoText")),
+        runtimeAction:box(document.getElementById("runtimeRefreshBtn")),
+        groups:[...document.querySelectorAll("#settingsDrawerBody > .settings-task-section h3")].map(node=>node.textContent.trim()),
+        controls:ids.map(id=>({id,exists:Boolean(document.getElementById(id)),visible:Boolean(document.getElementById(id)?.getClientRects().length)})),
+        minInputHeight:Math.min(...[...document.querySelectorAll("#settingsDrawerBody input[type=number],#settingsDrawerBody select")].map(node=>box(node).height))
+      };
+    },settingsIds);
+    const screenshot=`settings-${width}x${height}.png`;
+    await page.screenshot({path:path.join(outputDir,screenshot),fullPage:false});
+    settingsAudit.push({viewport:`${width}x${height}`,screenshot,...geometry,pageErrors:errors});
+    const measurementPath=path.join(outputDir,"settings-measurements.json");
+    await writeFile(measurementPath,`${JSON.stringify(settingsAudit,null,2)}\n`);
+    JSON.parse(await readFile(measurementPath,"utf8"));
+    assert.ok(geometry.firstPreference.y < geometry.runtimeInfo.y,"priority settings must appear before runtime details at "+width);
+    assert.deepEqual(geometry.groups,["一覧の幅","進行セル","音と再生","入出力","アプリ状態"],"settings must be grouped by task at "+width);
+    assert.equal(geometry.controls.filter(control=>control.exists).length,16,"settings actions and values must remain present at "+width);
+    assert.ok(geometry.body.scrollWidth<=geometry.body.clientWidth+1,"settings must not overflow horizontally at "+width);
+    assert.ok(geometry.minInputHeight>=40,"settings controls must remain touch-accessible at "+width);
+    assert.deepEqual(errors,[],"settings view must not produce browser errors at "+width);
+    await page.close();
+  }
 
   // Capture the deployed main UI directly so the audit reflects the live site.
   const liveSettingsViewports = [
