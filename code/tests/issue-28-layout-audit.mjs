@@ -70,7 +70,9 @@ try {
           progressionGrid: box("#progressionGrid"),
           progressionEditor: box(".progression-editor"),
           progressionEditorBody: box(".progression-editor-body"),
+          progressionVoiceEditor: box(".progression-voice-editor"),
           progressionChoiceTools: box(".progression-choice-tools"),
+          progressionEditorColumns: getComputedStyle(document.querySelector(".progression-editor-body")).gridTemplateColumns,
           progressionChordChoices: box("#progChordButtonGrid"),
           progressionBassInput: box("#progBassInput"),
           progressionInversionButton: box("#progInversionPopoverBtn"),
@@ -91,6 +93,12 @@ try {
           "Bass must be reachable without scrolling the whole editor at "+width+": "+JSON.stringify(geometry));
         assert.ok(geometry.progressionInversionButton.y+geometry.progressionInversionButton.height<=editorBottom,
           "inversion controls must be reachable without scrolling the whole editor at "+width+": "+JSON.stringify(geometry));
+        assert.ok(geometry.progressionEditorBody.scrollWidth<=geometry.progressionEditorBody.clientWidth+1,
+          "desktop editor body must not overflow horizontally at "+width+": "+JSON.stringify(geometry.progressionEditorBody));
+        assert.ok(geometry.progressionBassInput.width>=72&&geometry.progressionInversionButton.width>=60,
+          "Bass and inversion actions must retain usable widths at "+width+": "+JSON.stringify(geometry));
+        assert.ok(geometry.progressionVoiceEditor.x>=geometry.progressionChordChoices.x+geometry.progressionChordChoices.width-1,
+          "Bass/inversion zone must sit beside chord choices at "+width+": "+JSON.stringify(geometry));
         assert.ok(geometry.progressionChordChoices.height<=240&&
           geometry.progressionChordChoices.scrollHeight>geometry.progressionChordChoices.clientHeight+1,
           "desktop chord choices need their own bounded scroll area at "+width+": "+JSON.stringify(geometry.progressionChordChoices));
