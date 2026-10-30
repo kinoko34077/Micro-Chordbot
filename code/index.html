@@ -276,7 +276,7 @@
               <input id="progChordTagFilterInput" type="text" placeholder="tag: core / min / sus" aria-label="コード種類を検索">
             </label>
           </div>
-          <div id="progChordButtonGrid" class="quick-grid chord-grid"></div>
+          <div id="progChordButtonGrid" class="quick-grid chord-grid" tabindex="0" role="region" aria-label="コード種類の候補"></div>
 
           <div class="progression-voice-editor">
             <div class="progression-voice-row">
@@ -288,7 +288,7 @@
               <button id="progInversionPopoverBtn" type="button" class="progression-token">転回形</button>
             </div>
 
-            <div class="progression-popover-row">
+            <div class="progression-popover-row" tabindex="0" role="region" aria-label="Bassと転回形の候補">
               <div id="progBassPopover" class="progression-popover">
                 <div class="progression-popover-head">
                   <strong>Bass</strong>
