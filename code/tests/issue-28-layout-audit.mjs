@@ -67,6 +67,10 @@ try {
           pitchPresetSearch: box("#pitchPresetFilterInput"),
           pitchPresets: box("#pitchPresetList"),
           progressionToolbar: box(".progression-toolbar"),
+          progressionToolbarControls: [...document.querySelectorAll(".progression-toolbar button, .progression-toolbar select, .progression-toolbar input")].map((node) => {
+            const rect=node.getBoundingClientRect();
+            return {id:node.id,display:getComputedStyle(node).display,width:Math.round(rect.width),height:Math.round(rect.height),hidden:node.hidden};
+          }),
           progressionGrid: box("#progressionGrid"),
           progressionEditor: box(".progression-editor"),
           progressionEditorBody: box(".progression-editor-body"),
@@ -114,6 +118,8 @@ try {
           "Bass/inversion zone must sit beside chord choices at "+width+": "+JSON.stringify(geometry));
         assert.ok(geometry.progressionVoiceEditor.height>=75,
           "Bass/inversion zone must retain enough height for its controls at "+width+": "+JSON.stringify(geometry));
+        assert.ok(geometry.progressionToolbarControls.every(control=>control.hidden||control.width>0&&control.height>0),
+          "desktop progression toolbar controls must remain visible at "+width+": "+JSON.stringify(geometry.progressionToolbarControls));
         assert.ok(geometry.progressionChordChoices.height<=240&&geometry.progressionChordChoices.overflowY==="auto",
           "desktop chord choices need their own bounded scroll area at "+width+": "+JSON.stringify(geometry.progressionChordChoices));
       }
