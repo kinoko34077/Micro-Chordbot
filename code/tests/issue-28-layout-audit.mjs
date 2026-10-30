@@ -298,6 +298,17 @@ try {
     }
     const results=[];
     for(const columns of [1,12]) {
+      const controlDiagnostics=await page.evaluate(()=>{
+        const input=document.querySelector("#progColumnsSelect");
+        const chain=[];
+        for(let node=input;node;node=node.parentElement) {
+          const rect=node.getBoundingClientRect();
+          const style=getComputedStyle(node);
+          chain.push({tag:node.tagName,id:node.id,className:String(node.className||""),hidden:node.hidden,display:style.display,visibility:style.visibility,opacity:style.opacity,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height}});
+        }
+        return chain;
+      });
+      console.log("LIVE_COLUMN_CONTROL",width,JSON.stringify(controlDiagnostics));
       await page.locator("#progColumnsSelect").fill(String(columns));
       await page.waitForFunction(expected=>{
         const select=document.querySelector("#progColumnsSelect");
