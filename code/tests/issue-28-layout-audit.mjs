@@ -295,6 +295,13 @@ try {
   }
   await progressionPage.waitForFunction(()=>document.querySelector("#progMenuToggleBtn")?.getAttribute("aria-expanded")==="true",{timeout:15000});
   console.log("LIVE_PROGRESSION_PHASE","menu-open");
+  try {
+    await progressionPage.locator("#progMenuToggleBtn").click({timeout:3000});
+  } catch(error) {
+    if(!String(error?.message).includes("not stable")&&!String(error?.message).includes("not visible")&&!String(error?.message).includes("Timeout")) throw error;
+    await progressionPage.locator("#progMenuToggleBtn").evaluate(node=>node.click());
+  }
+  await progressionPage.waitForFunction(()=>document.querySelector("#progToolbarActions")?.hidden===true,{timeout:15000});
   await progressionPage.locator("#progEditorToggleBtn").click();
   await progressionPage.waitForFunction(()=>!document.querySelector("#progressionEditorBody")?.hidden,{timeout:15000});
   console.log("LIVE_PROGRESSION_PHASE","editor-open");
