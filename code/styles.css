@@ -701,7 +701,7 @@ body.workspace-combined .progression-editor-header-actions button {
 }
 body.workspace-combined .progression-editor-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(42px, 3.8rem);
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.95fr);
   gap: 6px;
 }
 body.workspace-combined .progression-root-row {
@@ -716,8 +716,8 @@ body.workspace-combined .progression-popover-row {
   margin-bottom: 0;
 }
 body.workspace-combined .progression-voice-row {
-  grid-column: 1;
-  grid-template-columns: minmax(72px, 0.72fr) minmax(0, 1fr);
+  grid-column: auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: start;
 }
 body.workspace-combined .progression-popover-row {
