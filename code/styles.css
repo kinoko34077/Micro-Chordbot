@@ -2139,3 +2139,40 @@ body.workspace-combined .chord-library-panel .panel-note {
   }
   .history-buttons .settings-menu-button { grid-column: auto; }
 }
+
+@media (min-width: 1200px) and (max-height: 600px) {
+  body.workspace-combined .progression-editor {
+    display: block;
+    max-height: 48vh;
+    overflow: auto;
+  }
+  body.workspace-combined .progression-editor-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    grid-template-areas: "root" "notes" "tools" "chords" "voices" "status";
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+  body.workspace-combined #progRootLetterButtons,
+  body.workspace-combined .progression-choice-tools,
+  body.workspace-combined #progChordButtonGrid,
+  body.workspace-combined .progression-voice-editor,
+  body.workspace-combined #progStatus {
+    grid-column: auto;
+    grid-row: auto;
+  }
+  body.workspace-combined #progChordButtonGrid {
+    height: auto;
+    max-height: 120px;
+  }
+  body.workspace-combined .progression-voice-editor {
+    grid-template-rows: auto minmax(80px, auto);
+    overflow: visible;
+  }
+  body.workspace-combined .progression-popover-row {
+    height: auto;
+    max-height: 120px;
+  }
+}
