@@ -1606,6 +1606,9 @@ body.workspace-combined .chord-library-panel .panel-note {
 .library-title-group .status-text {
   min-width: 0;
 }
+.active-notes-panel #clearActiveNotesBtn {
+  min-height: 40px;
+}
 .table-filter-input {
   flex: 1 1 10ch;
   min-width: 0;
@@ -1888,6 +1891,18 @@ body.workspace-combined .chord-library-panel .panel-note {
   .pitch-options input[type="range"] { min-width: 0; max-width: 100%; }
   /* Keep search usable by touch and prevent iOS Safari focus auto-zoom. */
   .table-filter-input { min-height: 40px; font-size: max(16px, 0.78rem); }
+  .active-notes-panel #activeNotesFilterInput {
+    flex: 1 0 100%;
+    max-width: none;
+  }
+  .active-notes-panel .library-block:last-child .library-title-group {
+    flex: 0 1 auto;
+  }
+  .active-notes-panel #pitchPresetFilterInput {
+    flex: 1 1 140px;
+    min-width: 140px;
+    max-width: none;
+  }
   /* The canvas uses height:100%; give its parent a definite height so the
      canvas fills the full touch surface instead of shrinking to its ratio. */
   #view-pitch .line-wrap { min-height: 118px; height: 118px; }
