@@ -281,7 +281,7 @@ try {
     }
     const results=[];
     for(const columns of [1,12]) {
-      await page.locator("#progColumnsSelect").selectOption(String(columns));
+      await page.locator("#progColumnsSelect").fill(String(columns));
       await page.waitForFunction(expected=>{
         const select=document.querySelector("#progColumnsSelect");
         const grid=document.querySelector("#progressionGrid");
