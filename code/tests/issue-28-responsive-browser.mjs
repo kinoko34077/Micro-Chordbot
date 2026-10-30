@@ -123,13 +123,17 @@ try {
           drawer: {left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,width:rect.width,height:rect.height},
           viewport:{width:innerWidth,height:innerHeight},
           body:{width:body.clientWidth,scrollWidth:body.scrollWidth,height:body.clientHeight,scrollHeight:body.scrollHeight,overflowY:getComputedStyle(body).overflowY},
-          groups:document.querySelectorAll(".settings-control-sections > .settings-subgroup").length,
+          groups:[...document.querySelectorAll(".settings-preferences-panel .settings-subgroup h3")].map(node => node.textContent.trim()),
+          firstPreferenceY:document.querySelector("#presetNameWidthInput").getBoundingClientRect().top,
+          runtimeInfoY:document.querySelector("#runtimeInfoText").getBoundingClientRect().top,
           controls:settingIds.map(id => document.getElementById(id)).filter(Boolean).length,
           bpmHeight:document.querySelector("#bpmInput").getBoundingClientRect().height
         };
       });
       console.log("SETTINGS_LAYOUT", width, JSON.stringify(settingsLayout));
-      assert.equal(settingsLayout.groups, 2, "display and audio settings are not grouped by role at " + width);
+      assert.deepEqual(settingsLayout.groups, ["一覧の幅","進行セル","音と再生"], "settings are not grouped by user task at " + width);
+      assert.ok(settingsLayout.firstPreferenceY < settingsLayout.runtimeInfoY,
+        "everyday settings must appear before runtime details at " + width);
       assert.equal(settingsLayout.controls, 16, "settings layout lost an existing setting or action at " + width);
       assert.ok(settingsLayout.body.width > 0 && settingsLayout.body.overflowY === "auto",
         "settings content has no independent usable scroll area at " + width + ": " + JSON.stringify(settingsLayout));
