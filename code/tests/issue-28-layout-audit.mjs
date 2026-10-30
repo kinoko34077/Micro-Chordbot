@@ -69,7 +69,11 @@ try {
           progressionToolbar: box(".progression-toolbar"),
           progressionGrid: box("#progressionGrid"),
           progressionEditor: box(".progression-editor"),
+          progressionEditorBody: box(".progression-editor-body"),
           progressionChoiceTools: box(".progression-choice-tools"),
+          progressionChordChoices: box("#progChordButtonGrid"),
+          progressionBassInput: box("#progBassInput"),
+          progressionInversionButton: box("#progInversionPopoverBtn"),
           chordFilterSearch: box("#progChordTagFilterInput"),
           firstChordChoice: box("#progChordButtonGrid button[data-chord-id]"),
           chordLibrary: box(".chord-library-panel"),
@@ -81,6 +85,16 @@ try {
       const screenshot = `${view}_${width}x${height}.png`;
       await page.screenshot({ path: path.join(outputDir, screenshot), fullPage: false });
       measurements.push({ viewport: `${width}x${height}`, selectedView: view, screenshot, ...geometry, pageErrors: [...errors] });
+      if (view === "progression" && width >= 1200) {
+        const editorBottom=geometry.progressionEditor.y+geometry.progressionEditor.height;
+        assert.ok(geometry.progressionBassInput.y+geometry.progressionBassInput.height<=editorBottom,
+          "Bass must be reachable without scrolling the whole editor at "+width+": "+JSON.stringify(geometry));
+        assert.ok(geometry.progressionInversionButton.y+geometry.progressionInversionButton.height<=editorBottom,
+          "inversion controls must be reachable without scrolling the whole editor at "+width+": "+JSON.stringify(geometry));
+        assert.ok(geometry.progressionChordChoices.height<=240&&
+          geometry.progressionChordChoices.scrollHeight>geometry.progressionChordChoices.clientHeight+1,
+          "desktop chord choices need their own bounded scroll area at "+width+": "+JSON.stringify(geometry.progressionChordChoices));
+      }
     }
     await page.close();
   }
