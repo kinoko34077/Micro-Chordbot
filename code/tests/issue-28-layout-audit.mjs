@@ -269,6 +269,8 @@ try {
     assert.equal(response?.status(),200,"live progression Pages must load at "+width);
     await page.waitForFunction(()=>document.querySelector("#pitchPresetList")?.children.length>0,{timeout:30000});
     if(await page.locator("#pwaPromptCloseBtn").isVisible().catch(()=>false)) await page.locator("#pwaPromptCloseBtn").click();
+    await page.waitForFunction(()=>document.body.dataset.currentView==="pitch"&&document.querySelector("#view-pitch")?.classList.contains("active"));
+    await page.waitForTimeout(300);
     await page.locator('[data-view="progression"]').click();
     await page.waitForFunction(()=>document.body.dataset.currentView==="progression"&&document.querySelector("#view-progression")?.classList.contains("active"),{timeout:15000});
     await page.waitForFunction(()=>document.querySelector("#progressionGrid")?.getClientRects().length>0);
