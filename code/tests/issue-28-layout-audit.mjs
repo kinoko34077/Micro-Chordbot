@@ -10,7 +10,7 @@ await mkdir(outputDir, { recursive: true });
 
 const viewports = [
   [320, 700], [375, 812], [390, 844], [430, 932], [667, 375],
-  [768, 1024], [834, 1194], [1024, 768], [1280, 400], [1280, 800], [1440, 900], [1920, 1080]
+  [768, 1024], [834, 1194], [1024, 768], [1280, 400], [1280, 650], [1280, 800], [1440, 900], [1920, 1080]
 ];
 const browser = await chromium.launch({ headless: true });
 const measurements = [];
@@ -74,6 +74,10 @@ try {
           progressionChoiceTools: box(".progression-choice-tools"),
           progressionEditorColumns: getComputedStyle(document.querySelector(".progression-editor-body")).gridTemplateColumns,
           progressionChordChoices: box("#progChordButtonGrid"),
+          progressionChoiceKeyboardAccess: document.querySelector("#progChordButtonGrid").tabIndex === 0 &&
+            document.querySelector("#progChordButtonGrid").getAttribute("aria-label") === "コード種類の候補",
+          progressionVoiceKeyboardAccess: document.querySelector(".progression-popover-row").tabIndex === 0 &&
+            document.querySelector(".progression-popover-row").getAttribute("aria-label") === "Bassと転回形の候補",
           progressionBassInput: box("#progBassInput"),
           progressionInversionButton: box("#progInversionPopoverBtn"),
           chordFilterSearch: box("#progChordTagFilterInput"),
@@ -87,7 +91,7 @@ try {
       const screenshot = `${view}_${width}x${height}.png`;
       await page.screenshot({ path: path.join(outputDir, screenshot), fullPage: false });
       measurements.push({ viewport: `${width}x${height}`, selectedView: view, screenshot, ...geometry, pageErrors: [...errors] });
-      if (view === "progression" && width >= 1200 && height < 600) {
+      if (view === "progression" && width >= 1200 && height < 700) {
         assert.equal(geometry.progressionEditor.overflowY,"auto",
           "short desktop windows need an editor scrolling fallback: "+JSON.stringify(geometry.progressionEditor));
         assert.ok(geometry.progressionEditor.scrollHeight>geometry.progressionEditor.clientHeight,
@@ -104,6 +108,8 @@ try {
           "desktop editor body must not overflow horizontally at "+width+": "+JSON.stringify(geometry.progressionEditorBody));
         assert.ok(geometry.progressionBassInput.width>=72&&geometry.progressionInversionButton.width>=60,
           "Bass and inversion actions must retain usable widths at "+width+": "+JSON.stringify(geometry));
+        assert.ok(geometry.progressionChoiceKeyboardAccess&&geometry.progressionVoiceKeyboardAccess,
+          "choice panes must be named and keyboard-scrollable at "+width);
         assert.ok(geometry.progressionVoiceEditor.x>=geometry.progressionChordChoices.x+geometry.progressionChordChoices.width-1,
           "Bass/inversion zone must sit beside chord choices at "+width+": "+JSON.stringify(geometry));
         assert.ok(geometry.progressionVoiceEditor.height>=50,
