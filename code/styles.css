@@ -2152,7 +2152,7 @@ body.workspace-combined .chord-library-panel .panel-note {
   .history-buttons .settings-menu-button { grid-column: auto; }
 }
 
-@media (min-width: 1200px) and (max-height: 700px) {
+@media (min-width: 1200px) and (max-height: 768px) {
   body.workspace-combined #view-progression.active {
     display: flex;
     flex-direction: column;
