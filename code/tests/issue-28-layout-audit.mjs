@@ -270,6 +270,7 @@ try {
     await page.waitForFunction(()=>document.querySelector("#pitchPresetList")?.children.length>0,{timeout:30000});
     if(await page.locator("#pwaPromptCloseBtn").isVisible().catch(()=>false)) await page.locator("#pwaPromptCloseBtn").click();
     await page.locator('[data-view="progression"]').click();
+    await page.waitForFunction(()=>document.body.dataset.currentView==="progression"&&document.querySelector("#view-progression")?.classList.contains("active"),{timeout:15000});
     await page.waitForFunction(()=>document.querySelector("#progressionGrid")?.getClientRects().length>0);
     let menuActivation="not-needed";
     if(width<=640) {
@@ -308,7 +309,8 @@ try {
         }
         return chain;
       });
-      console.log("LIVE_COLUMN_CONTROL",width,JSON.stringify(controlDiagnostics));
+      console.log("LIVE_COLUMN_CONTROL",width,JSON.stringify({currentView:document.body.dataset.currentView,progressionClasses:document.querySelector("#view-progression").className,chain:controlDiagnostics}));
+      assert.ok(controlDiagnostics[0]?.rect.width>0&&controlDiagnostics[0]?.rect.height>0,"column count input must be visible at "+width);
       await page.locator("#progColumnsSelect").fill(String(columns));
       await page.waitForFunction(expected=>{
         const select=document.querySelector("#progColumnsSelect");
