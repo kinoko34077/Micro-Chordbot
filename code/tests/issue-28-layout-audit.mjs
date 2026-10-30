@@ -78,6 +78,10 @@ try {
           progressionGrid: box("#progressionGrid"),
           progressionEditor: box(".progression-editor"),
           progressionEditorBody: box(".progression-editor-body"),
+          progressionRootRow: box(".progression-root-row"),
+          progressionSectionInput: box("#progSectionNameInput"),
+          progressionRootNoteInput: box("#progRootNoteInput"),
+          progressionAccidentals: box(".progression-root-row .quick-row"),
           progressionVoiceEditor: box(".progression-voice-editor"),
           progressionChoiceTools: box(".progression-choice-tools"),
           progressionEditorColumns: getComputedStyle(document.querySelector(".progression-editor-body")).gridTemplateColumns,
@@ -106,6 +110,30 @@ try {
       if (view === "progression" && width <= 430) {
         assert.equal(geometry.progressionKeyboardScrollEnabled,false,
           "phone tab view must not add empty voice scroll regions to the keyboard tab order");
+        assert.ok(Math.abs(geometry.progressionSectionInput.y - geometry.progressionRootNoteInput.y) <= 1,
+          "section and root belong in the same primary cell-edit row: " + JSON.stringify({
+            section:geometry.progressionSectionInput,root:geometry.progressionRootNoteInput
+          }));
+        assert.ok(geometry.progressionSectionInput.width >= 64 && geometry.progressionRootNoteInput.width >= 64,
+          "combined section/root row must keep both fields directly editable at " + width + ": " + JSON.stringify({
+            section:geometry.progressionSectionInput,root:geometry.progressionRootNoteInput
+          }));
+        assert.ok(geometry.progressionRootRow.height <= 68,
+          "the primary cell fields should occupy one touch-sized row at " + width + ": " + JSON.stringify(geometry.progressionRootRow));
+        assert.ok(geometry.progressionSectionInput.x >= 0 &&
+          geometry.progressionRootNoteInput.x + geometry.progressionRootNoteInput.width <= width + 1 &&
+          geometry.progressionAccidentals.x + geometry.progressionAccidentals.width <= width + 1,
+          "combined section/root row must stay within the phone viewport at " + width + ": " + JSON.stringify({
+            section:geometry.progressionSectionInput,root:geometry.progressionRootNoteInput,
+            accidentals:geometry.progressionAccidentals
+          }));
+        console.log("PROGRESSION_PRIMARY_ROW", JSON.stringify({
+          viewport:`${width}x${height}`,
+          rowHeight:geometry.progressionRootRow.height,
+          editorHeight:geometry.progressionEditor.height,
+          sectionWidth:geometry.progressionSectionInput.width,
+          rootWidth:geometry.progressionRootNoteInput.width
+        }));
         assert.equal(geometry.progressionChordChoices.overflowY,"auto",
           "phone chord candidates must own their scrolling region");
         assert.ok(geometry.progressionChordChoices.scrollHeight>geometry.progressionChordChoices.clientHeight,

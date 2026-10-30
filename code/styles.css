@@ -2088,11 +2088,8 @@ body.workspace-combined .chord-library-panel .panel-note {
      two-column placement rules. */
   #view-progression .progression-root-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.15fr) auto;
     gap: 4px;
-  }
-  #view-progression .progression-root-row > label:first-child {
-    grid-column: 1 / -1;
   }
   #view-progression .progression-root-combo {
     grid-template-columns: minmax(0, 1fr) 3.3rem;
