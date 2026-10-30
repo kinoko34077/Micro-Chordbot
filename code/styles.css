@@ -433,9 +433,10 @@ body.workspace-combined .progression-toolbar {
   grid-column: auto;
   grid-row: auto;
   display: grid;
-  grid-template-columns: 34px max-content 34px 34px minmax(0, 1fr);
+  grid-template-columns: 34px max-content 34px 34px 34px minmax(90px, 1fr) 64px;
   gap: 6px;
   justify-items: start;
+  align-items: center;
 }
 body.workspace-combined .progression-toolbar > button,
 body.workspace-combined .progression-counter {
@@ -446,7 +447,7 @@ body.workspace-combined .progression-counter {
   justify-self: start;
 }
 body.workspace-combined #view-progression.active {
-  grid-template-rows: auto auto minmax(280px, 1.25fr) minmax(160px, 0.75fr);
+  grid-template-rows: auto auto minmax(260px, 1fr) minmax(200px, 1fr);
 }
 body.workspace-combined .progression-editor {
   display: grid;
