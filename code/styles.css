@@ -445,6 +445,101 @@ body.workspace-combined .progression-counter {
   padding: 0;
   justify-self: start;
 }
+body.workspace-combined #view-progression.active {
+  grid-template-rows: auto auto minmax(280px, 1.15fr) minmax(96px, 0.85fr);
+}
+body.workspace-combined .progression-editor {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+body.workspace-combined .progression-editor-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.95fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "root root"
+    "notes tools"
+    "chords voices"
+    "status status";
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: calc(38vh - 3.5rem);
+  overflow: hidden;
+}
+body.workspace-combined .progression-root-row { grid-area: root; grid-column: auto; }
+body.workspace-combined #progRootLetterButtons {
+  grid-area: notes;
+  grid-column: auto;
+  grid-row: auto;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  width: 100%;
+  justify-self: stretch;
+  align-self: start;
+}
+body.workspace-combined .progression-choice-tools {
+  grid-area: tools;
+  grid-column: auto;
+  grid-row: auto;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-self: center;
+}
+body.workspace-combined .progression-choice-tools > .beat-token,
+body.workspace-combined .progression-choice-tools > .progression-filter-label {
+  grid-column: auto;
+}
+body.workspace-combined #progChordButtonGrid {
+  grid-area: chords;
+  grid-column: auto;
+  grid-row: auto;
+  width: 100%;
+  height: 100%;
+  max-height: 240px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  align-content: start;
+}
+body.workspace-combined .progression-voice-editor {
+  grid-area: voices;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+body.workspace-combined .progression-voice-row {
+  grid-column: auto;
+  grid-row: auto;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+  margin: 0;
+}
+body.workspace-combined .progression-popover-row {
+  display: grid;
+  grid-column: auto;
+  grid-row: auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+}
+body.workspace-combined .progression-popover {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+body.workspace-combined #progStatus {
+  grid-area: status;
+  grid-column: auto;
+  grid-row: auto;
+}
 body.workspace-combined .progression-toolbar-actions {
   grid-column: 1 / -1;
   grid-row: 2;
