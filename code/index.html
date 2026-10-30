@@ -87,30 +87,27 @@
         <canvas id="pitchLine" width="1000" height="80" aria-label="pitch line"></canvas>
       </div>
 
-      <section class="panel unified-panel active-notes-panel">
-        <div class="panel-heading">
-          <div class="panel-heading-block">
-            <h3>音高ライブラリ</h3>
-            <p id="activeNotesSummary" class="panel-note"></p>
-          </div>
-          <div class="panel-heading-actions">
-            <p id="pitchPresetStatus" class="status-text" aria-live="polite"></p>
-            <button id="clearActiveNotesBtn" type="button">一括削除</button>
-          </div>
-        </div>
+      <section class="panel unified-panel active-notes-panel" aria-label="音高ライブラリ">
         <div class="library-stack">
-          <section class="library-block">
+          <section class="library-block" aria-labelledby="activeNotesHeading">
             <div class="library-block-head">
-              <strong>現音高</strong>
+              <div class="library-title-group">
+                <h3 id="activeNotesHeading">現音高</h3>
+                <span id="activeNotesSummary" class="panel-note"></span>
+              </div>
               <input id="activeNotesFilterInput" type="search" class="table-filter-input" placeholder="名前 / ID / タグで絞り込み" aria-label="現音高を検索">
+              <button id="clearActiveNotesBtn" type="button">一括削除</button>
             </div>
             <div id="activeNotesList" class="preset-list scroll-list"></div>
           </section>
-          <section class="library-block">
+          <section class="library-block" aria-labelledby="pitchPresetsHeading">
             <div class="library-block-head">
-              <strong>音高プリセット</strong>
+              <div class="library-title-group">
+                <h3 id="pitchPresetsHeading">音高プリセット</h3>
+                <span id="pitchPresetStatus" class="status-text" aria-live="polite"></span>
+              </div>
+              <input id="pitchPresetFilterInput" type="search" class="table-filter-input" placeholder="名前 / ID / タグで絞り込み" aria-label="音高プリセットを検索">
             </div>
-            <input id="pitchPresetFilterInput" type="search" class="table-filter-input" placeholder="名前 / ID / タグで絞り込み" aria-label="音高プリセットを検索">
             <div class="visually-hidden">
               <input id="pitchPresetIdInput" type="text">
               <input id="pitchPresetNameInput" type="text">

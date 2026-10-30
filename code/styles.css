@@ -1591,9 +1591,20 @@ body.workspace-combined .chord-library-panel .panel-note {
 .library-block-head {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+.library-title-group {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.library-title-group .panel-note,
+.library-title-group .status-text {
+  min-width: 0;
 }
 .table-filter-input {
   flex: 1 1 10ch;
