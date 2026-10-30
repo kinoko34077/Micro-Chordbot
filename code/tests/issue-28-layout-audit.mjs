@@ -307,10 +307,10 @@ try {
           const style=getComputedStyle(node);
           chain.push({tag:node.tagName,id:node.id,className:String(node.className||""),hidden:node.hidden,display:style.display,visibility:style.visibility,opacity:style.opacity,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height}});
         }
-        return chain;
+        return {currentView:document.body.dataset.currentView,progressionClasses:document.querySelector("#view-progression").className,chain};
       });
-      console.log("LIVE_COLUMN_CONTROL",width,JSON.stringify({currentView:document.body.dataset.currentView,progressionClasses:document.querySelector("#view-progression").className,chain:controlDiagnostics}));
-      assert.ok(controlDiagnostics[0]?.rect.width>0&&controlDiagnostics[0]?.rect.height>0,"column count input must be visible at "+width);
+      console.log("LIVE_COLUMN_CONTROL",width,JSON.stringify(controlDiagnostics));
+      assert.ok(controlDiagnostics.chain[0]?.rect.width>0&&controlDiagnostics.chain[0]?.rect.height>0,"column count input must be visible at "+width);
       await page.locator("#progColumnsSelect").fill(String(columns));
       await page.waitForFunction(expected=>{
         const select=document.querySelector("#progColumnsSelect");
