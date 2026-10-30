@@ -310,7 +310,7 @@ try {
   }
   await progressionPage.waitForFunction(()=>document.querySelector("#progToolbarActions")?.hidden===true,{timeout:15000});
   if(await progressionPage.locator("#progressionEditorBody").evaluate(node=>node.hidden)) {
-    await progressionPage.locator("#progEditorToggleBtn").click();
+    await progressionPage.locator("#progEditorToggleBtn").evaluate(node=>node.click());
   }
   await progressionPage.waitForFunction(()=>!document.querySelector("#progressionEditorBody")?.hidden,{timeout:15000});
   console.log("LIVE_PROGRESSION_PHASE","editor-open");
