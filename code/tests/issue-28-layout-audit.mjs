@@ -273,7 +273,6 @@ try {
     await page.waitForTimeout(300);
     await page.locator('[data-view="progression"]').click();
     await page.waitForFunction(()=>document.body.dataset.currentView==="progression"&&document.querySelector("#view-progression")?.classList.contains("active"),{timeout:15000});
-    await page.waitForFunction(()=>document.querySelector("#progressionGrid")?.getClientRects().length>0);
     let menuActivation="not-needed";
     if(width<=640) {
       await page.waitForFunction(()=>{
@@ -298,6 +297,7 @@ try {
         const button=document.querySelector("#progMenuToggleBtn");
         return !document.querySelector("#progToolbarActions")?.hidden&&button?.getAttribute("aria-expanded")==="true";
       });
+      await page.locator("#progColumnsSelect").waitFor({state:"visible",timeout:15000});
     }
     const results=[];
     for(const columns of [1,12]) {
