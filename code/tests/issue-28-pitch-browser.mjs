@@ -37,6 +37,7 @@ try {
   await page.locator("#settingsMenuBtn").click();
   const roundUnit = page.locator("#roundUnitInput");
   await roundUnit.fill("100");
+  await roundUnit.press("Tab");
   await page.waitForTimeout(100);
   const draftCursorRatio = await canvas.evaluate(element => {
     const context = element.getContext("2d");
@@ -55,7 +56,7 @@ try {
     return {ratio:bestX/width,count:bestCount};
   });
   assert.ok(draftCursorRatio.count > 20,"rounded draft cursor was not drawn on the pitch line");
-  assert.ok(Math.abs(draftCursorRatio.ratio-(500/1200))<0.02,
+  assert.ok(Math.abs(draftCursorRatio.ratio-(500/1200))<0.006,
     "pitch line did not move to the configured 100-cent rounding: "+JSON.stringify(draftCursorRatio));
   await page.locator("#settingsDrawerCloseBtn").click();
 

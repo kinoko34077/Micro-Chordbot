@@ -1207,9 +1207,7 @@ function commitPitchRoundingSettings(type, label, updateSettings) {
   trackStateChange(type, label, before, after);
   syncFormFromState();
   render();
-  void refreshAudibleVoices().then(() => {
-    if (resumeMomentaryPreview) previewDraftPitchVoice();
-  });
+  void refreshPitchRoundingVoices(resumeMomentaryPreview);
 }
 
 function currentPitchEditTarget() {
@@ -1507,6 +1505,44 @@ async function refreshAudibleVoices() {
   if (previewing && selectedPart) {
     return previewProgressionPart(selectedPart);
   }
+  return true;
+}
+
+async function refreshPitchRoundingVoices(resumeMomentaryPreview = false) {
+  const activeResults = await Promise.all(state.activeNotes.map((note) => {
+    const playback = activeNotePlaybackPosition(note);
+    return startVoiceWithFeedback(
+      note.id,
+      frequencyFromPitch(state.settings.a4Hz, playback.octave, playback.microStepInOctave),
+      state.settings.waveform,
+      state.settings.activeNotesVolume
+    );
+  }));
+  if (activeResults.some((started) => !started)) return false;
+
+  const playingPart = state.progression.parts.find((part) => part.id === state.progression.playingPartId);
+  if (playingPart && hasScopedVoices(PROGRESSION_VOICE_PREFIX)) {
+    const partIndex = state.progression.parts.findIndex((part) => part.id === playingPart.id);
+    const started = await syncScopedVoiceSpecs(
+      PROGRESSION_VOICE_PREFIX,
+      progressionPartVoiceSpecs(playingPart, PROGRESSION_VOICE_PREFIX),
+      true
+    );
+    if (!started) return false;
+    progressionPlayback.partIndex = partIndex;
+  }
+
+  const selectedPart = state.progression.parts.find((part) => part.id === state.progression.selectedPartId);
+  if (progressionPreviewTimerId && selectedPart && hasScopedVoices(PROGRESSION_PREVIEW_VOICE_PREFIX)) {
+    const started = await syncScopedVoiceSpecs(
+      PROGRESSION_PREVIEW_VOICE_PREFIX,
+      progressionPartVoiceSpecs(selectedPart, PROGRESSION_PREVIEW_VOICE_PREFIX),
+      true
+    );
+    if (!started) return false;
+  }
+
+  if (resumeMomentaryPreview) previewDraftPitchVoice();
   return true;
 }
 
