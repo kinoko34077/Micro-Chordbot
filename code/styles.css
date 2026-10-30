@@ -2177,17 +2177,15 @@ body.workspace-combined .chord-library-panel .panel-note {
     max-height: min(24vh, 160px);
   }
   body.workspace-combined .progression-editor {
+    display: block;
     height: auto;
     min-height: 0;
+    max-height: none;
+    overflow: visible;
   }
   body.workspace-combined .chord-library-panel {
     height: 200px;
     min-height: 160px;
-  }
-  body.workspace-combined .progression-editor {
-    display: block;
-    max-height: none;
-    overflow: visible;
   }
   body.workspace-combined .progression-editor-body {
     display: grid;
