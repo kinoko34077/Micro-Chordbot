@@ -688,7 +688,7 @@ body.workspace-combined .progression-editor-header {
 }
 body.workspace-combined .progression-editor-header-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
 }
 body.workspace-combined .progression-actions {
