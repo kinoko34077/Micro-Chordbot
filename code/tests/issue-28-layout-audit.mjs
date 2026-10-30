@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -120,7 +120,9 @@ try {
     const screenshot=`settings-${width}x${height}.png`;
     await page.screenshot({path:path.join(outputDir,screenshot),fullPage:false});
     settingsAudit.push({viewport:`${width}x${height}`,screenshot,...geometry,pageErrors:errors});
-    await writeFile(path.join(outputDir,"settings-measurements.json"),`${JSON.stringify(settingsAudit,null,2)}\\n`);
+    const measurementPath=path.join(outputDir,"settings-measurements.json");
+    await writeFile(measurementPath,`${JSON.stringify(settingsAudit,null,2)}\n`);
+    JSON.parse(await readFile(measurementPath,"utf8"));
     assert.ok(geometry.firstPreference.y < geometry.runtimeInfo.y,"priority settings must appear before runtime details at "+width);
     assert.deepEqual(geometry.groups,["一覧の幅","進行セル","音と再生","入出力","アプリ状態"],"settings must be grouped by task at "+width);
     assert.equal(geometry.controls.filter(control=>control.exists).length,16,"settings actions and values must remain present at "+width);
