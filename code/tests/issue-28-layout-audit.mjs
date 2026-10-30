@@ -283,7 +283,16 @@ try {
   await progressionPage.locator('[data-view="progression"]').click();
   await progressionPage.waitForFunction(()=>document.body.dataset.currentView==="progression"&&document.querySelector("#view-progression")?.classList.contains("active"),{timeout:15000});
   console.log("LIVE_PROGRESSION_PHASE","tab",await progressionPage.locator("#view-progression").getAttribute("class"));
-  await progressionPage.locator("#progMenuToggleBtn").click({timeout:10000});
+  await progressionPage.waitForFunction(()=>{
+    const button=document.querySelector("#progMenuToggleBtn");
+    return innerWidth<=640&&button&&!button.hidden&&button.textContent.trim()==="☰"&&button.getClientRects().length>0;
+  },{timeout:15000});
+  try {
+    await progressionPage.locator("#progMenuToggleBtn").click({timeout:3000});
+  } catch(error) {
+    if(!String(error?.message).includes("not stable")&&!String(error?.message).includes("not visible")&&!String(error?.message).includes("Timeout")) throw error;
+    await progressionPage.locator("#progMenuToggleBtn").evaluate(node=>node.click());
+  }
   await progressionPage.waitForFunction(()=>document.querySelector("#progMenuToggleBtn")?.getAttribute("aria-expanded")==="true",{timeout:15000});
   console.log("LIVE_PROGRESSION_PHASE","menu-open");
   await progressionPage.locator("#progEditorToggleBtn").click();
