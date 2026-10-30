@@ -2093,6 +2093,16 @@ body.workspace-combined .chord-library-panel .panel-note {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 3px;
   }
+  /* Chord candidates have a dedicated scroll area on phones so the full
+     library stays available without pushing cells and the chord library away. */
+  #view-progression #progChordButtonGrid {
+    max-height: clamp(126px, 24dvh, 190px);
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    align-content: start;
+  }
   #view-progression .root-grid button,
   #view-progression .chord-grid button {
     min-width: 0;

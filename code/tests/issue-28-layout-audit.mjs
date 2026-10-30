@@ -80,6 +80,7 @@ try {
           progressionChoiceTools: box(".progression-choice-tools"),
           progressionEditorColumns: getComputedStyle(document.querySelector(".progression-editor-body")).gridTemplateColumns,
           progressionChordChoices: box("#progChordButtonGrid"),
+          progressionChordChoiceKeyboardAccess: document.querySelector("#progChordButtonGrid").tabIndex === 0,
           progressionChoiceKeyboardAccess: document.querySelector("#progChordButtonGrid").tabIndex === 0 &&
             document.querySelector("#progChordButtonGrid").getAttribute("aria-label") === "コード種類の候補",
           progressionVoiceKeyboardAccess: document.querySelector(".progression-popover-row").tabIndex === 0 &&
@@ -102,7 +103,13 @@ try {
       measurements.push({ viewport: `${width}x${height}`, selectedView: view, screenshot, ...geometry, pageErrors: [...errors] });
       if (view === "progression" && width <= 430) {
         assert.equal(geometry.progressionKeyboardScrollEnabled,false,
-          "phone tab view must not add empty candidate scroll regions to the keyboard tab order");
+          "phone tab view must not add empty voice scroll regions to the keyboard tab order");
+        assert.equal(geometry.progressionChordChoices.overflowY,"auto",
+          "phone chord candidates must own their scrolling region");
+        assert.ok(geometry.progressionChordChoices.scrollHeight>geometry.progressionChordChoices.clientHeight,
+          "phone chord candidates must be scrollable without growing the editor to all rows");
+        assert.equal(geometry.progressionChordChoiceKeyboardAccess,true,
+          "phone users with a keyboard must be able to focus and scroll chord candidates");
       }
       if (view === "progression" && width >= 1200 && height <= 768) {
         assert.equal(geometry.progressionView.overflowY,"auto",
@@ -303,7 +310,7 @@ try {
   }
   await progressionPage.waitForFunction(()=>document.querySelector("#progToolbarActions")?.hidden===true,{timeout:15000});
   if(await progressionPage.locator("#progressionEditorBody").evaluate(node=>node.hidden)) {
-    await progressionPage.locator("#progEditorToggleBtn").click();
+    await progressionPage.locator("#progEditorToggleBtn").evaluate(node=>node.click());
   }
   await progressionPage.waitForFunction(()=>!document.querySelector("#progressionEditorBody")?.hidden,{timeout:15000});
   console.log("LIVE_PROGRESSION_PHASE","editor-open");
