@@ -16,15 +16,16 @@ test("rounding settings refresh the pitch line and audible pitch immediately", (
   assert.match(roundingModeChange, /commitPitchRoundingSettings\(/);
   assert.ok(roundingCommit, "rounding changes must use a shared update path");
   assert.match(roundingCommit, /render\(\)/);
-  assert.match(roundingCommit, /refreshPitchRoundingVoices\(resumeMomentaryPreview\)/);
+  assert.match(roundingCommit, /refreshPitchRoundingVoices\(resumePitchPreview\)/);
 });
 
-test("rounding changes preserve a currently auditioned pitch preview", () => {
+test("rounding changes preserve a currently auditioned pitch preview in either play mode", () => {
   assert.ok(roundingCommit);
   assert.match(roundingCommit, /MOMENTARY_VOICE_ID/);
+  assert.match(roundingCommit, /DRAG_PREVIEW_VOICE_ID/);
   assert.match(roundingCommit, /!dragContext/);
   assert.ok(roundingAudio);
-  assert.match(roundingAudio, /if \(resumeMomentaryPreview\) previewDraftPitchVoice\(\)/);
+  assert.match(roundingAudio, /if \(resumePitchPreview\) previewDraftPitchVoice\(\)/);
 });
 
 test("the pitch line distinguishes the raw draft pitch from its rounded playback pitch", () => {

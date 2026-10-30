@@ -6,6 +6,26 @@ try {
   const page = await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
   const errors = [];
   page.on("pageerror", e=>errors.push(String(e)));
+  await page.addInitScript(() => {
+    window.__mcFrequencyTargets = [];
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const createOscillator = AudioContextClass.prototype.createOscillator;
+    AudioContextClass.prototype.createOscillator = function(...args) {
+      const oscillator = createOscillator.apply(this, args);
+      const frequency = oscillator.frequency;
+      const ramp = frequency.linearRampToValueAtTime.bind(frequency);
+      frequency.linearRampToValueAtTime = (value, time) => {
+        window.__mcFrequencyTargets.push(Number(value));
+        return ramp(value, time);
+      };
+      const start = oscillator.start.bind(oscillator);
+      oscillator.start = (...startArgs) => {
+        window.__mcFrequencyTargets.push(Number(frequency.value));
+        return start(...startArgs);
+      };
+      return oscillator;
+    };
+  });
   await page.goto("http://127.0.0.1:4173/", {waitUntil:"domcontentloaded"});
   const presets = page.locator("#pitchPresetList tbody tr[data-pitch-preset-id]");
   await presets.first().waitFor({state:"visible",timeout:5000});
@@ -65,6 +85,11 @@ try {
   await roundUnit.fill("100");
   await roundUnit.press("Tab");
   await page.waitForTimeout(100);
+  const roundedPreviewFrequency = await page.evaluate(() => window.__mcFrequencyTargets.at(-1) ?? null);
+  const expectedRoundedFrequency = 440 * Math.pow(2, (-9 + 500 / 100) / 12);
+  assert.ok(Number.isFinite(roundedPreviewFrequency) &&
+    Math.abs(roundedPreviewFrequency - expectedRoundedFrequency) < 0.02,
+    "changing rounding cents did not retune the active pitch slider preview: " + roundedPreviewFrequency);
   const draftCursorRatio = await canvas.evaluate(element => {
     const context = element.getContext("2d");
     const {width,height} = element;
