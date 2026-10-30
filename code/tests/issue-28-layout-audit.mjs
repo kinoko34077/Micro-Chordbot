@@ -10,7 +10,7 @@ await mkdir(outputDir, { recursive: true });
 
 const viewports = [
   [320, 700], [375, 812], [390, 844], [430, 932], [667, 375],
-  [768, 1024], [834, 1194], [1024, 768], [1200, 800], [1280, 400], [1280, 650], [1280, 750], [1280, 800], [1440, 900], [1920, 1080]
+  [768, 1024], [834, 1194], [1024, 768], [1200, 800], [1280, 400], [1280, 650], [1280, 750], [1280, 768], [1280, 800], [1440, 900], [1920, 1080]
 ];
 const browser = await chromium.launch({ headless: true });
 const measurements = [];
@@ -96,7 +96,7 @@ try {
       const screenshot = `${view}_${width}x${height}.png`;
       await page.screenshot({ path: path.join(outputDir, screenshot), fullPage: false });
       measurements.push({ viewport: `${width}x${height}`, selectedView: view, screenshot, ...geometry, pageErrors: [...errors] });
-      if (view === "progression" && width >= 1200 && height < 700) {
+      if (view === "progression" && width >= 1200 && height <= 768) {
         assert.equal(geometry.progressionView.overflowY,"auto",
           "short desktop workspaces need one vertical scrolling path: "+JSON.stringify(geometry.progressionView));
         const viewBottom=geometry.progressionView.y+geometry.progressionView.height;
