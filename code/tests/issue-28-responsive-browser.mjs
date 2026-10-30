@@ -237,8 +237,6 @@ try {
         const display = await page.locator("#view-" + name).evaluate(el => getComputedStyle(el).display);
         assert.equal(display, "none", "inactive view leaked on progression tab at " + width + ": " + name);
       }
-    }
-    if (width < 1200) {
       const chordChoices = await page.locator("#progChordButtonGrid").evaluate(node => ({
         count: node.querySelectorAll("button[data-chord-id]").length,
         height: node.getBoundingClientRect().height,

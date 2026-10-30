@@ -1199,6 +1199,19 @@ function activeNotePlaybackPosition(note) {
   return roundPitchPosition(note.octave, note.microStepInOctave);
 }
 
+function commitPitchRoundingSettings(type, label, updateSettings) {
+  const resumeMomentaryPreview = !dragContext && audio.hasVoice(MOMENTARY_VOICE_ID);
+  const before = snapshotState();
+  updateSettings();
+  const after = snapshotState();
+  trackStateChange(type, label, before, after);
+  syncFormFromState();
+  render();
+  void refreshAudibleVoices().then(() => {
+    if (resumeMomentaryPreview) previewDraftPitchVoice();
+  });
+}
+
 function currentPitchEditTarget() {
   return findActiveNoteById(pitchUi.lastTouchedNoteId);
 }
@@ -2355,11 +2368,34 @@ function renderLine() {
 
   const markerPad = 8;
   const draftX = (state.pitchDraft.microStepInOctave / OCTAVE_MICROSTEP) * metrics.width;
+  const roundedDraft = roundPitchPosition(state.pitchDraft.octave, state.pitchDraft.microStepInOctave);
+  const roundedDraftX = (roundedDraft.microStepInOctave / OCTAVE_MICROSTEP) * metrics.width;
+  let drawDraftX = draftX;
+  if (state.settings.roundUnitCent > 0) {
+    let originalX = draftX;
+    let roundedX = roundedDraftX;
+    if (Math.abs(originalX - roundedX) > metrics.width / 2) {
+      if (originalX < roundedX) originalX += metrics.width;
+      else roundedX += metrics.width;
+    }
+    drawDraftX = clamp(roundedX, markerPad, metrics.width - markerPad);
+    const drawOriginalX = clamp(originalX, markerPad, metrics.width - markerPad);
+    ctx.strokeStyle = "#64748b";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(drawOriginalX, 18);
+    ctx.lineTo(drawDraftX, 18);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(148, 163, 184, 0.75)";
+    ctx.beginPath();
+    ctx.arc(drawOriginalX, 18, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.strokeStyle = "#22d3ee";
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(draftX, 16);
-  ctx.lineTo(draftX, metrics.height - 8);
+  ctx.moveTo(drawDraftX, 16);
+  ctx.lineTo(drawDraftX, metrics.height - 8);
   ctx.stroke();
 
   const sortedActiveNotes = state.activeNotes.map((note) =>
@@ -4167,18 +4203,15 @@ function attachEvents() {
   });
 
   els.roundUnitInput.addEventListener("change", () => {
-    const before = snapshotState();
-    state.settings.roundUnitCent = Math.max(0, Number(els.roundUnitInput.value) || 0);
-    const after = snapshotState();
-    trackStateChange("update_round_unit", "丸め込み単位変更", before, after);
-    syncFormFromState();
+    commitPitchRoundingSettings("update_round_unit", "丸め込み単位変更", () => {
+      state.settings.roundUnitCent = Math.max(0, Number(els.roundUnitInput.value) || 0);
+    });
   });
 
   els.roundingModeSelect.addEventListener("change", () => {
-    const before = snapshotState();
-    state.settings.roundingMode = els.roundingModeSelect.value;
-    const after = snapshotState();
-    trackStateChange("update_round_mode", "丸め込みモード変更", before, after);
+    commitPitchRoundingSettings("update_round_mode", "丸め込みモード変更", () => {
+      state.settings.roundingMode = els.roundingModeSelect.value;
+    });
   });
 
   els.savePitchPresetBtn.addEventListener("click", saveCurrentPitchPreset);

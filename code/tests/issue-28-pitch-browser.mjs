@@ -31,9 +31,38 @@ try {
   const rows = page.locator('#activeNotesList tr[data-note-id]');
   assert.equal(await rows.count(),1,"initial note creation should yield one active note");
   const beforeId = await rows.first().getAttribute("data-note-id");
-  await page.mouse.move(x,y);
+
+  // Changing the round unit must immediately move the pitch-line cursor to the
+  // audible rounded pitch, while retaining a visible raw-pitch reference.
+  await page.locator("#settingsMenuBtn").click();
+  const roundUnit = page.locator("#roundUnitInput");
+  await roundUnit.fill("100");
+  await page.waitForTimeout(100);
+  const draftCursorRatio = await canvas.evaluate(element => {
+    const context = element.getContext("2d");
+    const {width,height} = element;
+    const pixels = context.getImageData(0,0,width,height).data;
+    let bestX = -1;
+    let bestCount = 0;
+    for(let x=0;x<width;x++){
+      let count = 0;
+      for(let y=20;y<height-8;y++){
+        const index = (y*width+x)*4;
+        if(pixels[index]===34 && pixels[index+1]===211 && pixels[index+2]===238) count++;
+      }
+      if(count>bestCount){bestX=x;bestCount=count;}
+    }
+    return {ratio:bestX/width,count:bestCount};
+  });
+  assert.ok(draftCursorRatio.count > 20,"rounded draft cursor was not drawn on the pitch line");
+  assert.ok(Math.abs(draftCursorRatio.ratio-(500/1200))<0.02,
+    "pitch line did not move to the configured 100-cent rounding: "+JSON.stringify(draftCursorRatio));
+  await page.locator("#settingsDrawerCloseBtn").click();
+
+  const gestureX = box.x + box.width * (500/1200);
+  await page.mouse.move(gestureX,y);
   await page.mouse.down();
-  await page.mouse.move(x+35,y,{steps:8});
+  await page.mouse.move(gestureX+35,y,{steps:8});
   await page.waitForTimeout(100);
   assert.equal(await rows.first().getAttribute("data-note-id"),beforeId,"drag mutated committed note before release");
   await page.mouse.up();
@@ -44,7 +73,7 @@ try {
 
   // Gesture regression: a real touch input emits pointer events, not a guaranteed dblclick.
   const cdp = await page.context().newCDPSession(page);
-  const movedX = x+35;
+  const movedX = gestureX+35;
   const touch = async (type,points)=>cdp.send("Input.dispatchTouchEvent",{type,touchPoints:points});
   for(let i=0;i<2;i++){
     await touch("touchStart",[{x:movedX,y,id:1}]);
@@ -55,12 +84,12 @@ try {
   assert.equal(await rows.count(),0,"touch double tap did not delete note");
 
   // Cancelling an in-progress touch drag must not commit a candidate.
-  await page.mouse.click(x,y);
+  await page.mouse.click(gestureX,y);
   await page.waitForTimeout(120);
   assert.equal(await rows.count(),1,"cancel fixture note missing");
   const cancelledId = await rows.first().getAttribute("data-note-id");
-  await touch("touchStart",[{x,y,id:2}]);
-  await touch("touchMove",[{x:x+60,y,id:2}]);
+  await touch("touchStart",[{x:gestureX,y,id:2}]);
+  await touch("touchMove",[{x:gestureX+60,y,id:2}]);
   await page.waitForTimeout(60);
   assert.equal(await rows.first().getAttribute("data-note-id"),cancelledId,"touch move wrote committed data");
   await touch("touchCancel",[]);
@@ -68,8 +97,8 @@ try {
   assert.equal(await rows.first().getAttribute("data-note-id"),cancelledId,"touch cancel committed pitch");
 
   // A real touch drag changes an active note only on release and is one undoable action.
-  await touch("touchStart",[{x,y,id:3}]);
-  await touch("touchMove",[{x:x+35,y,id:3}]);
+  await touch("touchStart",[{x:gestureX,y,id:3}]);
+  await touch("touchMove",[{x:gestureX+35,y,id:3}]);
   await page.waitForTimeout(80);
   assert.equal(await rows.first().getAttribute("data-note-id"),cancelledId,
     "touch drag committed before release");

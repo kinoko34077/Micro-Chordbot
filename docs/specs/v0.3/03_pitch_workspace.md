@@ -29,6 +29,7 @@
 ### 数直線と即時音高編集
 - Intent: 音高を直接触って決める
 - User-facing behavior: 数直線上で追加、ドラッグ、Ctrl 微調整、丸め込み差分表示、ダブルクリック削除ができる
+- 丸め単位・モードの変更は、保持中の音と試聴音、数直線表示へ即時反映する。音高の元データは丸めず保持し、丸め前後の位置を線上で区別する
 - Internal notes: 内部値は `microStep` を保持し、UI では必要最小限の `cent` と状態のみ出す
 - Current implementation state: 部分実装
 - Known gaps: 実機調整と表示一貫性がまだ不安定
