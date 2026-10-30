@@ -1601,6 +1601,9 @@ function syncProgressionToolbarLabels() {
 function syncProgressionLayoutState() {
   const compact = isCompactProgressionLayout();
   const editorExpanded = !compact || progressionUi.isEditorExpanded;
+  const keyboardScrollEnabled = isDesktopWorkspaceLayout();
+  els.progChordButtonGrid.tabIndex = keyboardScrollEnabled ? 0 : -1;
+  document.querySelector(".progression-popover-row")?.setAttribute("tabindex", keyboardScrollEnabled ? "0" : "-1");
   els.progressionView.classList.toggle("progression-menu-open", !compact || progressionUi.isMenuOpen);
   els.progressionView.classList.toggle("progression-editor-expanded", editorExpanded);
   els.progToolbarActions.hidden = compact && !progressionUi.isMenuOpen;
