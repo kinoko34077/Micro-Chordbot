@@ -277,7 +277,10 @@ try {
     viewport:{width:initialWidth,height:initialHeight},
     deviceScaleFactor:1,
     isMobile:initialWidth<=430,
-    hasTouch:initialWidth<=430
+    hasTouch:initialWidth<=430,
+    // Keep service-worker update/reload behavior out of this interaction audit.
+    // PWA caching is covered by the dedicated cache-contract workflow.
+    serviceWorkers:"block"
   });
   const progressionErrors=[];
   progressionPage.on("pageerror",error=>progressionErrors.push(error.message));
