@@ -12,6 +12,32 @@ try {
   const initialPresetCount = await presets.count();
   assert.ok(initialPresetCount > 0,"pitch library seed data not rendered");
   const initialPitchPresetIds = await presets.evaluateAll(rows => rows.map(row => row.getAttribute("data-pitch-preset-id")).sort());
+  const pitchLibraryLayout = await page.evaluate(() => {
+    const panel = document.querySelector(".active-notes-panel");
+    const activeBlock = document.querySelector("#activeNotesList")?.closest(".library-block");
+    const presetBlock = document.querySelector("#pitchPresetList")?.closest(".library-block");
+    const top = node => node?.getBoundingClientRect().top ?? null;
+    return {
+      panelTop: top(panel),
+      activeSearchTop: top(document.querySelector("#activeNotesFilterInput")),
+      presetListTop: top(document.querySelector("#pitchPresetList")),
+      clearActionHeight: document.querySelector("#clearActiveNotesBtn")?.getBoundingClientRect().height ?? 0,
+      hasWrapperHeading: Boolean(panel?.querySelector(":scope > .panel-heading")),
+      clearActionInActiveBlock: document.querySelector("#clearActiveNotesBtn")?.closest(".library-block") === activeBlock,
+      summaryInActiveBlock: document.querySelector("#activeNotesSummary")?.closest(".library-block") === activeBlock,
+      statusInPresetBlock: document.querySelector("#pitchPresetStatus")?.closest(".library-block") === presetBlock,
+      pitchSearchInPresetHeading: document.querySelector("#pitchPresetFilterInput")?.parentElement?.classList.contains("library-block-head")
+    };
+  });
+  assert.equal(pitchLibraryLayout.hasWrapperHeading,false,"pitch lists should not sit under a duplicate library heading");
+  assert.equal(pitchLibraryLayout.clearActionInActiveBlock,true,"clear action must stay with the active-note list it affects");
+  assert.equal(pitchLibraryLayout.summaryInActiveBlock,true,"active-note count and empty guidance must stay with the active-note list");
+  assert.equal(pitchLibraryLayout.statusInPresetBlock,true,"preset status must stay with the preset list");
+  assert.equal(pitchLibraryLayout.pitchSearchInPresetHeading,true,"preset search should be placed in its own heading in the document");
+  assert.ok(pitchLibraryLayout.clearActionHeight>=40,"moving the clear action must retain a touch-sized target");
+  assert.ok(pitchLibraryLayout.activeSearchTop-pitchLibraryLayout.panelTop<72,"active-note controls should start near the library panel edge");
+  console.log("PITCH_LIBRARY_DENSITY",JSON.stringify({viewport:"390x844",beforePresetListOffset:249,afterPresetListOffset:Math.round(pitchLibraryLayout.presetListTop-pitchLibraryLayout.panelTop)}));
+  assert.ok(pitchLibraryLayout.presetListTop-pitchLibraryLayout.panelTop<180,"the preset list should begin higher after removing the redundant wrapper row");
   const search = page.locator("#pitchPresetFilterInput");
   assert.equal(await search.getAttribute("aria-label"),"音高プリセットを検索","pitch preset search needs an accessible name");
   await search.fill("完全1度");

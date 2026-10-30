@@ -671,7 +671,6 @@ function ensureWorkspaceDom() {
   document.querySelectorAll("#view-settings .panel-heading h3").forEach((node, index) => {
     node.textContent = ["Runtime / PWA", "一覧幅", "丸め / 再生", "保存 / 読込"][index] || node.textContent;
   });
-  document.querySelector(".active-notes-panel .library-block strong")?.replaceChildren(document.createTextNode("現音高"));
   setLabelLead(els.presetNameWidthInput, "名前 rem");
   setLabelLead(els.presetCentWidthInput, "¢ rem");
   setLabelLead(els.presetShortWidthInput, "ID rem");
@@ -685,11 +684,6 @@ function ensureWorkspaceDom() {
   setLabelLead(els.roundingModeSelect, "丸め");
   if (els.pitchPresetFilterInput) {
     const pitchPresetBlock = els.pitchPresetFilterInput.closest(".library-block");
-    const head = pitchPresetBlock?.querySelector(".library-block-head");
-    if (head && els.pitchPresetFilterInput.parentElement !== head) {
-      head.querySelector(".panel-note")?.remove();
-      head.appendChild(els.pitchPresetFilterInput);
-    }
     ensureBulkBar(pitchPresetBlock, "pitch", [
       { name: "tags", placeholder: "タグ一括変更" },
       { name: "memo", placeholder: "メモ一括変更" }
@@ -5197,8 +5191,8 @@ function renderActiveNotesV2() {
   const container = els.activeNotesList;
   container.innerHTML = "";
   if (state.activeNotes.length === 0) {
-    renderPresetTableEmpty(container, "現音高はまだありません。");
-    els.activeNotesSummary.textContent = "数直線か音高プリセットから追加してください。";
+    renderPresetTableEmpty(container, "現音高はありません。数直線またはプリセットから追加できます。");
+    els.activeNotesSummary.textContent = "0 音";
     return;
   }
 

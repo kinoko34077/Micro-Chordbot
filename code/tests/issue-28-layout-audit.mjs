@@ -64,6 +64,8 @@ try {
           pitchToolbar: box(".pitch-toolbar"),
           pitchLine: box(".line-wrap"),
           activeNotes: box(".active-notes-panel"),
+          activeNotesList: box("#activeNotesList"),
+          activeNotesHeading: box(".active-notes-panel .library-block-head"),
           activeNotesSearch: box("#activeNotesFilterInput"),
           pitchPresetSearch: box("#pitchPresetFilterInput"),
           pitchPresets: box("#pitchPresetList"),
@@ -163,7 +165,11 @@ try {
     "exportBtn", "exportLibraryBtn", "importFileInput"
   ];
   for (const [width,height] of settingsAuditViewports) {
-    const page = await browser.newPage({viewport:{width,height},deviceScaleFactor:1,isMobile:width<=430,hasTouch:width<=430});
+    const page = await browser.newPage({
+      viewport:{width,height},deviceScaleFactor:1,isMobile:width<=430,hasTouch:width<=430,
+      // Keep update/reload behavior in the dedicated PWA workflow, not the settings layout audit.
+      serviceWorkers:"block"
+    });
     const errors=[];
     page.on("pageerror",(error)=>errors.push(error.message));
     await page.goto("http://127.0.0.1:4173/",{waitUntil:"networkidle"});
