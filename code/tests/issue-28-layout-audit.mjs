@@ -261,67 +261,60 @@ try {
   const liveProgressionViewports = [
     [320,700], [390,844], [834,1194], [1024,768], [1280,800], [1280,768]
   ];
+  const [initialWidth,initialHeight]=liveProgressionViewports[0];
+  const progressionPage=await browser.newPage({
+    viewport:{width:initialWidth,height:initialHeight},
+    deviceScaleFactor:1,
+    isMobile:initialWidth<=430,
+    hasTouch:initialWidth<=430
+  });
+  const progressionErrors=[];
+  progressionPage.on("pageerror",error=>progressionErrors.push(error.message));
+  const progressionResponse=await progressionPage.goto("https://kinoko34077.github.io/Micro-Chordbot/",{waitUntil:"domcontentloaded"});
+  assert.equal(progressionResponse?.status(),200,"live progression Pages must load");
+  await progressionPage.waitForFunction(()=>document.querySelector("#pitchPresetList")?.children.length>0,{timeout:30000});
+  await progressionPage.waitForFunction(()=>document.body.dataset.currentView==="pitch"&&document.querySelector("#view-pitch")?.classList.contains("active"));
+  await progressionPage.waitForTimeout(300);
+  await progressionPage.locator('[data-view="progression"]').click();
+  await progressionPage.waitForFunction(()=>document.body.dataset.currentView==="progression"&&document.querySelector("#view-progression")?.classList.contains("active"),{timeout:15000});
+
+  const liveProgressionAudit=[];
+  let menuActivation="not-needed";
   for (const [width,height] of liveProgressionViewports) {
-    const page=await browser.newPage({viewport:{width,height},deviceScaleFactor:1,isMobile:width<=430,hasTouch:width<=430});
-    const errors=[];
-    page.on("pageerror",error=>errors.push(error.message));
-    const response=await page.goto("https://kinoko34077.github.io/Micro-Chordbot/",{waitUntil:"domcontentloaded"});
-    assert.equal(response?.status(),200,"live progression Pages must load at "+width);
-    await page.waitForFunction(()=>document.querySelector("#pitchPresetList")?.children.length>0,{timeout:30000});
-    if(await page.locator("#pwaPromptCloseBtn").isVisible().catch(()=>false)) await page.locator("#pwaPromptCloseBtn").click();
-    await page.waitForFunction(()=>document.body.dataset.currentView==="pitch"&&document.querySelector("#view-pitch")?.classList.contains("active"));
-    await page.waitForTimeout(300);
-    await page.locator('[data-view="progression"]').click();
-    await page.waitForFunction(()=>document.body.dataset.currentView==="progression"&&document.querySelector("#view-progression")?.classList.contains("active"),{timeout:15000});
-    let menuActivation="not-needed";
+    await progressionPage.setViewportSize({width,height});
+    await progressionPage.waitForTimeout(150);
     if(width<=640) {
-      await page.waitForFunction(()=>{
+      await progressionPage.waitForFunction(()=>{
         const button=document.querySelector("#progMenuToggleBtn");
         return innerWidth<=640&&window.matchMedia("(max-width: 640px)").matches&&
           button&&!button.hidden&&button.textContent.trim()==="☰"&&button.getClientRects().length>0;
       },{timeout:15000});
-      await page.waitForTimeout(300);
-      if(await page.locator("#progToolbarActions").evaluate(node=>node.hidden)) {
-        try {
-          await page.locator("#progMenuToggleBtn").click({timeout:5000});
-          menuActivation="pointer";
-        } catch(error) {
-          if(!String(error?.message).includes("not stable")&&!String(error?.message).includes("not visible")&&!String(error?.message).includes("Timeout")) throw error;
-          await page.locator("#progMenuToggleBtn").evaluate(node=>node.click());
-          menuActivation="dom-click-recovery";
-        }
-      } else {
+      if(await progressionPage.locator("#progToolbarActions").evaluate(node=>node.hidden)) {
+        await progressionPage.locator("#progMenuToggleBtn").click({timeout:10000});
+        menuActivation="pointer";
+      } else if(menuActivation==="not-needed") {
         menuActivation="already-open";
       }
-      await page.waitForFunction(()=>{
+      await progressionPage.waitForFunction(()=>{
         const button=document.querySelector("#progMenuToggleBtn");
         return !document.querySelector("#progToolbarActions")?.hidden&&button?.getAttribute("aria-expanded")==="true";
       });
-      await page.locator("#progColumnsSelect").waitFor({state:"visible",timeout:15000});
+    } else {
+      menuActivation="not-needed";
     }
+    await progressionPage.locator("#progColumnsSelect").waitFor({state:"visible",timeout:15000});
     const results=[];
     for(const columns of [1,12]) {
-      const controlDiagnostics=await page.evaluate(()=>{
+      await progressionPage.locator("#progColumnsSelect").fill(String(columns));
+      await progressionPage.waitForFunction(expected=>{
         const input=document.querySelector("#progColumnsSelect");
-        const chain=[];
-        for(let node=input;node;node=node.parentElement) {
-          const rect=node.getBoundingClientRect();
-          const style=getComputedStyle(node);
-          chain.push({tag:node.tagName,id:node.id,className:String(node.className||""),hidden:node.hidden,display:style.display,visibility:style.visibility,opacity:style.opacity,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height}});
-        }
-        return {currentView:document.body.dataset.currentView,progressionClasses:document.querySelector("#view-progression").className,chain};
-      });
-      console.log("LIVE_COLUMN_CONTROL",width,JSON.stringify(controlDiagnostics));
-      assert.ok(controlDiagnostics.chain[0]?.rect.width>0&&controlDiagnostics.chain[0]?.rect.height>0,"column count input must be visible at "+width);
-      await page.locator("#progColumnsSelect").fill(String(columns));
-      await page.waitForFunction(expected=>{
-        const select=document.querySelector("#progColumnsSelect");
-        const grid=document.querySelector("#progressionGrid .progression-chunk-grid");
-        return Number(select?.value)===expected&&
-          getComputedStyle(grid).gridTemplateColumns.trim().split(/\s+/).length===expected;
+        const cells=document.querySelector("#progressionGrid .progression-chunk-grid");
+        return Number(input?.value)===expected&&
+          Boolean(cells)&&getComputedStyle(cells).gridTemplateColumns.trim().split(/\\s+/).length===expected;
       },columns);
-      const state=await page.evaluate(()=>{
+      const state=await progressionPage.evaluate(()=>{
         const grid=document.querySelector("#progressionGrid");
+        const cells=grid.querySelector(".progression-chunk-grid");
         const workspace=document.querySelector("#view-progression");
         const library=document.querySelector(".chord-library-panel");
         const box=node=>{const r=node.getBoundingClientRect();return{x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height),bottom:Math.round(r.bottom)};};
@@ -331,7 +324,7 @@ try {
           progressionActive:workspace.classList.contains("active"),
           documentWidth:document.documentElement.scrollWidth,
           columnValue:Number(document.querySelector("#progColumnsSelect").value),
-          renderedColumns:getComputedStyle(grid.querySelector(".progression-chunk-grid")).gridTemplateColumns.trim().split(/\s+/).length,
+          renderedColumns:getComputedStyle(cells).gridTemplateColumns.trim().split(/\\s+/).length,
           progressionGrid:box(grid),
           workspace:{...box(workspace),overflowY:getComputedStyle(workspace).overflowY,scrollHeight:workspace.scrollHeight,clientHeight:workspace.clientHeight,scrollTop:workspace.scrollTop},
           editor:box(document.querySelector(".progression-editor")),
@@ -342,16 +335,16 @@ try {
       });
       assert.equal(state.progressionActive,true,"deployed progression tab must be active at "+width);
       assert.equal(state.columnValue,columns,"deployed column setting value at "+width);
-      assert.equal(state.renderedColumns,columns,"deployed progression grid columns at "+width);
+      assert.equal(state.renderedColumns,columns,"deployed progression cell grid columns at "+width);
       assert.ok(state.documentWidth<=width+1,"deployed page must not overflow horizontally at "+width);
       results.push(state);
       if(columns===12) {
         const screenshot=`live-progression_${width}x${height}-12cols.png`;
-        await page.screenshot({path:path.join(outputDir,screenshot),fullPage:false});
+        await progressionPage.screenshot({path:path.join(outputDir,screenshot),fullPage:false});
         if(width>=1200&&height<=768) {
-          await page.locator("#view-progression").evaluate(node=>node.scrollTo(0,node.scrollHeight));
-          await page.waitForTimeout(100);
-          const reachable=await page.evaluate(()=>{
+          await progressionPage.locator("#view-progression").evaluate(node=>node.scrollTo(0,node.scrollHeight));
+          await progressionPage.waitForTimeout(100);
+          const reachable=await progressionPage.evaluate(()=>{
             const workspace=document.querySelector("#view-progression");
             const editor=document.querySelector(".progression-editor").getBoundingClientRect();
             const library=document.querySelector(".chord-library-panel").getBoundingClientRect();
@@ -364,11 +357,12 @@ try {
         }
       }
     }
-    liveProgressionAudit.push({viewport:`${width}x${height}`,httpStatus:response.status(),menuActivation,columns:results,pageErrors:errors});
-    await writeFile(path.join(outputDir,"live-progression-measurements.json"),`${JSON.stringify(liveProgressionAudit,null,2)}\n`);
-    assert.deepEqual(errors,[],"live progression view must not produce browser errors at "+width);
-    await page.close();
+    liveProgressionAudit.push({viewport:`${width}x${height}`,httpStatus:progressionResponse.status(),menuActivation,columns:results,pageErrors:progressionErrors});
+    await writeFile(path.join(outputDir,"live-progression-measurements.json"),`${JSON.stringify(liveProgressionAudit,null,2)}\\n`);
+    assert.deepEqual(progressionErrors,[],"live progression view must not produce browser errors at "+width);
   }
+  await progressionPage.close();
+
 } finally {
   await browser.close();
 }
