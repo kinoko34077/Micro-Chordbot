@@ -682,13 +682,13 @@ body.workspace-combined .progression-editor {
 }
 body.workspace-combined .progression-editor-header {
   display: grid;
-  grid-template-columns: 1fr;
-  align-items: start;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
 }
 body.workspace-combined .progression-editor-header-actions {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
 }
 body.workspace-combined .progression-actions {
