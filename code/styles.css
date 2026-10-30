@@ -264,13 +264,13 @@ main {
   gap: 6px;
   min-width: 0;
 }
-.settings-list-grid {
+.settings-drawer .settings-list-grid {
   grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
 }
-.settings-audio-grid {
+.settings-drawer .settings-audio-grid {
   grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
 }
-.settings-cell-grid {
+.settings-drawer .settings-cell-grid {
   grid-template-columns: minmax(120px, 180px);
 }
 .settings-input-grid > label {
