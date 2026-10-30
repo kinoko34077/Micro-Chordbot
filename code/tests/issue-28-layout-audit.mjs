@@ -312,7 +312,6 @@ try {
   await progressionPage.waitForFunction(()=>document.querySelector("#progressionGrid .progression-chunk-grid .progression-cell"),{timeout:15000});
   console.log("LIVE_PROGRESSION_PHASE","seeded");
 
-  const liveProgressionAudit=[];
   let menuActivation="not-needed";
   for (const [width,height] of liveProgressionViewports) {
     console.log("LIVE_PROGRESSION_VIEWPORT",width,height);
