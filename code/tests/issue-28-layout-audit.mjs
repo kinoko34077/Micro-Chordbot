@@ -83,6 +83,9 @@ try {
             document.querySelector("#progChordButtonGrid").getAttribute("aria-label") === "コード種類の候補",
           progressionVoiceKeyboardAccess: document.querySelector(".progression-popover-row").tabIndex === 0 &&
             document.querySelector(".progression-popover-row").getAttribute("aria-label") === "Bassと転回形の候補",
+          progressionKeyboardScrollEnabled:
+            document.querySelector("#progChordButtonGrid").tabIndex === 0 &&
+            document.querySelector(".progression-popover-row").tabIndex === 0,
           progressionBassInput: box("#progBassInput"),
           progressionInversionButton: box("#progInversionPopoverBtn"),
           chordFilterSearch: box("#progChordTagFilterInput"),
@@ -96,6 +99,10 @@ try {
       const screenshot = `${view}_${width}x${height}.png`;
       await page.screenshot({ path: path.join(outputDir, screenshot), fullPage: false });
       measurements.push({ viewport: `${width}x${height}`, selectedView: view, screenshot, ...geometry, pageErrors: [...errors] });
+      if (view === "progression" && width <= 430) {
+        assert.equal(geometry.progressionKeyboardScrollEnabled,false,
+          "phone tab view must not add empty candidate scroll regions to the keyboard tab order");
+      }
       if (view === "progression" && width >= 1200 && height <= 768) {
         assert.equal(geometry.progressionView.overflowY,"auto",
           "short desktop workspaces need one vertical scrolling path: "+JSON.stringify(geometry.progressionView));
@@ -220,9 +227,11 @@ try {
       };
     },settingIds);
     let geometry;
+    let recoveredLivePage=false;
     try {
       geometry=await readGeometry();
     } catch(error) {
+      recoveredLivePage=true;
       const message=String(error?.message);
       if(!message.includes("Execution context was destroyed")&&!message.includes("Cannot read properties of null")) throw error;
       // Pages may replace the document while a service worker activates; restart the live audit once on a stable document.
@@ -239,7 +248,7 @@ try {
     }
     const screenshot=`live-settings_${width}x${height}.png`;
     await page.screenshot({path:path.join(outputDir,screenshot),fullPage:false});
-    liveSettings.push({viewport:`${width}x${height}`,screenshot,httpStatus:response.status(),...geometry,pageErrors:errors});
+    liveSettings.push({viewport:`${width}x${height}`,screenshot,httpStatus:response.status(),recoveredLivePage,...geometry,pageErrors:errors});
     await writeFile(path.join(outputDir,"live-settings-measurements.json"), `${JSON.stringify(liveSettings, null, 2)}\n`);
     assert.equal(geometry.controls.filter(control=>control.exists).length,16,"all deployed settings/actions must exist at "+width);
     assert.ok(geometry.body.scrollWidth<=geometry.body.clientWidth+1,"live settings overflow horizontally at "+width);
