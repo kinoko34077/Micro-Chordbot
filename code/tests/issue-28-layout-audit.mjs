@@ -206,7 +206,7 @@ try {
     if (await page.locator("#pwaPromptCloseBtn").isVisible().catch(()=>false)) await page.locator("#pwaPromptCloseBtn").click();
     await page.locator("#settingsMenuBtn").click();
     await page.waitForFunction(()=>!document.querySelector("#settingsDrawer")?.hidden);
-    const geometry=await page.evaluate((ids)=>{
+    const readGeometry=()=>page.evaluate((ids)=>{
       const rect=(selector)=>{const r=document.querySelector(selector).getBoundingClientRect();return {x:Math.round(r.x),y:Math.round(r.y),right:Math.round(r.right),bottom:Math.round(r.bottom),width:Math.round(r.width),height:Math.round(r.height)};};
       const body=document.querySelector("#settingsDrawerBody");
       return {
@@ -219,6 +219,19 @@ try {
         menuLinks:[...document.querySelectorAll(".settings-drawer-links button")].map(node=>({text:node.textContent.trim(),rect:(()=>{const r=node.getBoundingClientRect();return {width:Math.round(r.width),height:Math.round(r.height)}})()}))
       };
     },settingIds);
+    let geometry;
+    try {
+      geometry=await readGeometry();
+    } catch(error) {
+      if(!String(error?.message).includes("Execution context was destroyed")) throw error;
+      await page.waitForLoadState("domcontentloaded").catch(()=>{});
+      await page.waitForFunction(()=>document.querySelector("#pitchPresetList")?.children.length>0,{timeout:30000});
+      if(await page.locator("#settingsDrawer").evaluate(node=>node.hidden).catch(()=>true)) {
+        await page.locator("#settingsMenuBtn").click();
+        await page.waitForFunction(()=>!document.querySelector("#settingsDrawer")?.hidden);
+      }
+      geometry=await readGeometry();
+    }
     const screenshot=`live-settings_${width}x${height}.png`;
     await page.screenshot({path:path.join(outputDir,screenshot),fullPage:false});
     liveSettings.push({viewport:`${width}x${height}`,screenshot,httpStatus:response.status(),...geometry,pageErrors:errors});
