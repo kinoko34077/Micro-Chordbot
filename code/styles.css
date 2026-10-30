@@ -433,7 +433,7 @@ body.workspace-combined .progression-toolbar {
   grid-column: auto;
   grid-row: auto;
   display: grid;
-  grid-template-columns: 34px max-content 34px 34px 34px minmax(90px, 1fr) 64px;
+  grid-template-columns: 34px max-content 34px 34px 34px minmax(90px, 1fr);
   gap: 6px;
   justify-items: start;
   align-items: center;
@@ -516,7 +516,6 @@ body.workspace-combined .progression-voice-editor {
 body.workspace-combined .progression-voice-row {
   grid-column: auto;
   grid-row: auto;
-  grid-template-columns: minmax(0, 1fr) auto;
   min-width: 0;
   margin: 0;
 }
@@ -700,12 +699,7 @@ body.workspace-combined .progression-editor-header-actions button {
   white-space: nowrap;
   font-size: 0.78rem;
 }
-body.workspace-combined .progression-editor-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.95fr);
-  gap: 6px;
-}
-body.workspace-combined .progression-root-row {
+ body.workspace-combined .progression-root-row {
   grid-column: 1 / -1;
   grid-template-columns: minmax(84px, 32%) minmax(116px, 42%) auto;
   margin-bottom: 0;
@@ -2140,7 +2134,7 @@ body.workspace-combined .chord-library-panel .panel-note {
   .history-buttons .settings-menu-button { grid-column: auto; }
 }
 
-@media (min-width: 1200px) and (max-height: 600px) {
+@media (min-width: 1200px) and (max-height: 700px) {
   body.workspace-combined .progression-editor {
     display: block;
     max-height: 48vh;
