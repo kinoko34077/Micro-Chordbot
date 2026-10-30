@@ -104,6 +104,8 @@ try {
         assert.ok(geometry.progressionView.scrollHeight>geometry.progressionView.clientHeight+1||
           libraryBottom<=viewBottom,
           "short desktop chord library must be visible or reachable by workspace scrolling: "+JSON.stringify({view:geometry.progressionView,library:geometry.chordLibrary}));
+        assert.ok(geometry.chordLibrary.y>=geometry.progressionEditor.y+geometry.progressionEditor.height-1,
+          "short desktop panels must remain in a non-overlapping vertical order: "+JSON.stringify({editor:geometry.progressionEditor,library:geometry.chordLibrary}));
         assert.ok(geometry.progressionBassInput.height>0&&geometry.progressionInversionButton.height>0,
           "short desktop Bass and inversion controls must remain rendered");
       } else if (view === "progression" && width >= 1200) {
