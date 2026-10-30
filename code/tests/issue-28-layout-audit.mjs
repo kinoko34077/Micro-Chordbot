@@ -10,7 +10,7 @@ await mkdir(outputDir, { recursive: true });
 
 const viewports = [
   [320, 700], [375, 812], [390, 844], [430, 932], [667, 375],
-  [768, 1024], [834, 1194], [1024, 768], [1280, 400], [1280, 650], [1280, 800], [1440, 900], [1920, 1080]
+  [768, 1024], [834, 1194], [1024, 768], [1200, 800], [1280, 400], [1280, 650], [1280, 800], [1440, 900], [1920, 1080]
 ];
 const browser = await chromium.launch({ headless: true });
 const measurements = [];
@@ -69,7 +69,7 @@ try {
           progressionToolbar: box(".progression-toolbar"),
           progressionToolbarControls: [...document.querySelectorAll(".progression-toolbar button, .progression-toolbar select, .progression-toolbar input")].map((node) => {
             const rect=node.getBoundingClientRect();
-            return {id:node.id,display:getComputedStyle(node).display,width:Math.round(rect.width),height:Math.round(rect.height),hidden:node.hidden};
+            return {id:node.id,display:getComputedStyle(node).display,x:Math.round(rect.x),y:Math.round(rect.y),right:Math.round(rect.right),bottom:Math.round(rect.bottom),width:Math.round(rect.width),height:Math.round(rect.height),hidden:node.hidden};
           }),
           progressionGrid: box("#progressionGrid"),
           progressionEditor: box(".progression-editor"),
@@ -118,8 +118,12 @@ try {
           "Bass/inversion zone must sit beside chord choices at "+width+": "+JSON.stringify(geometry));
         assert.ok(geometry.progressionVoiceEditor.height>=100,
           "Bass/inversion zone must retain enough height for its controls at "+width+": "+JSON.stringify(geometry));
-        assert.ok(geometry.progressionToolbarControls.every(control=>control.hidden||control.width>0&&control.height>0),
-          "desktop progression toolbar controls must remain visible at "+width+": "+JSON.stringify(geometry.progressionToolbarControls));
+        const toolbarRight=geometry.progressionToolbar.x+geometry.progressionToolbar.width;
+        const toolbarBottom=geometry.progressionToolbar.y+geometry.progressionToolbar.height;
+        assert.ok(geometry.progressionToolbarControls.every(control=>control.hidden||
+          control.width>0&&control.height>0&&control.x>=geometry.progressionToolbar.x&&
+          control.right<=toolbarRight&&control.y>=geometry.progressionToolbar.y&&control.bottom<=toolbarBottom),
+          "desktop progression toolbar controls must stay inside the toolbar at "+width+": "+JSON.stringify({toolbar:geometry.progressionToolbar,controls:geometry.progressionToolbarControls}));
         assert.ok(geometry.progressionChordChoices.height<=240&&geometry.progressionChordChoices.overflowY==="auto",
           "desktop chord choices need their own bounded scroll area at "+width+": "+JSON.stringify(geometry.progressionChordChoices));
       }
