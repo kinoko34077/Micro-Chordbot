@@ -786,9 +786,31 @@ body.workspace-combined .beat-inline {
 }
 body.workspace-combined .progression-toolbar-actions {
   display: grid;
-  grid-template-columns: auto auto minmax(120px, 1fr) auto;
+  grid-template-columns: max-content max-content minmax(0, 1fr) max-content;
+  align-items: center;
+  align-content: center;
   gap: 6px;
   margin-left: 0;
+}
+body.workspace-combined .progression-toolbar-actions > .file-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+body.workspace-combined .progression-toolbar-actions > .file-pick input {
+  width: 100%;
+  min-width: 8rem;
+  max-width: 22rem;
+  height: 30px;
+  min-height: 30px;
+}
+body.workspace-combined .progression-toolbar-actions > .progression-columns {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
 }
 body.workspace-combined .progression-toolbar-actions button,
 body.workspace-combined .progression-toolbar-actions input,
