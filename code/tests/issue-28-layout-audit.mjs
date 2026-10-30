@@ -66,6 +66,7 @@ try {
           activeNotesSearch: box("#activeNotesFilterInput"),
           pitchPresetSearch: box("#pitchPresetFilterInput"),
           pitchPresets: box("#pitchPresetList"),
+          progressionView: box("#view-progression"),
           progressionToolbar: box(".progression-toolbar"),
           progressionToolbarControls: [...document.querySelectorAll(".progression-toolbar button, .progression-toolbar select, .progression-toolbar input")].map((node) => {
             const rect=node.getBoundingClientRect();
@@ -96,10 +97,13 @@ try {
       await page.screenshot({ path: path.join(outputDir, screenshot), fullPage: false });
       measurements.push({ viewport: `${width}x${height}`, selectedView: view, screenshot, ...geometry, pageErrors: [...errors] });
       if (view === "progression" && width >= 1200 && height < 700) {
-        assert.equal(geometry.progressionEditor.overflowY,"auto",
-          "short desktop windows need an editor scrolling fallback: "+JSON.stringify(geometry.progressionEditor));
-        assert.ok(geometry.progressionEditor.scrollHeight>geometry.progressionEditor.clientHeight,
-          "short desktop editor controls must remain reachable by scrolling: "+JSON.stringify(geometry.progressionEditor));
+        assert.equal(geometry.progressionView.overflowY,"auto",
+          "short desktop workspaces need one vertical scrolling path: "+JSON.stringify(geometry.progressionView));
+        const viewBottom=geometry.progressionView.y+geometry.progressionView.height;
+        const libraryBottom=geometry.chordLibrary.y+geometry.chordLibrary.height;
+        assert.ok(geometry.progressionView.scrollHeight>geometry.progressionView.clientHeight+1||
+          libraryBottom<=viewBottom,
+          "short desktop chord library must be visible or reachable by workspace scrolling: "+JSON.stringify({view:geometry.progressionView,library:geometry.chordLibrary}));
         assert.ok(geometry.progressionBassInput.height>0&&geometry.progressionInversionButton.height>0,
           "short desktop Bass and inversion controls must remain rendered");
       } else if (view === "progression" && width >= 1200) {
