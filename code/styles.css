@@ -2153,10 +2153,16 @@ body.workspace-combined .chord-library-panel .panel-note {
 }
 
 @media (min-width: 1200px) and (max-height: 700px) {
+  body.workspace-combined #view-progression.active {
+    grid-template-rows: auto auto minmax(0, max-content) minmax(160px, max-content);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
   body.workspace-combined .progression-editor {
     display: block;
-    max-height: 48vh;
-    overflow: auto;
+    max-height: none;
+    overflow: visible;
   }
   body.workspace-combined .progression-editor-body {
     display: grid;
