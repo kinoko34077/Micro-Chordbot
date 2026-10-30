@@ -50,8 +50,13 @@ test("settings use role groups and a bounded single content scroller", () => {
   assert.match(css, /\.settings-drawer\s*\{[^}]*grid-template-rows:\s*auto\s+auto\s+minmax\(0,\s*1fr\);/s);
   assert.match(css, /\.settings-drawer\s*\{[^}]*overflow:\s*hidden;/s);
   assert.match(css, /\.settings-drawer-body\s*\{[^}]*overflow-y:\s*auto;/s);
-  assert.match(css, /\.settings-drawer\s+\.settings-input-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
+  assert.match(css, /\.settings-list-grid\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(88px,\s*1fr\)\)/s);
+  assert.match(css, /\.settings-audio-grid\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(112px,\s*1fr\)\)/s);
+  assert.match(css, /\.settings-task-section\s*\{[^}]*border-bottom:/s);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*?\.settings-drawer\s*\{[^}]*inset:\s*0;/s);
-  assert.match(html, /class="panel settings-preferences-panel"[^>]*aria-labelledby="settingsPreferencesHeading"/);
+  assert.match(html, /class="settings-task-section settings-preferences-panel"/);
+  assert.match(html, /id="settingsListHeading">一覧の幅/);
+  assert.match(html, /id="settingsCellHeading">進行セル/);
+  assert.match(html, /class="settings-task-section settings-runtime-panel"/);
   assert.match(html, /aria-labelledby="settingsAudioHeading"/);
 });
