@@ -223,10 +223,15 @@ try {
     try {
       geometry=await readGeometry();
     } catch(error) {
-      if(!String(error?.message).includes("Execution context was destroyed")) throw error;
-      await page.waitForLoadState("domcontentloaded").catch(()=>{});
+      const message=String(error?.message);
+      if(!message.includes("Execution context was destroyed")&&!message.includes("Cannot read properties of null")) throw error;
+      // Pages may replace the document while a service worker activates; restart the live audit once on a stable document.
+      const retryResponse=await page.goto("https://kinoko34077.github.io/Micro-Chordbot/",{waitUntil:"domcontentloaded"});
+      assert.equal(retryResponse?.status(),200,"live Pages retry must load at "+width);
       await page.waitForFunction(()=>document.querySelector("#pitchPresetList")?.children.length>0,{timeout:30000});
-      if(await page.locator("#settingsDrawer").evaluate(node=>node.hidden).catch(()=>true)) {
+      await page.waitForFunction(()=>document.querySelector("#settingsDrawer")&&document.querySelector("#settingsDrawerBody"),{timeout:15000});
+      if(await page.locator("#pwaPromptCloseBtn").isVisible().catch(()=>false)) await page.locator("#pwaPromptCloseBtn").click();
+      if(await page.locator("#settingsDrawer").evaluate(node=>node.hidden)) {
         await page.locator("#settingsMenuBtn").click();
         await page.waitForFunction(()=>!document.querySelector("#settingsDrawer")?.hidden);
       }
