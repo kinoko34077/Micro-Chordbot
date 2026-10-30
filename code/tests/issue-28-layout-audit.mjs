@@ -162,6 +162,8 @@ try {
     await page.goto("http://127.0.0.1:4173/",{waitUntil:"networkidle"});
     await page.waitForFunction(()=>document.querySelector("#pitchPresetList")?.children.length > 0);
     if (await page.locator("#pwaPromptCloseBtn").isVisible().catch(()=>false)) await page.locator("#pwaPromptCloseBtn").click();
+    await page.waitForFunction(()=>document.body.dataset.currentView==="pitch"&&document.querySelector("#view-pitch")?.classList.contains("active"));
+    await page.waitForTimeout(300);
     await page.locator("#settingsMenuBtn").click();
     await page.waitForFunction(()=>!document.querySelector("#settingsDrawer")?.hidden);
     const geometry=await page.evaluate((ids)=>{
@@ -241,6 +243,8 @@ try {
       await page.waitForFunction(()=>document.querySelector("#pitchPresetList")?.children.length>0,{timeout:30000});
       await page.waitForFunction(()=>document.querySelector("#settingsDrawer")&&document.querySelector("#settingsDrawerBody"),{timeout:15000});
       if(await page.locator("#pwaPromptCloseBtn").isVisible().catch(()=>false)) await page.locator("#pwaPromptCloseBtn").click();
+      await page.waitForFunction(()=>document.body.dataset.currentView==="pitch"&&document.querySelector("#view-pitch")?.classList.contains("active"));
+      await page.waitForTimeout(300);
       if(await page.locator("#settingsDrawer").evaluate(node=>node.hidden)) {
         await page.locator("#settingsMenuBtn").click();
         await page.waitForFunction(()=>!document.querySelector("#settingsDrawer")?.hidden);
