@@ -1194,14 +1194,16 @@ function activeNotePlaybackPosition(note) {
 }
 
 function commitPitchRoundingSettings(type, label, updateSettings) {
-  const resumeMomentaryPreview = !dragContext && audio.hasVoice(MOMENTARY_VOICE_ID);
+  const resumePitchPreview = !dragContext && (
+    audio.hasVoice(MOMENTARY_VOICE_ID) || audio.hasVoice(DRAG_PREVIEW_VOICE_ID)
+  );
   const before = snapshotState();
   updateSettings();
   const after = snapshotState();
   trackStateChange(type, label, before, after);
   syncFormFromState();
   render();
-  void refreshPitchRoundingVoices(resumeMomentaryPreview);
+  void refreshPitchRoundingVoices(resumePitchPreview);
 }
 
 function currentPitchEditTarget() {
@@ -1502,7 +1504,7 @@ async function refreshAudibleVoices() {
   return true;
 }
 
-async function refreshPitchRoundingVoices(resumeMomentaryPreview = false) {
+async function refreshPitchRoundingVoices(resumePitchPreview = false) {
   const activeResults = await Promise.all(state.activeNotes.map((note) => {
     const playback = activeNotePlaybackPosition(note);
     return startVoiceWithFeedback(
@@ -1536,7 +1538,7 @@ async function refreshPitchRoundingVoices(resumeMomentaryPreview = false) {
     if (!started) return false;
   }
 
-  if (resumeMomentaryPreview) previewDraftPitchVoice();
+  if (resumePitchPreview) previewDraftPitchVoice();
   return true;
 }
 
@@ -1577,7 +1579,6 @@ function applySnapshot(snap) {
   pitchUi.lastTouchedNoteId = state.activeNotes[0]?.id || null;
   syncFormFromState();
   render();
-  void syncAudioToActiveNotes();
 }
 
 function trackStateChange(type, label, before, after) {
@@ -1599,9 +1600,27 @@ function updateHistoryButtons() {
   els.redoBtn.disabled = !history.canRedo();
 }
 
+async function restoreHistoryAudio() {
+  const activeNotesStarted = await syncAudioToActiveNotes();
+  if (!activeNotesStarted) return false;
+
+  const playingPartId = state.progression.playingPartId;
+  const playingPartIndex = state.progression.parts.findIndex((part) => part.id === playingPartId);
+  if (playingPartId && playingPartIndex >= 0) {
+    return playProgressionPart(state.progression.parts[playingPartIndex], playingPartIndex);
+  }
+
+  const selectedPart = state.progression.parts.find((part) => part.id === state.progression.selectedPartId);
+  if (selectedPart) return previewProgressionPart(selectedPart);
+  return true;
+}
+
 function applyHistoryAction(direction) {
   const changed = direction === "redo" ? history.redo(applySnapshot) : history.undo(applySnapshot);
-  if (changed) markProjectDirty();
+  if (changed) {
+    markProjectDirty();
+    void restoreHistoryAudio();
+  }
   render();
   updateHistoryButtons();
   return changed;
@@ -2689,6 +2708,7 @@ async function importDataFile(file) {
     trackStateChange("json_import", "json import", before, after);
   } catch (error) {
     applySnapshot(before);
+    await syncAudioToActiveNotes();
     throw error;
   } finally {
     history.endGroup();
