@@ -433,9 +433,10 @@ body.workspace-combined .progression-toolbar {
   grid-column: auto;
   grid-row: auto;
   display: grid;
-  grid-template-columns: 34px max-content 34px 34px minmax(0, 1fr);
+  grid-template-columns: 34px max-content 34px 34px 34px minmax(90px, 1fr) max-content max-content minmax(180px, 1.5fr) max-content;
   gap: 6px;
   justify-items: start;
+  align-items: center;
 }
 body.workspace-combined .progression-toolbar > button,
 body.workspace-combined .progression-counter {
@@ -444,6 +445,100 @@ body.workspace-combined .progression-counter {
   height: 34px;
   padding: 0;
   justify-self: start;
+}
+body.workspace-combined #view-progression.active {
+  grid-template-rows: auto auto minmax(300px, 1fr) minmax(200px, 1fr);
+}
+body.workspace-combined .progression-editor {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+body.workspace-combined .progression-editor-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.95fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "root root"
+    "notes tools"
+    "chords voices"
+    "status status";
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: calc(38vh - 3.5rem);
+  overflow: hidden;
+}
+body.workspace-combined .progression-root-row { grid-area: root; grid-column: auto; }
+body.workspace-combined #progRootLetterButtons {
+  grid-area: notes;
+  grid-column: auto;
+  grid-row: auto;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  width: 100%;
+  justify-self: stretch;
+  align-self: start;
+}
+body.workspace-combined .progression-choice-tools {
+  grid-area: tools;
+  grid-column: auto;
+  grid-row: auto;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-self: center;
+}
+body.workspace-combined .progression-choice-tools > .beat-token,
+body.workspace-combined .progression-choice-tools > .progression-filter-label {
+  grid-column: auto;
+}
+body.workspace-combined #progChordButtonGrid {
+  grid-area: chords;
+  grid-column: auto;
+  grid-row: auto;
+  width: 100%;
+  height: 100%;
+  max-height: 240px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  align-content: start;
+}
+body.workspace-combined .progression-voice-editor {
+  grid-area: voices;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+body.workspace-combined .progression-voice-row {
+  grid-column: auto;
+  grid-row: auto;
+  min-width: 0;
+  margin: 0;
+}
+body.workspace-combined .progression-popover-row {
+  display: grid;
+  grid-column: auto;
+  grid-row: auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+}
+body.workspace-combined .progression-popover {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+body.workspace-combined #progStatus {
+  grid-area: status;
+  grid-column: auto;
+  grid-row: auto;
 }
 body.workspace-combined .progression-toolbar-actions {
   grid-column: 1 / -1;
@@ -586,9 +681,9 @@ body.workspace-combined .progression-editor {
 }
 body.workspace-combined .progression-editor-header {
   display: grid;
-  grid-template-columns: 1fr;
-  align-items: start;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
 }
 body.workspace-combined .progression-editor-header-actions {
   display: grid;
@@ -604,12 +699,7 @@ body.workspace-combined .progression-editor-header-actions button {
   white-space: nowrap;
   font-size: 0.78rem;
 }
-body.workspace-combined .progression-editor-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(42px, 3.8rem);
-  gap: 6px;
-}
-body.workspace-combined .progression-root-row {
+ body.workspace-combined .progression-root-row {
   grid-column: 1 / -1;
   grid-template-columns: minmax(84px, 32%) minmax(116px, 42%) auto;
   margin-bottom: 0;
@@ -621,8 +711,8 @@ body.workspace-combined .progression-popover-row {
   margin-bottom: 0;
 }
 body.workspace-combined .progression-voice-row {
-  grid-column: 1;
-  grid-template-columns: minmax(72px, 0.72fr) minmax(0, 1fr);
+  grid-column: auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: start;
 }
 body.workspace-combined .progression-popover-row {
@@ -695,10 +785,28 @@ body.workspace-combined .beat-inline {
   grid-template-columns: 2.2rem auto 2.2rem;
 }
 body.workspace-combined .progression-toolbar-actions {
-  display: grid;
-  grid-template-columns: auto auto minmax(120px, 1fr) auto;
+  display: contents;
+}
+body.workspace-combined .progression-toolbar-actions > .file-pick {
+  display: flex;
+  align-items: center;
   gap: 6px;
-  margin-left: 0;
+  min-width: 0;
+  white-space: nowrap;
+}
+body.workspace-combined .progression-toolbar-actions > .file-pick input {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 6rem;
+  max-width: none;
+  height: 30px;
+  min-height: 30px;
+}
+body.workspace-combined .progression-toolbar-actions > .progression-columns {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
 }
 body.workspace-combined .progression-toolbar-actions button,
 body.workspace-combined .progression-toolbar-actions input,
@@ -2042,4 +2150,70 @@ body.workspace-combined .chord-library-panel .panel-note {
     gap: 2px;
   }
   .history-buttons .settings-menu-button { grid-column: auto; }
+}
+
+@media (min-width: 1200px) and (max-height: 768px) {
+  body.workspace-combined #view-progression.active {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+  body.workspace-combined .progression-toolbar,
+  body.workspace-combined .progression-grid,
+  body.workspace-combined .progression-editor,
+  body.workspace-combined .chord-library-panel {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 100%;
+  }
+  body.workspace-combined .progression-toolbar {
+    max-height: none;
+  }
+  body.workspace-combined .progression-grid {
+    max-height: min(24vh, 160px);
+  }
+  body.workspace-combined .progression-editor {
+    display: block;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+  }
+  body.workspace-combined .chord-library-panel {
+    height: 200px;
+    min-height: 160px;
+  }
+  body.workspace-combined .progression-editor-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    grid-template-areas: "root" "notes" "tools" "chords" "voices" "status";
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+  body.workspace-combined #progRootLetterButtons,
+  body.workspace-combined .progression-choice-tools,
+  body.workspace-combined #progChordButtonGrid,
+  body.workspace-combined .progression-voice-editor,
+  body.workspace-combined #progStatus {
+    grid-column: auto;
+    grid-row: auto;
+  }
+  body.workspace-combined #progChordButtonGrid {
+    height: auto;
+    max-height: 120px;
+  }
+  body.workspace-combined .progression-voice-editor {
+    grid-template-rows: auto minmax(80px, auto);
+    overflow: visible;
+  }
+  body.workspace-combined .progression-popover-row {
+    height: auto;
+    max-height: 120px;
+  }
 }
