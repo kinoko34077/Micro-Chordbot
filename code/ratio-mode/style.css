@@ -870,3 +870,6 @@ dialog::backdrop{background:#0009}
   .ratio-app #addStep{font-size:0;padding-inline:8px}
   .ratio-app #addStep::before{content:"＋";font-size:17px}
 }
+
+.ratio-app #saveState[data-error="true"]{color:#fecdd3;font-weight:700}
+@media(max-width:640px){.ratio-app #saveState[data-error="true"]{display:inline}}

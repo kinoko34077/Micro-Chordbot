@@ -37,9 +37,9 @@ function saveSelection(){
   try{localStorage.setItem(UI_STORE,JSON.stringify(selection))}catch(error){/* UI selection optional. */}
 }
 function save(){
-  if(!saveAllowed){$("saveState").textContent="保存停止";return}
-  try{localStorage.setItem(STORE,JSON.stringify(project));$("saveState").textContent="端末内保存済み"}
-  catch(error){saveAllowed=false;$("saveState").textContent="保存停止";notice("端末内保存に失敗しました。入出力からファイルへ退避してください。",true)}
+  if(!saveAllowed){$("saveState").textContent="保存停止";$("saveState").dataset.error="true";notice("保存停止中です。入出力からファイルに退避してください。",true);return}
+  try{localStorage.setItem(STORE,JSON.stringify(project));$("saveState").textContent="端末内保存済み";$("saveState").dataset.error="false"}
+  catch(error){saveAllowed=false;$("saveState").textContent="保存停止";$("saveState").dataset.error="true";notice("端末内保存に失敗しました。入出力からファイルへ退避してください。",true)}
 }
 function selectedLocation(draft=project){
   const s=draft.sections.find(s=>s.id===selection.sectionId)||draft.sections[0];
@@ -57,7 +57,7 @@ function mutate(change,{structural=false,audition=false}={}){
     if(JSON.stringify(before)===JSON.stringify(next))return true;
     if(structural)stopPlayback();
     project=next;history.push({type:"ratio_edit",before,after:copy(next)});
-    chooseFirst();save();notice("");render();
+    chooseFirst();save();if(saveAllowed)notice("");render();
     if(playing&&playingStepId)void refreshPlayingVoices();
     else if(audition)void preview();
     return true;
@@ -70,7 +70,7 @@ function setSelection(sid,cid){
 function restore(snapshot){
   const wasPlaying=playing;
   stopPlayback();project=copy(snapshot);
-  chooseFirst();saveSelection();save();render();notice("");
+  chooseFirst();saveSelection();save();render();if(saveAllowed)notice("");
   if(wasPlaying)startPlayback(); else void preview();
 }
 function undo(){history.undo(restore);renderHistory()}
@@ -239,9 +239,9 @@ const typingTimers=new Map();
 for(const [key,which] of [["editExpr","expr"],["editPitch","pitch"]]){
   $(key).addEventListener("input",e=>{
     clearTimeout(typingTimers.get(key));
-    const value=e.target.value,field=e.target;
+    const value=e.target.value,field=e.target,origin={...selection};
     const timer=setTimeout(()=>{
-      if(field.value!==value)return;
+      if(field.value!==value||selection.stepId!==origin.stepId||selection.sectionId!==origin.sectionId)return;
       const draft=copy(project);
       if(which==="expr")selectedLocation(draft).step.expr=value.trim();
       else selectedLocation(draft).step.pitch=value.trim();
