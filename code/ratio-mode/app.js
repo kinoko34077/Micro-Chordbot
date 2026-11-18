@@ -92,6 +92,7 @@ function hz(value){return value>=1000?value.toFixed(1):value.toFixed(2)}
 function makeCard(section,step,index){
   const card=document.createElement("button");card.type="button";
   card.className="progression-cell";card.dataset.sid=section.id;card.dataset.cid=step.id;
+  if(step.id===playingStepId)card.classList.add("playing");
   card.draggable=true;
   card.style.width=Math.max(96,Math.min(206,84+step.beats*13))+"px";
   card.setAttribute("aria-label",section.name+" のコード "+(index+1)+" "+step.expr+" "+step.pitch+" "+step.beats+"拍");
