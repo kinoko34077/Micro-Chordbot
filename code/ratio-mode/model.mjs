@@ -52,7 +52,7 @@ export function validateProject(value) {
   const s=value.settings||{};
   const bpm=Number(s.bpm);
   if(!finite(bpm)||bpm<20||bpm>300)fail("BPMは20〜300で指定してください");
-  const wave=["sine","triangle","square","sawtooth"].includes(s.wave)?s.wave:"sine";
+  const wave=["sine","square","sawtooth"].includes(s.wave)?s.wave:"sine";
   if(!Array.isArray(value.presets)||value.presets.length>128)fail("名前付き比率は最大128件です");
   if(!Array.isArray(value.sections)||!value.sections.length||value.sections.length>32)fail("セクションは1〜32件必要です");
   const presets=[],names=new Set();
