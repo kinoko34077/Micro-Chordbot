@@ -207,6 +207,24 @@ main {
   line-height: 1.2;
   white-space: normal;
 }
+.settings-drawer-links .settings-ratio-link {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-width: 0;
+  min-height: 40px;
+  padding: 4px 6px;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  white-space: normal;
+  color: var(--accent);
+  text-decoration: none;
+  border: 1px solid var(--border, #334155);
+  border-radius: 8px;
+}
+.settings-drawer-links .settings-ratio-link:hover { border-color: var(--accent); }
 .settings-drawer-body {
   display: grid;
   grid-auto-rows: max-content;

@@ -4,6 +4,8 @@ on:
     paths:
       - "code/styles.css"
       - "code/src/**"
+      - "code/ratio-mode/**"
+      - "code/tests/issue-84-ratio-mode-browser.mjs"
       - "code/index.html"
       - "code/tests/issue-28-*.mjs"
       - ".github/workflows/issue-28-browser.yml"
@@ -36,6 +38,7 @@ jobs:
           node code/tests/issue-28-progression-browser.mjs
           node code/tests/issue-28-history-audio-browser.mjs
           node code/tests/issue-28-layout-audit.mjs
+          node code/tests/issue-84-ratio-mode-browser.mjs
 
       - name: Upload viewport screenshots and geometry measurements
         if: always()

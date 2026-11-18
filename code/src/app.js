@@ -541,6 +541,7 @@ function ensureWorkspaceDom() {
         <button type="button" data-menu-focus="settings">設定</button>
         <button type="button" data-menu-focus="help">ヘルプ</button>
         <button type="button" data-menu-focus="privacy">プライバシーポリシー</button>
+        <a class="settings-ratio-link" href="./ratio-mode/" aria-label="周波数比コード進行の簡易版を開く">周波数比・簡易版</a>
       </nav>
       <div id="settingsDrawerBody" class="settings-drawer-body"></div>
       <section class="panel settings-placeholder" data-menu-panel="help">
