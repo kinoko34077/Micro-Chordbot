@@ -2,68 +2,129 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#101727">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1f2937">
   <title>周波数比・簡易版 | μChordbot</title>
-  <link rel="icon" href="../icons/icon-192.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <div class="app">
-    <header class="top">
-      <div class="brand"><a href="../" aria-label="μChordbot 通常版へ戻る" class="back">‹ μ</a><div><strong>周波数比・簡易版</strong><small>μChordbot / Ratio Mode</small></div></div>
-      <div class="transport">
-        <button type="button" id="play" class="primary">▶ 再生</button>
-        <button type="button" id="stop">■ 停止</button>
-        <label>BPM <input id="bpm" type="number" min="20" max="300" step="1" value="110"></label>
-        <label class="check"><input id="loop" type="checkbox" checked>ループ</label>
-        <label>音色 <select id="wave"><option value="sine">sine</option><option value="square">square</option><option value="sawtooth">sawtooth</option></select></label>
+  <!-- Derived from the existing μChordbot code/index.html progression workspace.
+       Ratio-domain values and actions are supplied by ratio-mode/app.js. -->
+  <div class="app ratio-app">
+    <header class="topbar">
+      <div class="brand-nav">
+        <a class="brand-title ratio-back" href="../" aria-label="μChordbot 通常版に戻る">μ</a>
+        <div class="ratio-mode-label"><strong>周波数比・簡易版</strong><small>コード進行</small></div>
       </div>
-      <div class="tools">
-        <button type="button" id="undo" aria-label="元に戻す" title="元に戻す">↶</button>
-        <button type="button" id="redo" aria-label="やり直す" title="やり直す">↷</button>
-        <button type="button" id="openIO">入出力</button>
+      <div class="history-buttons">
+        <button id="undo" type="button" title="元に戻す" aria-label="元に戻す">↶</button>
+        <button id="redo" type="button" title="やり直す" aria-label="やり直す">↷</button>
+        <label class="master-volume-inline" title="Master 音量"><span aria-hidden="true">Vol</span>
+          <input id="masterVolume" type="range" min="0" max="1" step=".01" value=".3" aria-label="マスター音量">
+        </label>
+        <button id="openIO" type="button">入出力</button>
       </div>
     </header>
-    <main class="main">
-      <div class="workspace-header">
-        <div><div class="eyebrow">PROGRESSION</div><input id="title" aria-label="進行名" maxlength="120" value="比率コード進行"></div>
-        <div class="workspace-actions"><button type="button" id="newSection">＋ セクション</button><span id="saveState" role="status">端末内保存</span></div>
-      </div>
-      <div id="timeline" class="timeline" tabindex="0" role="region" aria-label="コード進行（横スクロール）"></div>
-      <div class="library">
-        <div class="library-label"><strong>名前付き比率</strong><small>タップすると選択中のコードに挿入</small></div>
-        <div id="presetChips" class="preset-chips" role="group" aria-label="登録済み比率"></div>
-        <div class="preset-add">
-          <label>名前 <input id="presetName" placeholder="例: 11th" maxlength="64"></label>
-          <label>比率 <input id="presetRatio" placeholder="8,11,12" spellcheck="false"></label>
-          <button type="button" id="addPreset">＋ 登録</button>
+    <main class="ratio-main">
+      <section id="view-progression" class="view active" aria-label="周波数比コード進行">
+        <div class="progression-toolbar">
+          <button id="prevSection" type="button" aria-label="前のセクション">◀</button>
+          <div id="sectionCounter" class="progression-counter">1/1</div>
+          <button id="nextSection" type="button" aria-label="次のセクション">▶</button>
+          <label class="progression-columns">セクション <select id="sectionJump" aria-label="セクションの選択"></select></label>
+          <button id="play" type="button" class="primary">▶ 選択から再生</button>
+          <button id="playSection" type="button">セクション再生</button>
+          <button id="stop" type="button">■ 停止</button>
+          <button id="progMenuToggleBtn" class="progression-menu-toggle" type="button" aria-label="再生設定を開く" aria-expanded="false" aria-controls="progToolbarActions">その他</button>
+          <div id="progToolbarActions" class="progression-toolbar-actions">
+            <label class="inline-check loop-inline"><input id="loop" type="checkbox" checked><span>ループ</span></label>
+            <label>BPM <input id="bpm" type="number" min="20" max="300" step="1" value="110"></label>
+            <label>音色 <select id="wave"><option value="sine">sine</option><option value="square">square</option><option value="sawtooth">sawtooth</option></select></label>
+          </div>
         </div>
-      </div>
-      <p id="status" role="status" aria-live="polite"></p>
+        <div class="progression-heading-bar">
+          <input id="title" type="text" aria-label="進行名" maxlength="120" value="比率コード進行">
+          <button id="newSection" type="button">＋ セクション</button>
+          <span id="saveState" role="status">端末内保存</span>
+        </div>
+        <div id="timeline" class="progression-grid" role="region" aria-label="コード進行一覧" tabindex="0"></div>
+        <section id="progressionEditor" class="progression-editor editor" aria-label="選択コードの編集">
+          <div class="progression-editor-header">
+            <div class="progression-editor-heading">
+              <h3>選択コード</h3>
+              <p id="selectionLabel" class="panel-note">A / 1</p>
+              <p id="hzReadout" class="readout" aria-live="polite"></p>
+            </div>
+            <div class="progression-editor-header-actions">
+              <button id="preview" type="button">♫ 試聴</button>
+              <div class="progression-actions">
+                <button id="moveLeft" type="button" title="前へ">←</button>
+                <button id="moveRight" type="button" title="後ろへ">→</button>
+                <button id="duplicate" type="button">複製</button>
+                <button id="addStep" type="button" aria-label="コードを追加">＋ コード</button>
+                <button id="remove" type="button" class="danger">削除</button>
+              </div>
+            </div>
+          </div>
+          <div id="progressionEditorBody" class="progression-editor-body">
+            <div class="progression-root-row">
+              <label class="ratio-field">周波数比 / コード名
+                <input id="editExpr" type="text" spellcheck="false" autocomplete="off" placeholder="4,5,6 / 8:11/2:6 / Major">
+              </label>
+              <label class="pitch-field">ベース音高・セント
+                <input id="editPitch" type="text" spellcheck="false" autocomplete="off" placeholder="C4 / A#5 +50￠ / D‡5 / Bd6">
+              </label>
+              <label class="beats-field">拍
+                <input id="editBeats" type="number" min=".25" max="64" step=".25">
+              </label>
+            </div>
+            <div class="ratio-quick-row">
+              <div id="progRootLetterButtons" class="quick-grid root-grid">
+            <button type="button" data-note="C">C</button>
+            <button type="button" data-note="D">D</button>
+            <button type="button" data-note="E">E</button>
+            <button type="button" data-note="F">F</button>
+            <button type="button" data-note="G">G</button>
+            <button type="button" data-note="A">A</button>
+            <button type="button" data-note="B">B</button>
+          </div>
+              <div class="quick-row ratio-accidentals" aria-label="臨時記号">
+                <button type="button" data-acc="b">♭</button>
+                <button type="button" data-acc="d">d</button>
+                <button type="button" data-acc="">♮</button>
+                <button type="button" data-acc="‡">‡</button>
+                <button type="button" data-acc="#">♯</button>
+              </div>
+            </div>
+            <div class="progression-choice-tools">
+              <label class="progression-filter-label">🔎
+                <input id="presetSearch" type="search" placeholder="比率名・構成比を検索" aria-label="周波数比プリセットを検索">
+              </label>
+              <span class="preset-hint">選択すると和音に適用</span>
+            </div>
+            <div id="presetChips" class="quick-grid chord-grid" tabindex="0" role="region" aria-label="周波数比の候補"></div>
+            <details id="presetManager" class="ratio-details">
+              <summary>名前付き比率の登録・管理</summary>
+              <div class="ratio-manager-row">
+                <label>名前 <input id="presetName" type="text" placeholder="例: 11th" maxlength="64"></label>
+                <label>比率 <input id="presetRatio" type="text" placeholder="8,11,12" spellcheck="false"></label>
+                <button id="addPreset" type="button">比率を登録</button>
+              </div>
+              <p class="readout">プリセットの削除は各候補の×から。参照中のコードは数値の比率に置き換えて保持します。</p>
+            </details>
+            <details id="sectionDetails" class="ratio-details">
+              <summary>セクションの編集</summary>
+              <div class="ratio-manager-row">
+                <label>セクション名 <input id="editSectionName" type="text" maxlength="64"></label>
+                <label>反復 <input id="editRepeat" type="number" min="1" max="16" step="1"></label>
+                <button id="removeSection" type="button" class="danger">セクション削除</button>
+              </div>
+            </details>
+            <p id="status" class="status-text" role="status" aria-live="polite"></p>
+          </div>
+        </section>
+      </section>
     </main>
-    <section class="editor" aria-label="選択コードの編集">
-      <div class="editor-heading">
-        <div><span class="eyebrow">SELECTED CHORD</span> <strong id="selectionLabel">A / 1</strong> <span id="hzReadout" class="subreadout"></span></div>
-        <div class="editor-actions">
-          <button type="button" id="preview">♫ 試聴</button>
-          <button type="button" id="moveLeft" title="前に移動">←</button>
-          <button type="button" id="moveRight" title="後ろに移動">→</button>
-          <button type="button" id="duplicate" title="コードを複製">複製</button>
-          <button type="button" id="remove" title="コードを削除">削除</button>
-          <button type="button" id="addStep">＋ コード</button>
-        </div>
-      </div>
-      <div class="editor-fields">
-        <label class="ratio-field">周波数比 / コード名 <input id="editExpr" type="text" spellcheck="false" autocomplete="off" placeholder="4,5,6 / 8:11/2:6 / Major"></label>
-        <label class="pitch-field">ベース音高・セント <input id="editPitch" type="text" spellcheck="false" autocomplete="off" placeholder="C4 / A#5 +50￠ / D‡5 / Bd6"></label>
-        <label class="beats-field">拍数 <input id="editBeats" type="number" min="0.25" max="64" step="0.25"></label>
-        <label class="section-field">セクション名 <input id="editSectionName" type="text" maxlength="64"></label>
-        <label class="repeat-field">反復回数 <input id="editRepeat" type="number" min="1" max="16" step="1"></label>
-        <button type="button" id="removeSection" title="このセクションを削除">セクション削除</button>
-      </div>
-      <div class="editor-note">比率の最小値がベース音。‡ = +50¢、d = −50¢。分数・カンマ・コロンで入力できます。</div>
-    </section>
   </div>
   <dialog id="ioDialog" aria-label="コード進行の入出力">
     <div class="dialog-header"><strong>コード進行の入出力</strong><button type="button" id="ioClose" aria-label="閉じる">×</button></div>
