@@ -6,10 +6,11 @@ import {newProject,validateProject,parsePitch,parseRatio,flatten,importText,expo
 const $=id=>document.getElementById(id);
 const copy=value=>JSON.parse(JSON.stringify(value));
 const STORE="muChordbot.ratioMode.v1";
+const UI_STORE="muChordbot.ratioMode.ui.v1";
 const history=new HistoryManager(100);
 const engine=new AudioEngine();
 let project,saveAllowed=true,selection={sectionId:null,stepId:null};
-let timer=null,runId=0,playing=false;
+let timer=null,runId=0,playing=false,playingStepId=null,voiceCount=0;
 const id=prefix=>prefix+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 
 function notice(value="",error=false) {
@@ -26,8 +27,14 @@ function boot(){
     saveAllowed=false;
     notice("保存済みデータの読み込みに失敗しました。自動保存を停止しています。入出力から退避できます。",true);
   }
-  chooseFirst();
-  render();
+  try{
+    const ui=JSON.parse(localStorage.getItem(UI_STORE)||"null");
+    if(ui&&typeof ui.sectionId==="string"&&typeof ui.stepId==="string")selection=ui;
+  }catch(error){/* UI-only state is non-authoritative. */}
+  chooseFirst();render();
+}
+function saveSelection(){
+  try{localStorage.setItem(UI_STORE,JSON.stringify(selection))}catch(error){/* UI selection optional. */}
 }
 function save(){
   if(!saveAllowed){$("saveState").textContent="保存停止";return}
@@ -43,28 +50,28 @@ function chooseFirst(){
   const loc=selectedLocation();
   selection={sectionId:loc.section?.id??null,stepId:loc.step?.id??null};
 }
-function mutate(change){
+function mutate(change,{structural=false,audition=false}={}){
   try{
-    const before=copy(project),draft=copy(project);
-    change(draft);
+    const before=copy(project),draft=copy(project);change(draft);
     const next=validateProject(draft);
     if(JSON.stringify(before)===JSON.stringify(next))return true;
-    stopPlayback();
-    project=next;
-    history.push({type:"ratio_edit",before,after:copy(next)});
-    chooseFirst();
-    save();notice("");render();
+    if(structural)stopPlayback();
+    project=next;history.push({type:"ratio_edit",before,after:copy(next)});
+    chooseFirst();save();notice("");render();
+    if(playing&&playingStepId)void refreshPlayingVoices();
+    else if(audition)void preview();
     return true;
   }catch(error){notice(error.message||String(error),true);return false}
 }
 function setSelection(sid,cid){
   selection={sectionId:sid,stepId:cid};
-  renderSelection();
+  saveSelection();renderSelection();
 }
 function restore(snapshot){
-  stopPlayback();
-  project=copy(snapshot);
-  chooseFirst();save();render();notice("");
+  const wasPlaying=playing;
+  stopPlayback();project=copy(snapshot);
+  chooseFirst();saveSelection();save();render();notice("");
+  if(wasPlaying)startPlayback(); else void preview();
 }
 function undo(){history.undo(restore);renderHistory()}
 function redo(){history.redo(restore);renderHistory()}
@@ -81,49 +88,81 @@ function calculate(step){
   return {baseHz,freqs,parsed};
 }
 function hz(value){return value>=1000?value.toFixed(1):value.toFixed(2)}
+// Transplanted from the normal progression tab's renderProgressionGrid cell model.
 function makeCard(section,step,index){
-  const card=document.createElement("button");
-  card.type="button";card.className="chord-card";
-  card.dataset.sid=section.id;card.dataset.cid=step.id;
-  card.setAttribute("aria-label",section.name+" のコード "+(index+1)+" を選択");
-  const count=document.createElement("span");count.className="count";count.textContent=String(index+1).padStart(2,"0");
-  const name=document.createElement("span");name.className="chord-name";name.textContent=step.expr;
-  const pitch=document.createElement("span");pitch.className="base-note";pitch.textContent=step.pitch;
-  const duration=document.createElement("span");duration.className="duration";duration.textContent=step.beats+" 拍";
-  card.append(count,name,pitch,duration);
+  const card=document.createElement("button");card.type="button";
+  card.className="progression-cell";card.dataset.sid=section.id;card.dataset.cid=step.id;
+  card.draggable=true;
+  card.style.width=Math.max(96,Math.min(206,84+step.beats*13))+"px";
+  card.setAttribute("aria-label",section.name+" のコード "+(index+1)+" "+step.expr+" "+step.pitch+" "+step.beats+"拍");
+  const name=document.createElement("span");name.className="cell-title";name.textContent=step.expr;
+  const note=document.createElement("span");note.className="cell-note";note.textContent=step.pitch;
+  const meta=document.createElement("span");meta.className="cell-meta";meta.textContent=(index+1)+" · "+step.beats+"拍";
+  card.append(name,note,meta);
   card.addEventListener("click",()=>setSelection(section.id,step.id));
+  card.addEventListener("dblclick",()=>{setSelection(section.id,step.id);void preview()});
+  card.addEventListener("dragstart",e=>{
+    e.dataTransfer.setData("text/plain",section.id+":"+step.id);
+    e.dataTransfer.effectAllowed="move";card.classList.add("reorder-source");
+  });
+  card.addEventListener("dragend",()=>card.classList.remove("reorder-source"));
+  card.addEventListener("dragover",e=>{e.preventDefault();e.dataTransfer.dropEffect="move";card.classList.add("drop-before")});
+  card.addEventListener("dragleave",()=>card.classList.remove("drop-before"));
+  card.addEventListener("drop",e=>{
+    e.preventDefault();card.classList.remove("drop-before");
+    const source=e.dataTransfer.getData("text/plain").split(":");
+    if(source.length!==2||source[1]===step.id)return;
+    const from=project.sections.find(s=>s.id===source[0]),to=project.sections.find(s=>s.id===section.id);
+    if(!from||!to||(from!==to&&from.steps.length<=1))return;
+    if(mutate(d=>{
+      const a=d.sections.find(s=>s.id===source[0]),b=d.sections.find(s=>s.id===section.id);
+      const old=a.steps.findIndex(c=>c.id===source[1]);if(old<0)return;
+      const moved=a.steps.splice(old,1)[0],at=b.steps.findIndex(c=>c.id===step.id);
+      b.steps.splice(at,0,moved);
+    },{structural:true}))setSelection(section.id,source[1]);
+  });
   return card;
 }
 function renderTimeline(){
-  const timeline=$("timeline"),scroll=timeline.scrollLeft;
-  const fragment=document.createDocumentFragment();
-  project.sections.forEach(section=>{
-    const container=document.createElement("section");container.className="section";
-    container.setAttribute("aria-label","セクション "+section.name);
-    const header=document.createElement("div");header.className="section-header";
-    const heading=document.createElement("span");heading.className="section-title";heading.textContent="SECTION "+section.name;
-    const repeat=document.createElement("span");repeat.className="section-repeat";repeat.textContent="×"+section.repeat;
-    header.append(heading,repeat);
-    const cards=document.createElement("div");cards.className="cards";
-    section.steps.forEach((step,index)=>cards.append(makeCard(section,step,index)));
-    const add=document.createElement("button");add.type="button";add.className="section-add";add.textContent="+";
-    add.title="このセクションにコードを追加";add.setAttribute("aria-label",section.name+" にコードを追加");
-    add.addEventListener("click",()=>{
-      const copyOf=section.steps.at(-1);
-      const next={id:id("c"),expr:copyOf?.expr||"4,5,6",pitch:copyOf?.pitch||"C4",beats:copyOf?.beats||4};
-      if(mutate(d=>d.sections.find(s=>s.id===section.id).steps.push(next)))setSelection(section.id,next.id);
+  const timeline=$("timeline"),left=timeline.scrollLeft,fragment=document.createDocumentFragment();
+  for(const section of project.sections){
+    const wrap=document.createElement("section");wrap.className="progression-chunk";
+    const header=document.createElement("div");header.className="progression-chunk-head";
+    header.textContent=section.name+" ×"+section.repeat;
+    header.title="ダブルクリックでセクション名を変更";
+    header.addEventListener("dblclick",()=>{
+      setSelection(section.id,section.steps[0].id);
+      $("sectionDetails").open=true;$("editSectionName").focus();$("editSectionName").select();
     });
-    cards.append(add);container.append(header,cards);fragment.append(container);
-  });
-  timeline.replaceChildren(fragment);timeline.scrollLeft=scroll;
+    const grid=document.createElement("div");grid.className="progression-chunk-grid";
+    section.steps.forEach((step,index)=>grid.append(makeCard(section,step,index)));
+    const add=document.createElement("button");add.type="button";
+    add.className="progression-cell progression-cell-add";add.textContent="+";
+    add.title=section.name+" にコードを追加";add.setAttribute("aria-label",section.name+" にコードを追加");
+    add.addEventListener("click",()=>{
+      const previous=section.steps.at(-1);
+      const next={id:id("c"),expr:previous?.expr||"4,5,6",pitch:previous?.pitch||"C4",beats:previous?.beats||4};
+      if(mutate(d=>d.sections.find(s=>s.id===section.id).steps.push(next),{structural:true})){
+        setSelection(section.id,next.id);
+        requestAnimationFrame(()=>document.querySelector('.progression-cell[data-cid="'+next.id+'"]')?.scrollIntoView({inline:"nearest",block:"nearest"}));
+      }
+    });
+    grid.append(add);wrap.append(header,grid);fragment.append(wrap);
+  }
+  timeline.replaceChildren(fragment);timeline.scrollLeft=left;
 }
+
 function renderPresets(){
-  const chips=$("presetChips");chips.replaceChildren();
+  const chips=$("presetChips"),scroll=chips.scrollTop,filter=$("presetSearch").value.trim().toLocaleLowerCase();
+  const fragment=document.createDocumentFragment();
   for(const preset of project.presets){
-    const chip=document.createElement("button");chip.type="button";chip.textContent=preset.name+"  "+preset.ratios;
-    chip.title="選択コードへ "+preset.name+" を設定";
-    chip.addEventListener("click",()=>mutate(d=>{selectedLocation(d).step.expr=preset.name}));
-    chips.append(chip);
+    if(filter&&!((preset.name+" "+preset.ratios).toLocaleLowerCase().includes(filter)))continue;
+    const item=document.createElement("div");item.className="preset-item";
+    const chip=document.createElement("button");chip.type="button";chip.className="ratio-preset";
+    const name=document.createElement("strong");name.textContent=preset.name;
+    const ratio=document.createElement("small");ratio.textContent=preset.ratios;
+    chip.append(name,ratio);chip.title="選択コードへ "+preset.name+" を設定";
+    chip.addEventListener("click",()=>mutate(d=>{selectedLocation(d).step.expr=preset.name},{audition:true}));
     const del=document.createElement("button");del.type="button";del.textContent="×";del.className="preset-remove";del.title=preset.name+" を登録解除";
     del.setAttribute("aria-label",preset.name+" を登録解除");
     del.addEventListener("click",()=>mutate(d=>{
@@ -131,27 +170,44 @@ function renderPresets(){
       for(const s of d.sections)for(const step of s.steps)if(step.expr.toLocaleLowerCase()===p.name.toLocaleLowerCase())step.expr=p.ratios;
       d.presets=d.presets.filter(x=>x.name!==preset.name);
     }));
-    chips.append(del);
+    item.append(chip,del);fragment.append(item);
   }
+  chips.replaceChildren(fragment);chips.scrollTop=scroll;
 }
+function renderSectionNav(){
+  const select=$("sectionJump");
+  select.replaceChildren(...project.sections.map(s=>{
+    const opt=document.createElement("option");opt.value=s.id;opt.textContent=s.name;return opt;
+  }));
+  const idx=Math.max(0,project.sections.findIndex(s=>s.id===selection.sectionId));
+  select.value=project.sections[idx].id;
+  $("sectionCounter").textContent=(idx+1)+"/"+project.sections.length;
+  $("prevSection").disabled=idx===0;
+  $("nextSection").disabled=idx===project.sections.length-1;
+}
+
 function renderSelection(){
-  const loc=selectedLocation();
-  if(!loc.step)return;
+  const loc=selectedLocation();if(!loc.step)return;
   selection={sectionId:loc.section.id,stepId:loc.step.id};
   const step=loc.step;
   $("selectionLabel").textContent=loc.section.name+" / "+(loc.index+1);
-  $("editExpr").value=step.expr;
-  $("editPitch").value=step.pitch;
-  $("editBeats").value=step.beats;
-  $("editSectionName").value=loc.section.name;
-  $("editRepeat").value=loc.section.repeat;
-  for(const card of $("timeline").querySelectorAll(".chord-card")){
+  $("editExpr").value=step.expr;$("editPitch").value=step.pitch;$("editBeats").value=step.beats;
+  $("editSectionName").value=loc.section.name;$("editRepeat").value=loc.section.repeat;
+  renderSectionNav();
+  for(const card of $("timeline").querySelectorAll(".progression-cell[data-cid]")){
     const active=card.dataset.sid===selection.sectionId&&card.dataset.cid===selection.stepId;
-    card.classList.toggle("selected",active);
+    card.classList.toggle("active",active);
     card.setAttribute("aria-pressed",active?"true":"false");
   }
-  $("moveLeft").disabled=loc.index===0;
-  $("moveRight").disabled=loc.index===loc.section.steps.length-1;
+  const match=/^([A-G])([#b‡d]?)/.exec(step.pitch);
+  for(const btn of $("progRootLetterButtons").querySelectorAll("button")){
+    const active=btn.dataset.note===match?.[1];
+    btn.classList.toggle("active",active);
+    btn.setAttribute("aria-pressed",active?"true":"false");
+  }
+  for(const btn of document.querySelectorAll(".ratio-accidentals button"))
+    btn.classList.toggle("active",btn.dataset.acc===(match?.[2]||""));
+  $("moveLeft").disabled=loc.index===0;$("moveRight").disabled=loc.index===loc.section.steps.length-1;
   $("remove").disabled=loc.section.steps.length===1;
   $("removeSection").disabled=project.sections.length===1;
   try{
