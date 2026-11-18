@@ -28,15 +28,20 @@
     <main class="ratio-main">
       <section id="view-progression" class="view active" aria-label="周波数比コード進行">
         <div class="progression-toolbar">
-          <button id="prevSection" type="button" aria-label="前のセクション">◀</button>
-          <div id="sectionCounter" class="progression-counter">1/1</div>
-          <button id="nextSection" type="button" aria-label="次のセクション">▶</button>
-          <label class="progression-columns">セクション <select id="sectionJump" aria-label="セクションの選択"></select></label>
-          <button id="play" type="button" class="primary">▶ 選択から再生</button>
-          <button id="playSection" type="button">セクション再生</button>
-          <button id="stop" type="button">■ 停止</button>
-          <button id="progMenuToggleBtn" class="progression-menu-toggle" type="button" aria-label="再生設定を開く" aria-expanded="false" aria-controls="progToolbarActions">その他</button>
+          <div class="progression-section-nav">
+            <button id="prevSection" type="button" aria-label="前のセクション">◀</button>
+            <div id="sectionCounter" class="progression-counter" aria-label="選択セクション番号">1/1</div>
+            <button id="nextSection" type="button" aria-label="次のセクション">▶</button>
+            <label class="progression-columns"><span>セクション</span><select id="sectionJump" aria-label="セクションの選択"></select></label>
+          </div>
+          <div class="progression-transport">
+            <button id="play" type="button" class="primary">▶ 再生</button>
+            <button id="stop" type="button" aria-label="再生を停止">■</button>
+            <button id="progMenuToggleBtn" class="progression-menu-toggle" type="button" aria-label="その他の操作・設定を開く" aria-expanded="false" aria-controls="progToolbarActions">設定</button>
+          </div>
           <div id="progToolbarActions" class="progression-toolbar-actions">
+            <button id="playSection" type="button">このセクションを再生</button>
+            <label class="progression-columns ratio-column-setting">列数 <input id="gridColumns" type="number" min="1" max="12" step="1" value="4" aria-label="コード箱の配置列数"><small id="columnActual" class="readout" aria-live="polite"></small></label>
             <label class="inline-check loop-inline"><input id="loop" type="checkbox" checked><span>ループ</span></label>
             <label>BPM <input id="bpm" type="number" min="20" max="300" step="1" value="110"></label>
             <label>音色 <select id="wave"><option value="sine">sine</option><option value="square">square</option><option value="sawtooth">sawtooth</option></select></label>
@@ -62,7 +67,6 @@
                 <button id="moveRight" type="button" title="後ろへ">→</button>
                 <button id="duplicate" type="button">複製</button>
                 <button id="addStep" type="button" aria-label="コードを追加">＋ コード</button>
-                <button id="remove" type="button" class="danger">削除</button>
               </div>
             </div>
           </div>
@@ -104,13 +108,18 @@
             </div>
             <div id="presetChips" class="quick-grid chord-grid" tabindex="0" role="region" aria-label="周波数比の候補"></div>
             <details id="presetManager" class="ratio-details">
-              <summary>名前付き比率の登録・管理</summary>
+              <summary>比率の登録・管理</summary>
               <div class="ratio-manager-row">
+                <label>編集対象 <select id="presetManageSelect" aria-label="管理する比率プリセット"><option value="">新規登録</option></select></label>
                 <label>名前 <input id="presetName" type="text" placeholder="例: 11th" maxlength="64"></label>
                 <label>比率 <input id="presetRatio" type="text" placeholder="8,11,12" spellcheck="false"></label>
-                <button id="addPreset" type="button">比率を登録</button>
+                <button id="addPreset" type="button">登録</button>
+                <button id="deletePreset" type="button" class="danger" disabled>削除</button>
               </div>
-              <p class="readout">プリセットの削除は各候補の×から。参照中のコードは数値の比率に置き換えて保持します。</p>
+            </details>
+            <details id="editTools" class="ratio-details">
+              <summary>コードのその他操作</summary>
+              <div class="ratio-manager-row"><button id="remove" type="button" class="danger">選択コードを削除</button></div>
             </details>
             <details id="sectionDetails" class="ratio-details">
               <summary>セクションの編集</summary>

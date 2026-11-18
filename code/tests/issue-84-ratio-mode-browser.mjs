@@ -4,8 +4,8 @@ import {mkdir} from "node:fs/promises";
 
 const browser=await chromium.launch({headless:true});
 try{
-  for(const width of [320,390,768,1280]){
-    const page=await browser.newPage({viewport:{width,height:844},deviceScaleFactor:1});
+  for(const [width,height] of [[320,667],[320,844],[390,844],[430,932],[768,844],[1280,844]]){
+    const page=await browser.newPage({viewport:{width,height},deviceScaleFactor:1});
     const errors=[];page.on("pageerror",error=>errors.push(String(error)));
     await page.addInitScript(()=>{
       window.__ratioStarted=[];
@@ -28,19 +28,57 @@ try{
     await cells.first().waitFor();
     assert.ok(await cells.count()>=5);
     const layout=await page.evaluate(()=>{
-      const boxes=[...document.querySelectorAll(".progression-cell[data-cid]")].slice(0,3).map(x=>x.getBoundingClientRect());
+      const cells=[...document.querySelectorAll(".progression-chunk:first-child .progression-cell[data-cid]")].slice(0,3);
+      const boxes=cells.map(el=>el.getBoundingClientRect());
       const editor=document.querySelector(".progression-editor").getBoundingClientRect();
-      const track=document.querySelector("#timeline");
-      return {x:boxes.map(x=>x.x),y:boxes.map(x=>x.y),editorTop:editor.top,editorBottom:editor.bottom,timelineBottom:track.getBoundingClientRect().bottom,viewport:innerHeight,docWidth:document.documentElement.scrollWidth,windowWidth:innerWidth,scrollWidth:track.scrollWidth,clientWidth:track.clientWidth};
+      const track=document.querySelector("#timeline"),trackBox=track.getBoundingClientRect();
+      const selectors=["#prevSection","#nextSection","#sectionJump","#play","#stop","#newSection","#preview","#addStep","#editPitch"];
+      const visibleControls=selectors.map(s=>{
+        const el=document.querySelector(s),r=el.getBoundingClientRect();
+        return {selector:s,x:r.x,right:r.right,width:r.width,top:r.top,bottom:r.bottom};
+      });
+      return {
+        boxes:boxes.map(b=>({x:b.x,y:b.y,right:b.right,bottom:b.bottom})),
+        effective:Number(track.dataset.columns),requested:Number(document.querySelector("#gridColumns").value),
+        editorTop:editor.top,editorBottom:editor.bottom,timelineBottom:trackBox.bottom,
+        viewport:innerHeight,docWidth:document.documentElement.scrollWidth,windowWidth:innerWidth,
+        scrollWidth:track.scrollWidth,clientWidth:track.clientWidth,
+        controls:visibleControls
+      };
     });
-    assert.ok(layout.x[0]<layout.x[1]&&layout.x[1]<layout.x[2],"native progression cells must run horizontally "+JSON.stringify(layout));
-    assert.ok(Math.max(...layout.y)-Math.min(...layout.y)<4,"three chord cells should share timeline y "+JSON.stringify(layout));
-    assert.ok(layout.docWidth<=width+2,"document-level overflow "+JSON.stringify(layout));
-    if(width<800)assert.ok(layout.scrollWidth>layout.clientWidth,"progression timeline must own horizontal scrolling");
-    assert.ok(layout.editorBottom<=layout.viewport+2,"editor must remain within visible viewport "+JSON.stringify(layout));
-    assert.ok(layout.editorTop>=layout.timelineBottom-2,"timeline must not be obscured by editor "+JSON.stringify(layout));
+    const expectedCap=width<=640?Math.max(1,Math.floor((layout.clientWidth-16+6)/(116+6))):width<=950?Math.max(1,Math.floor((layout.clientWidth-16+6)/(104+6))):Math.max(1,Math.floor((layout.clientWidth-16+6)/(88+6)));
+    assert.equal(layout.effective,Math.min(4,expectedCap),"responsive column count "+JSON.stringify(layout));
+    assert.equal(layout.requested,4,"default should match ordinary μChordbot four-column preference");
+    assert.ok(layout.boxes[0].x<layout.boxes[1].x,"first row should have adjacent chord cells "+JSON.stringify(layout));
+    if(layout.effective>=3){
+      assert.ok(layout.boxes[1].x<layout.boxes[2].x,"third card should remain on first row");
+      assert.ok(Math.abs(layout.boxes[0].y-layout.boxes[2].y)<3);
+    }else{
+      assert.ok(layout.boxes[2].y>layout.boxes[0].y+20,"two-column phones must wrap the third chord onto next row");
+      assert.ok(Math.abs(layout.boxes[0].x-layout.boxes[2].x)<3);
+    }
+    assert.ok(layout.docWidth<=width+2,"document horizontal overflow "+JSON.stringify(layout));
+    assert.ok(layout.scrollWidth<=layout.clientWidth+2,"infinite horizontal track still present "+JSON.stringify(layout));
+    assert.ok(layout.editorBottom<=layout.viewport+2,"editor overflows visible viewport "+JSON.stringify(layout));
+    assert.ok(layout.editorTop>=layout.timelineBottom-2,"timeline obscured by editor "+JSON.stringify(layout));
+    for(const rect of layout.controls)assert.ok(rect.x>=-2&&rect.right<=width+2,"clipped core control "+JSON.stringify(rect)+" viewport "+width);
+    assert.equal(await page.locator(".preset-remove").count(),0,"preset grid must not have side-by-side delete X controls");
+    const manager=page.locator("#presetManager");
+    assert.equal(await manager.getAttribute("open"),null,"destructive management controls should start collapsed");
+    if(width<=950)await page.locator("#progMenuToggleBtn").click();
+    await page.locator("#gridColumns").fill("1");
+    await page.locator("#gridColumns").dispatchEvent("change");
+    assert.equal(await page.locator("#timeline").getAttribute("data-columns"),"1");
+    const one=await page.locator(".progression-chunk:first-child .progression-cell[data-cid]").evaluateAll(nodes=>nodes.slice(0,2).map(el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y}}));
+    assert.ok(Math.abs(one[0].x-one[1].x)<3&&one[1].y>one[0].y+20,"single-column setting did not wrap");
+    await page.locator("#gridColumns").fill("12");
+    await page.locator("#gridColumns").dispatchEvent("change");
+    assert.equal(await page.locator("#timeline").getAttribute("data-columns"),String(Math.min(12,expectedCap)),"12-column setting must clamp on narrow devices");
+    await page.locator("#gridColumns").fill("4");
+    await page.locator("#gridColumns").dispatchEvent("change");
+    if(width<=950)await page.locator("#progMenuToggleBtn").click();
     await mkdir("artifacts/issue-28-layout-audit",{recursive:true});
-    await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-mode-"+width+".png"});
+    await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-mode-"+width+"x"+height+".png"});
     assert.ok(await page.locator("#editPitch").isVisible(),"selected cell edit field not reachable");
     assert.ok(await page.locator("#progRootLetterButtons").isVisible(),"normal μChordbot root controls not transplanted");
     await cells.first().click();
@@ -80,6 +118,7 @@ try{
     assert.match(await page.locator("#editPitch").inputValue(),/^G‡/,"transplanted root and quartertone controls not applied");
     await page.locator("#stop").click();
     await page.reload();
+    assert.equal(await page.locator("#gridColumns").inputValue(),"4","column preference was not persisted");
     assert.match(await page.locator("#selectionLabel").innerText(),/A \/ 2/,"selected chord lost on reload");
     await page.locator("#editPitch").fill("H4");
     await page.locator("#editPitch").dispatchEvent("change");
@@ -95,9 +134,19 @@ try{
     await page.locator("#ioClose").click();
     await page.locator("#undo").click();
     assert.ok(await page.locator("#editPitch").isVisible());
-    await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-mode-"+width+"-edited.png"});
+    await page.locator("#presetManager").evaluate(el=>el.open=true);
+    await page.locator("#presetManageSelect").selectOption({label:"Major"});
+    assert.equal(await page.locator("#presetName").inputValue(),"Major");
+    await page.locator("#presetName").fill("Major2");
+    await page.locator("#addPreset").click();
+    assert.equal(await page.locator(".ratio-preset").filter({hasText:"Major2"}).count(),1,"preset rename must be reflected in candidate list");
+    await page.locator("#presetManageSelect").selectOption({label:"Major2"});
+    await page.locator("#deletePreset").click();
+    assert.equal(await page.locator(".ratio-preset").filter({hasText:"Major2"}).count(),0,"preset manager delete must remove candidate");
+    assert.ok(await page.locator("#editPitch").isVisible());
+    await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-mode-"+width+"x"+height+"-edited.png"});
     assert.deepEqual(errors,[],"browser errors "+width);
-    console.log(JSON.stringify({width,layout,started,errors}));
+    console.log(JSON.stringify({width,height,layout,started,errors}));
     await page.close();
   }
 }finally{await browser.close()}
