@@ -222,8 +222,8 @@ function render(){
 }
 function commitField(which,value,field){
   let success=false;
-  if(which==="expr")success=mutate(d=>selectedLocation(d).step.expr=value.trim());
-  if(which==="pitch")success=mutate(d=>selectedLocation(d).step.pitch=value.trim());
+  if(which==="expr")success=mutate(d=>selectedLocation(d).step.expr=value.trim(),{audition:true});
+  if(which==="pitch")success=mutate(d=>selectedLocation(d).step.pitch=value.trim(),{audition:true});
   if(which==="beats")success=mutate(d=>selectedLocation(d).step.beats=Number(value));
   if(which==="sectionName")success=mutate(d=>selectedLocation(d).section.name=value.trim());
   if(which==="repeat")success=mutate(d=>selectedLocation(d).section.repeat=Number(value));
@@ -233,6 +233,52 @@ function commitField(which,value,field){
   $(key).addEventListener("change",e=>commitField(kind,e.target.value,e.target));
   $(key).addEventListener("input",e=>e.target.removeAttribute("aria-invalid"));
 });
+// Type-and-audition without waiting for a field blur; incomplete pitches stay editable.
+const typingTimers=new Map();
+for(const [key,which] of [["editExpr","expr"],["editPitch","pitch"]]){
+  $(key).addEventListener("input",e=>{
+    clearTimeout(typingTimers.get(key));
+    const value=e.target.value,field=e.target;
+    const timer=setTimeout(()=>{
+      if(field.value!==value)return;
+      const draft=copy(project);
+      if(which==="expr")selectedLocation(draft).step.expr=value.trim();
+      else selectedLocation(draft).step.pitch=value.trim();
+      try{validateProject(draft)}catch(error){return}
+      mutate(d=>{selectedLocation(d).step[which==="expr"?"expr":"pitch"]=value.trim()},{audition:true});
+    },260);
+    typingTimers.set(key,timer);
+  });
+}
+$("presetSearch").addEventListener("input",()=>{$("presetChips").scrollTop=0;renderPresets()});
+$("masterVolume").addEventListener("input",e=>engine.setMasterVolume(Number(e.target.value)));
+$("progMenuToggleBtn").addEventListener("click",()=>{
+  const btn=$("progMenuToggleBtn"),open=btn.getAttribute("aria-expanded")!=="true";
+  btn.setAttribute("aria-expanded",String(open));
+  $("progToolbarActions").classList.toggle("open",open);
+});
+$("sectionJump").addEventListener("change",e=>{
+  const section=project.sections.find(s=>s.id===e.target.value);
+  if(section)setSelection(section.id,section.steps[0].id);
+});
+function moveSection(delta){
+  const idx=project.sections.findIndex(s=>s.id===selection.sectionId),sec=project.sections[idx+delta];
+  if(sec)setSelection(sec.id,sec.steps[0].id);
+}
+$("prevSection").addEventListener("click",()=>moveSection(-1));
+$("nextSection").addEventListener("click",()=>moveSection(1));
+$("progRootLetterButtons").addEventListener("click",e=>{
+  const letter=e.target.closest("[data-note]")?.dataset.note;
+  if(!letter)return;
+  const pitch=selectedLocation().step.pitch,next=pitch.replace(/^[A-G]/,letter);
+  mutate(d=>selectedLocation(d).step.pitch=next,{audition:true});
+});
+document.querySelector(".ratio-accidentals").addEventListener("click",e=>{
+  const btn=e.target.closest("button[data-acc]");if(!btn)return;
+  const pitch=selectedLocation().step.pitch;
+  const next=pitch.replace(/^([A-G])([#b‡d]?)/,(full,letter)=>letter+btn.dataset.acc);
+  mutate(d=>selectedLocation(d).step.pitch=next,{audition:true});
+});
 $("title").addEventListener("change",e=>mutate(d=>d.title=e.target.value));
 $("bpm").addEventListener("change",e=>mutate(d=>d.settings.bpm=Number(e.target.value)));
 $("loop").addEventListener("change",e=>mutate(d=>d.settings.loop=e.target.checked));
@@ -241,26 +287,26 @@ $("undo").addEventListener("click",undo);
 $("redo").addEventListener("click",redo);
 $("newSection").addEventListener("click",()=>{
   const sec={id:id("s"),name:"Section "+(project.sections.length+1),repeat:1,steps:[{id:id("c"),expr:"4,5,6",pitch:"C4",beats:4}]};
-  if(mutate(d=>d.sections.push(sec)))setSelection(sec.id,sec.steps[0].id);
+  if(mutate(d=>d.sections.push(sec),{structural:true}))setSelection(sec.id,sec.steps[0].id);
 });
 $("addStep").addEventListener("click",()=>{
   const {section,step,index}=selectedLocation();
   const next={...copy(step),id:id("c")};
-  if(mutate(d=>d.sections.find(s=>s.id===section.id).steps.splice(index+1,0,next)))setSelection(section.id,next.id);
+  if(mutate(d=>d.sections.find(s=>s.id===section.id).steps.splice(index+1,0,next),{structural:true}))setSelection(section.id,next.id);
 });
 $("duplicate").addEventListener("click",()=>$("addStep").click());
 $("remove").addEventListener("click",()=>{
   const {section,index}=selectedLocation();
-  if(mutate(d=>d.sections.find(s=>s.id===section.id).steps.splice(index,1)))chooseFirst(),renderSelection();
+  if(mutate(d=>d.sections.find(s=>s.id===section.id).steps.splice(index,1),{structural:true}))chooseFirst(),renderSelection();
 });
 $("removeSection").addEventListener("click",()=>{
   const {section}=selectedLocation();
-  if(mutate(d=>d.sections=d.sections.filter(s=>s.id!==section.id)))chooseFirst(),renderSelection();
+  if(mutate(d=>d.sections=d.sections.filter(s=>s.id!==section.id),{structural:true}))chooseFirst(),renderSelection();
 });
 function swap(delta){
   const {section,index}=selectedLocation();const target=index+delta;
   if(target<0||target>=section.steps.length)return;
-  mutate(d=>{const steps=d.sections.find(s=>s.id===section.id).steps;[steps[index],steps[target]]=[steps[target],steps[index]]});
+  mutate(d=>{const steps=d.sections.find(s=>s.id===section.id).steps;[steps[index],steps[target]]=[steps[target],steps[index]]},{structural:true});
 }
 $("moveLeft").addEventListener("click",()=>swap(-1));
 $("moveRight").addEventListener("click",()=>swap(1));
@@ -269,29 +315,45 @@ $("addPreset").addEventListener("click",()=>{
   if(mutate(d=>d.presets.push({name,ratios}))){$("presetName").value="";$("presetRatio").value=""}
 });
 function stopPlayback(){
-  runId++;playing=false;clearTimeout(timer);timer=null;
-  engine.stopAll();$("play").textContent="▶ 再生";
-  document.querySelectorAll(".chord-card.playing").forEach(el=>el.classList.remove("playing"));
+  runId++;playing=false;playingStepId=null;voiceCount=0;clearTimeout(timer);timer=null;
+  engine.stopAll();$("play").textContent="▶ 選択から再生";
+  document.querySelectorAll(".progression-cell.playing").forEach(el=>el.classList.remove("playing"));
 }
 async function startVoices(step,token){
   const {freqs}=calculate(step);
   await engine.ensure();
+  engine.setMasterVolume(Number($("masterVolume").value));
   if(token!==runId)return false;
-  engine.stopAll();
+  engine.stopAll();voiceCount=freqs.length;playingStepId=step.id;
   const amplitude=Math.max(.045,.26/Math.sqrt(freqs.length));
   await Promise.all(freqs.map((freq,index)=>engine.startVoice("ratio-"+index,freq,project.settings.wave,amplitude)));
   if(token!==runId){engine.stopAll();return false}
   return true;
 }
+async function refreshPlayingVoices(){
+  const step=project.sections.flatMap(s=>s.steps).find(s=>s.id===playingStepId);
+  if(!step||!engine.ctx)return;
+  const token=runId;
+  try{
+    const {freqs}=calculate(step),amplitude=Math.max(.045,.26/Math.sqrt(freqs.length));
+    for(let i=freqs.length;i<voiceCount;i++)engine.stopVoice("ratio-"+i);
+    await Promise.all(freqs.map((freq,i)=>engine.startVoice("ratio-"+i,freq,project.settings.wave,amplitude)));
+    if(token===runId)voiceCount=freqs.length;
+  }catch(error){notice(error.message||"音声更新失敗",true)}
+}
+
 function highlightStep(step){
-  for(const card of document.querySelectorAll(".chord-card")){
+  for(const card of document.querySelectorAll(".progression-cell[data-cid]")){
     card.classList.toggle("playing",card.dataset.cid===step.id);
   }
 }
 function startPlayback(sectionId=null){
   stopPlayback();
   const steps=flatten(project,sectionId);if(!steps.length)return;
-  const token=runId;let index=0;playing=true;$("play").textContent="❚❚ 再生中";
+  const token=runId;
+  const selectedIndex=steps.findIndex(s=>s.stepId===selection.stepId);
+  let index=selectedIndex>=0?selectedIndex:0;
+  playing=true;$("play").textContent="❚❚ 再生中";
   const advance=async()=>{
     if(token!==runId||!playing)return;
     if(index>=steps.length){if(project.settings.loop)index=0;else{stopPlayback();return}}
@@ -317,6 +379,7 @@ async function preview(){
   }catch(error){stopPlayback();notice(error.message||"試聴できません",true)}
 }
 $("play").addEventListener("click",()=>playing?stopPlayback():startPlayback());
+$("playSection").addEventListener("click",()=>startPlayback(selection.sectionId));
 $("stop").addEventListener("click",stopPlayback);
 $("preview").addEventListener("click",()=>{void preview()});
 document.addEventListener("keydown",e=>{
@@ -348,7 +411,7 @@ $("ioImport").addEventListener("click",()=>{
     const before=copy(project);
     stopPlayback();project=incoming;
     history.push({type:"ratio_import",before,after:copy(incoming)});
-    chooseFirst();save();render();$("ioStatus").textContent="進行を読み込みました";
+    chooseFirst();saveSelection();save();render();$("ioStatus").textContent="進行を読み込みました";
     notice("読み込み成功。元に戻すで直前の進行に復帰できます");
   }catch(error){$("ioStatus").textContent="読み込み失敗（現在の進行は保持）: "+error.message}
 });
