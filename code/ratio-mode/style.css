@@ -873,3 +873,84 @@ dialog::backdrop{background:#0009}
 
 .ratio-app #saveState[data-error="true"]{color:#fecdd3;font-weight:700}
 @media(max-width:640px){.ratio-app #saveState[data-error="true"]{display:inline}}
+
+/* Ratio progression: restore the canonical μChordbot WRAPPING GRID contract.
+   No endless horizontal track; a user-set column count is limited only by
+   the width needed for readable touch cells. */
+.ratio-app .progression-toolbar{display:flex;align-items:center;gap:8px}
+.ratio-app .progression-section-nav,.ratio-app .progression-transport{display:flex;align-items:center;gap:5px;min-width:0}
+.ratio-app .progression-section-nav{flex:0 1 auto}
+.ratio-app .progression-section-nav select{min-width:52px;max-width:140px}
+.ratio-app .progression-transport{flex:0 0 auto}
+.ratio-app .progression-toolbar-actions{margin-left:auto;min-width:0}
+.ratio-app .ratio-column-setting{display:flex;align-items:center;gap:4px}
+.ratio-app #gridColumns{width:46px;text-align:center}
+.ratio-app #columnActual{font-size:10px;white-space:nowrap}
+.ratio-app #timeline.progression-grid{display:block;flex:1 1 auto;align-self:stretch;width:100%;min-height:88px;max-height:none;overflow-x:hidden;overflow-y:auto;scrollbar-gutter:stable;padding:9px}
+.ratio-app .progression-chunk{display:block;width:100%;max-width:100%;min-width:0;margin-bottom:13px}
+.ratio-app .progression-chunk-head{display:inline-flex;margin-bottom:6px}
+.ratio-app .progression-chunk-grid{display:grid;width:100%;max-width:100%;min-width:0;gap:6px;grid-template-columns:repeat(var(--progression-columns,4),minmax(0,1fr));overflow:visible;align-items:stretch}
+.ratio-app .progression-cell{min-width:0;width:100%;max-width:100%;height:auto;min-height:72px;padding:7px 8px;flex:initial;gap:2px;border-radius:6px;text-align:left;overflow:hidden}
+.ratio-app .progression-cell.active{padding:6px 7px}
+.ratio-app .progression-cell .cell-title{font-size:clamp(12px,1.2vw,15px);line-height:1.25;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ratio-app .progression-cell .cell-note{font-size:12px}
+.ratio-app .progression-cell .cell-meta{font-size:10px}
+.ratio-app .progression-cell-add{min-width:0;width:100%;min-height:72px;font-size:20px;border:1px dashed #426d76}
+.ratio-app #presetChips{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
+.ratio-app #presetChips .ratio-preset{width:100%;min-width:0;max-width:100%;min-height:40px;padding:5px 8px;text-align:left;justify-content:center}
+.ratio-app #presetManageSelect{min-width:96px;max-width:160px}
+.ratio-app .ratio-manager-row{gap:6px}
+.ratio-app .ratio-manager-row>button{align-self:end;min-height:40px}
+.ratio-app .progression-editor{flex:0 1 auto;max-height:min(53dvh,440px);box-shadow:none}
+.ratio-app .progression-editor-header-actions{min-width:0}
+.ratio-app .progression-actions{min-width:0}
+.ratio-app .ratio-details summary{padding:5px 2px;min-height:26px}
+.ratio-app .ratio-details[open]{padding-bottom:3px}
+@media(max-width:950px){
+  .ratio-app .progression-toolbar-actions{margin-left:0}
+  .ratio-app .progression-menu-toggle{display:inline-flex}
+  .ratio-app .progression-toolbar-actions{display:none;position:absolute;top:calc(100% + 3px);right:0;z-index:18;width:min(350px,100%);max-width:100%;padding:10px;display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;background:#1a293a;border:1px solid #416079;border-radius:9px;box-shadow:0 8px 25px #0009}
+  .ratio-app .progression-toolbar-actions.open{display:grid}
+  .ratio-app .progression-toolbar-actions label{display:flex;flex-wrap:wrap;min-width:0}
+  .ratio-app .ratio-column-setting{grid-column:1/-1}
+  .ratio-app .progression-toolbar-actions #playSection{grid-column:1/-1}
+}
+@media(max-width:640px){
+  .ratio-app .topbar{display:grid;grid-template-columns:minmax(0,1fr);align-items:center;padding:5px 8px;gap:3px}
+  .ratio-app .brand-nav{min-width:0}
+  .ratio-app .history-buttons{display:grid;grid-template-columns:38px 38px minmax(0,1fr) auto;width:100%;justify-content:stretch;gap:6px}
+  .ratio-app .master-volume-inline{min-width:0}
+  .ratio-app .master-volume-inline input{width:100%}
+  .ratio-app .progression-toolbar{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;padding:5px}
+  .ratio-app .progression-section-nav{width:100%;display:grid;grid-template-columns:34px 37px 34px minmax(0,1fr);gap:4px}
+  .ratio-app .progression-section-nav select{width:100%;max-width:none}
+  .ratio-app .progression-section-nav .progression-columns{width:100%;min-width:0}
+  .ratio-app .progression-section-nav .progression-columns>span{display:none}
+  .ratio-app .progression-transport{display:grid;grid-template-columns:minmax(0,1fr) 39px 55px;gap:4px;width:100%}
+  .ratio-app .progression-transport button{min-width:0;width:100%;min-height:39px}
+  .ratio-app .progression-heading-bar{gap:5px}
+  .ratio-app #timeline.progression-grid{padding:6px;min-height:75px;scrollbar-gutter:auto}
+  .ratio-app .progression-chunk{margin-bottom:10px}
+  .ratio-app .progression-chunk-grid{gap:5px}
+  .ratio-app .progression-cell{min-height:64px;padding:6px 7px}
+  .ratio-app .progression-cell.active{padding:5px 6px}
+  .ratio-app .progression-cell-add{min-height:64px}
+  .ratio-app .progression-editor{max-height:48dvh;min-height:0;padding:6px}
+  .ratio-app .progression-editor-header{gap:3px;flex-wrap:wrap}
+  .ratio-app .progression-editor-header-actions{display:flex;flex-wrap:wrap;width:100%;gap:3px}
+  .ratio-app .progression-actions{display:flex;flex-wrap:wrap;gap:3px}
+  .ratio-app .progression-editor-header-actions button{min-width:35px;min-height:36px;padding:4px 8px;font-size:12px}
+  .ratio-app .progression-root-row input{height:40px}
+  .ratio-app .progression-cell .cell-title{font-size:13px}
+  .ratio-app .ratio-manager-row label{min-width:min(120px,100%)}
+}
+@media(max-width:360px){
+  .ratio-app .progression-editor-header-actions{flex-wrap:wrap}
+  .ratio-app .progression-actions{flex-wrap:wrap}
+  .ratio-app #addStep{font-size:12px;padding-inline:7px}
+  .ratio-app #addStep::before{content:none}
+}
+@media(max-height:710px) and (max-width:640px){
+  .ratio-app .progression-editor{max-height:42dvh}
+  .ratio-app #timeline.progression-grid{min-height:64px}
+}

@@ -9,7 +9,7 @@ const STORE="muChordbot.ratioMode.v1";
 const UI_STORE="muChordbot.ratioMode.ui.v1";
 const history=new HistoryManager(100);
 const engine=new AudioEngine();
-let project,saveAllowed=true,selection={sectionId:null,stepId:null};
+let project,saveAllowed=true,selection={sectionId:null,stepId:null},columns=4;
 let timer=null,runId=0,playing=false,playingStepId=null,voiceCount=0;
 const id=prefix=>prefix+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 
@@ -29,12 +29,13 @@ function boot(){
   }
   try{
     const ui=JSON.parse(localStorage.getItem(UI_STORE)||"null");
-    if(ui&&typeof ui.sectionId==="string"&&typeof ui.stepId==="string")selection=ui;
+    if(ui&&typeof ui.sectionId==="string"&&typeof ui.stepId==="string")selection={sectionId:ui.sectionId,stepId:ui.stepId};
+    if(ui&&Number.isInteger(ui.columns)&&ui.columns>=1&&ui.columns<=12)columns=ui.columns;
   }catch(error){/* UI-only state is non-authoritative. */}
   chooseFirst();render();
 }
 function saveSelection(){
-  try{localStorage.setItem(UI_STORE,JSON.stringify(selection))}catch(error){/* UI selection optional. */}
+  try{localStorage.setItem(UI_STORE,JSON.stringify({...selection,columns}))}catch(error){/* UI selection optional. */}
 }
 function save(){
   if(!saveAllowed){$("saveState").textContent="保存停止";$("saveState").dataset.error="true";notice("保存停止中です。入出力からファイルに退避してください。",true);return}
@@ -94,7 +95,7 @@ function makeCard(section,step,index){
   card.className="progression-cell";card.dataset.sid=section.id;card.dataset.cid=step.id;
   if(step.id===playingStepId)card.classList.add("playing");
   card.draggable=true;
-  card.style.width=Math.max(96,Math.min(206,84+step.beats*13))+"px";
+  // Grid width is owned by the standard progression columns setting.
   card.setAttribute("aria-label",section.name+" のコード "+(index+1)+" "+step.expr+" "+step.pitch+" "+step.beats+"拍");
   const name=document.createElement("span");name.className="cell-title";name.textContent=step.expr;
   const note=document.createElement("span");note.className="cell-note";note.textContent=step.pitch;
@@ -125,7 +126,7 @@ function makeCard(section,step,index){
   return card;
 }
 function renderTimeline(){
-  const timeline=$("timeline"),left=timeline.scrollLeft,fragment=document.createDocumentFragment();
+  const timeline=$("timeline"),top=timeline.scrollTop,fragment=document.createDocumentFragment();
   for(const section of project.sections){
     const wrap=document.createElement("section");wrap.className="progression-chunk";
     const header=document.createElement("div");header.className="progression-chunk-head";
@@ -150,7 +151,8 @@ function renderTimeline(){
     });
     grid.append(add);wrap.append(header,grid);fragment.append(wrap);
   }
-  timeline.replaceChildren(fragment);timeline.scrollLeft=left;
+  timeline.replaceChildren(fragment);timeline.scrollTop=top;
+  updateGridColumns();
 }
 
 function renderPresets(){
@@ -158,23 +160,34 @@ function renderPresets(){
   const fragment=document.createDocumentFragment();
   for(const preset of project.presets){
     if(filter&&!((preset.name+" "+preset.ratios).toLocaleLowerCase().includes(filter)))continue;
-    const item=document.createElement("div");item.className="preset-item";
     const chip=document.createElement("button");chip.type="button";chip.className="ratio-preset";
     const name=document.createElement("strong");name.textContent=preset.name;
     const ratio=document.createElement("small");ratio.textContent=preset.ratios;
     chip.append(name,ratio);chip.title="選択コードへ "+preset.name+" を設定";
     chip.addEventListener("click",()=>mutate(d=>{selectedLocation(d).step.expr=preset.name},{audition:true}));
-    const del=document.createElement("button");del.type="button";del.textContent="×";del.className="preset-remove";del.title=preset.name+" を登録解除";
-    del.setAttribute("aria-label",preset.name+" を登録解除");
-    del.addEventListener("click",()=>mutate(d=>{
-      const p=d.presets.find(x=>x.name===preset.name);
-      for(const s of d.sections)for(const step of s.steps)if(step.expr.toLocaleLowerCase()===p.name.toLocaleLowerCase())step.expr=p.ratios;
-      d.presets=d.presets.filter(x=>x.name!==preset.name);
-    }));
-    item.append(chip,del);fragment.append(item);
+    fragment.append(chip);
   }
   chips.replaceChildren(fragment);chips.scrollTop=scroll;
 }
+function renderPresetManager(){
+  const select=$("presetManageSelect"),value=select.value;
+  const options=[new Option("新規登録",""),...project.presets.map(p=>new Option(p.name,p.name))];
+  select.replaceChildren(...options);
+  select.value=project.presets.some(p=>p.name===value)?value:"";
+  $("deletePreset").disabled=!select.value;
+  $("addPreset").textContent=select.value?"変更を保存":"登録";
+}
+function updateGridColumns(){
+  const track=$("timeline"),width=track.clientWidth||window.innerWidth;
+  const min=window.innerWidth<=640?116:window.innerWidth<=950?104:88;
+  const max=Math.max(1,Math.floor((width-16+6)/(min+6)));
+  const actual=Math.min(columns,max);
+  track.style.setProperty("--progression-columns",String(actual));
+  track.dataset.columns=String(actual);
+  $("columnActual").textContent=actual===columns?actual+"列":actual+"列表示";
+  $("gridColumns").value=String(columns);
+}
+
 function renderSectionNav(){
   const select=$("sectionJump");
   select.replaceChildren(...project.sections.map(s=>{
@@ -219,7 +232,7 @@ function renderSelection(){
 function render(){
   $("title").value=project.title;$("bpm").value=project.settings.bpm;
   $("loop").checked=project.settings.loop;$("wave").value=project.settings.wave;
-  renderTimeline();renderPresets();renderSelection();renderHistory();
+  renderTimeline();renderPresets();renderPresetManager();renderSelection();renderHistory();
 }
 function commitField(which,value,field){
   let success=false;
@@ -311,9 +324,49 @@ function swap(delta){
 }
 $("moveLeft").addEventListener("click",()=>swap(-1));
 $("moveRight").addEventListener("click",()=>swap(1));
+$("presetManageSelect").addEventListener("change",e=>{
+  const selected=project.presets.find(p=>p.name===e.target.value);
+  $("presetName").value=selected?.name||"";
+  $("presetRatio").value=selected?.ratios||"";
+  $("deletePreset").disabled=!selected;
+  $("addPreset").textContent=selected?"変更を保存":"登録";
+});
+$("deletePreset").addEventListener("click",()=>{
+  const target=$("presetManageSelect").value;
+  if(!target)return;
+  if(mutate(d=>{
+    const preset=d.presets.find(p=>p.name===target);
+    if(!preset)throw new Error("削除対象が見つかりません");
+    for(const section of d.sections)for(const step of section.steps){
+      if(step.expr.toLocaleLowerCase()===target.toLocaleLowerCase())step.expr=preset.ratios;
+    }
+    d.presets=d.presets.filter(p=>p.name!==target);
+  })){
+    $("presetManageSelect").value="";$("presetName").value="";$("presetRatio").value="";
+    renderPresetManager();
+  }
+});
+$("gridColumns").addEventListener("change",e=>{
+  const v=Number(e.target.value);
+  if(!Number.isInteger(v)||v<1||v>12){e.target.value=String(columns);return}
+  columns=v;saveSelection();updateGridColumns();
+});
+window.addEventListener("resize",updateGridColumns);
 $("addPreset").addEventListener("click",()=>{
+  const previous=$("presetManageSelect").value;
   const name=$("presetName").value.trim(),ratios=$("presetRatio").value.trim();
-  if(mutate(d=>d.presets.push({name,ratios}))){$("presetName").value="";$("presetRatio").value=""}
+  if(mutate(d=>{
+    if(!previous){d.presets.push({name,ratios});return}
+    const preset=d.presets.find(p=>p.name===previous);
+    if(!preset)throw new Error("編集対象が見つかりません");
+    preset.name=name;preset.ratios=ratios;
+    for(const section of d.sections)for(const step of section.steps){
+      if(step.expr.toLocaleLowerCase()===previous.toLocaleLowerCase())step.expr=name;
+    }
+  })){
+    $("presetManageSelect").value="";$("presetName").value="";$("presetRatio").value="";
+    renderPresetManager();
+  }
 });
 function stopPlayback(){
   runId++;playing=false;playingStepId=null;voiceCount=0;clearTimeout(timer);timer=null;
