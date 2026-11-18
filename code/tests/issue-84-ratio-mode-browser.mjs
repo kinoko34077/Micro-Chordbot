@@ -31,13 +31,14 @@ try{
       const boxes=[...document.querySelectorAll(".progression-cell[data-cid]")].slice(0,3).map(x=>x.getBoundingClientRect());
       const editor=document.querySelector(".progression-editor").getBoundingClientRect();
       const track=document.querySelector("#timeline");
-      return {x:boxes.map(x=>x.x),y:boxes.map(x=>x.y),editorBottom:editor.bottom,viewport:innerHeight,docWidth:document.documentElement.scrollWidth,windowWidth:innerWidth,scrollWidth:track.scrollWidth,clientWidth:track.clientWidth};
+      return {x:boxes.map(x=>x.x),y:boxes.map(x=>x.y),editorTop:editor.top,editorBottom:editor.bottom,timelineBottom:track.getBoundingClientRect().bottom,viewport:innerHeight,docWidth:document.documentElement.scrollWidth,windowWidth:innerWidth,scrollWidth:track.scrollWidth,clientWidth:track.clientWidth};
     });
     assert.ok(layout.x[0]<layout.x[1]&&layout.x[1]<layout.x[2],"native progression cells must run horizontally "+JSON.stringify(layout));
     assert.ok(Math.max(...layout.y)-Math.min(...layout.y)<4,"three chord cells should share timeline y "+JSON.stringify(layout));
     assert.ok(layout.docWidth<=width+2,"document-level overflow "+JSON.stringify(layout));
     if(width<800)assert.ok(layout.scrollWidth>layout.clientWidth,"progression timeline must own horizontal scrolling");
     assert.ok(layout.editorBottom<=layout.viewport+2,"editor must remain within visible viewport "+JSON.stringify(layout));
+    assert.ok(layout.editorTop>=layout.timelineBottom-2,"timeline must not be obscured by editor "+JSON.stringify(layout));
     await mkdir("artifacts/issue-28-layout-audit",{recursive:true});
     await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-mode-"+width+".png"});
     assert.ok(await page.locator("#editPitch").isVisible(),"selected cell edit field not reachable");
