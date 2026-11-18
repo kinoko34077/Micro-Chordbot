@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import {chromium} from "playwright";
+import {mkdir} from "node:fs/promises";
 
 const browser=await chromium.launch({headless:true});
 try{
-  for(const width of [320,390,768]){
+  for(const width of [320,390,768,1280]){
     const page=await browser.newPage({viewport:{width,height:844},deviceScaleFactor:1});
     const errors=[];page.on("pageerror",error=>errors.push(String(error)));
     await page.addInitScript(()=>{
@@ -35,7 +36,10 @@ try{
     assert.ok(layout.x[0]<layout.x[1]&&layout.x[1]<layout.x[2],"native progression cells must run horizontally "+JSON.stringify(layout));
     assert.ok(Math.max(...layout.y)-Math.min(...layout.y)<4,"three chord cells should share timeline y "+JSON.stringify(layout));
     assert.ok(layout.docWidth<=width+2,"document-level overflow "+JSON.stringify(layout));
-    assert.ok(layout.scrollWidth>layout.clientWidth,"progression timeline must own horizontal scrolling");
+    if(width<800)assert.ok(layout.scrollWidth>layout.clientWidth,"progression timeline must own horizontal scrolling");
+    assert.ok(layout.editorBottom<=layout.viewport+2,"editor must remain within visible viewport "+JSON.stringify(layout));
+    await mkdir("artifacts/issue-28-layout-audit",{recursive:true});
+    await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-mode-"+width+".png"});
     assert.ok(await page.locator("#editPitch").isVisible(),"selected cell edit field not reachable");
     assert.ok(await page.locator("#progRootLetterButtons").isVisible(),"normal μChordbot root controls not transplanted");
     await cells.first().click();
@@ -90,6 +94,7 @@ try{
     await page.locator("#ioClose").click();
     await page.locator("#undo").click();
     assert.ok(await page.locator("#editPitch").isVisible());
+    await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-mode-"+width+"-edited.png"});
     assert.deepEqual(errors,[],"browser errors "+width);
     console.log(JSON.stringify({width,layout,started,errors}));
     await page.close();
