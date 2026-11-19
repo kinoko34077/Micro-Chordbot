@@ -62,7 +62,24 @@ try{
     assert.ok(layout.editorBottom<=layout.viewport+2,"editor overflows visible viewport "+JSON.stringify(layout));
     assert.ok(layout.editorTop>=layout.timelineBottom-2,"timeline obscured by editor "+JSON.stringify(layout));
     for(const rect of layout.controls)assert.ok(rect.x>=-2&&rect.right<=width+2,"clipped core control "+JSON.stringify(rect)+" viewport "+width);
-    assert.equal(await page.locator(".preset-remove").count(),0,"preset grid must not have side-by-side delete X controls");
+    const actionGeometry=await page.locator(".progression-cell-shell").first().evaluate(el=>{
+      const cell=el.querySelector(".progression-cell").getBoundingClientRect();
+      const remove=el.querySelector(".cell-remove").getBoundingClientRect();
+      return {cellRight:cell.right,cellTop:cell.top,removeLeft:remove.left,removeRight:remove.right,removeTop:remove.top,removeBottom:remove.bottom};
+    });
+    assert.ok(actionGeometry.removeLeft>actionGeometry.cellRight-40 &&
+      actionGeometry.removeRight<=actionGeometry.cellRight+1 &&
+      actionGeometry.removeTop>=actionGeometry.cellTop &&
+      actionGeometry.removeBottom<actionGeometry.cellTop+36,"code delete must overlay upper right, not add width "+JSON.stringify(actionGeometry));
+    assert.equal(await page.locator(".preset-remove").count(),4,"preset delete should be in each card corner");
+    const presetGeometry=await page.locator(".preset-item").first().evaluate(el=>{
+      const a=el.querySelector(".ratio-preset").getBoundingClientRect(),b=el.querySelector(".preset-remove").getBoundingClientRect();
+      return {cardRight:a.right,delRight:b.right,cardTop:a.top,delTop:b.top};
+    });
+    assert.ok(presetGeometry.delRight<=presetGeometry.cardRight+1&&presetGeometry.delTop>=presetGeometry.cardTop,"preset × not overlaid");
+    assert.equal(await page.locator("#progressionEditor details").count(),0,"editor must not contain a stack of details toggles");
+    const searchWidth=await page.locator("#presetSearch").evaluate(el=>el.getBoundingClientRect().width);
+    assert.ok(searchWidth<=170,"search box wastes width: "+searchWidth);
     const manager=page.locator("#presetManager");
     assert.equal(await manager.getAttribute("open"),null,"destructive management controls should start collapsed");
     if(width<=950)await page.locator("#progMenuToggleBtn").click();
@@ -81,7 +98,12 @@ try{
     await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-mode-"+width+"x"+height+".png"});
     assert.ok(await page.locator("#editPitch").isVisible(),"selected cell edit field not reachable");
     assert.ok(await page.locator("#progRootLetterButtons").isVisible(),"normal μChordbot root controls not transplanted");
+    await page.evaluate(()=>window.__ratioStarted=[]);
     await cells.first().click();
+    await page.waitForFunction(()=>window.__ratioStarted.length>=3);
+    await cells.first().click();
+    await page.waitForFunction(()=>window.__ratioStarted.length>=6);
+    assert.ok(await cells.first().evaluate(el=>el.getAttribute("aria-pressed")==="true"));
     await page.locator("#editPitch").fill("D‡5");
     await page.locator("#editPitch").dispatchEvent("change");
     assert.equal(await cells.first().locator(".cell-note").innerText(),"D‡5");
@@ -94,6 +116,22 @@ try{
     const started=await page.evaluate(()=>window.__ratioStarted.slice(0,3));
     const base=440*Math.pow(2,((-9+12+2.5)/12));
     for(let i=0;i<3;i++)assert.ok(Math.abs(started[i]-base*[1,1.25,1.5][i])<.02,"wrong ratio voice "+JSON.stringify(started));
+    await page.locator("#stop").click();
+    await page.locator("#editExpr").fill("4:11/2:6");
+    await page.locator("#editExpr").dispatchEvent("change");
+    await page.evaluate(()=>window.__ratioStarted=[]);
+    await page.locator("#preview").click();
+    await page.waitForFunction(()=>window.__ratioStarted.length>=3);
+    const frac=await page.evaluate(()=>window.__ratioStarted.slice(0,3));
+    for(let i=0;i<3;i++)assert.ok(Math.abs(frac[i]-base*[1,1.375,1.5][i])<.02,"fraction slash meaning broken: "+JSON.stringify(frac));
+    await page.locator("#stop").click();
+    await page.locator("#editExpr").fill("8:11:12");
+    await page.locator("#editExpr").dispatchEvent("change");
+    await page.evaluate(()=>window.__ratioStarted=[]);
+    await page.locator("#preview").click();
+    await page.waitForFunction(()=>window.__ratioStarted.length>=3);
+    const equivalent=await page.evaluate(()=>window.__ratioStarted.slice(0,3));
+    for(let i=0;i<3;i++)assert.ok(Math.abs(equivalent[i]-frac[i])<.02,"8:11:12 != 4:11/2:6");
     await page.locator("#stop").click();
 
     // Imported normal progression transport: start from the selected second chord,
@@ -108,6 +146,10 @@ try{
     await page.locator("#editPitch").dispatchEvent("change");
     assert.match(await page.locator("#play").innerText(),/再生中/,"editing the selected playing chord stopped transport");
     assert.ok(await cells.nth(1).evaluate(e=>e.classList.contains("playing")));
+    await page.evaluate(()=>window.__ratioStarted=[]);
+    await cells.nth(1).click();
+    await page.waitForFunction(()=>window.__ratioStarted.length>=3);
+    assert.match(await page.locator("#play").innerText(),/再生中/,"tapping a card during playback stopped the progression");
     await page.locator("#stop").click();
 
     await page.locator("#presetSearch").fill("11th");
@@ -134,15 +176,25 @@ try{
     await page.locator("#ioClose").click();
     await page.locator("#undo").click();
     assert.ok(await page.locator("#editPitch").isVisible());
-    await page.locator("#presetManager").evaluate(el=>el.open=true);
+    await page.locator("#openPresetManager").click();
+    assert.ok(await page.locator("#presetManager").evaluate(el=>el.open),"ratio manager dialog did not open");
     await page.locator("#presetManageSelect").selectOption({label:"Major"});
     assert.equal(await page.locator("#presetName").inputValue(),"Major");
     await page.locator("#presetName").fill("Major2");
     await page.locator("#addPreset").click();
     assert.equal(await page.locator(".ratio-preset").filter({hasText:"Major2"}).count(),1,"preset rename must be reflected in candidate list");
-    await page.locator("#presetManageSelect").selectOption({label:"Major2"});
-    await page.locator("#deletePreset").click();
-    assert.equal(await page.locator(".ratio-preset").filter({hasText:"Major2"}).count(),0,"preset manager delete must remove candidate");
+    await page.locator("#closePresetManager").click();
+    const renamed=page.locator(".preset-item").filter({hasText:"Major2"});
+    assert.equal(await renamed.count(),1);
+    const playCountBefore=await page.evaluate(()=>window.__ratioStarted.length);
+    await renamed.locator(".preset-remove").click();
+    assert.equal(await page.locator(".ratio-preset").filter({hasText:"Major2"}).count(),0,"corner preset delete did not remove candidate");
+    assert.equal(await page.evaluate(()=>window.__ratioStarted.length),playCountBefore,"corner × accidentally triggered audition");
+    const countBefore=await cells.count();
+    await page.locator(".progression-cell-shell .cell-remove").first().click();
+    assert.equal(await cells.count(),countBefore-1,"corner code delete did not remove a step");
+    await page.locator("#undo").click();
+    assert.equal(await cells.count(),countBefore,"code deletion cannot be undone");
     assert.ok(await page.locator("#editPitch").isVisible());
     await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-mode-"+width+"x"+height+"-edited.png"});
     assert.deepEqual(errors,[],"browser errors "+width);
