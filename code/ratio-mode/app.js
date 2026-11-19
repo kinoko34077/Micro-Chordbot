@@ -589,5 +589,58 @@ $("ioDownload").addEventListener("click",()=>{
   a.href=url;a.download="mu-chordbot-ratio."+(type==="json"?"json":"txt");document.body.append(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 });
+// iOS Safari may interrupt AudioContext after brief focus loss. Unlock/resume
+// during the originating pointer or keyboard gesture; deferred click handlers
+// alone are not reliable activation points on all WebKit versions.
+function resumeAudioContext({gesture=false}={}){
+  if(document.visibilityState==="hidden")return;
+  if(!engine.ctx&&!gesture)return;
+  if(engine.ctx?.state==="running")return;
+  void engine.ensure().catch(error=>{
+    // A backgrounded page may legitimately refuse to resume; the next
+    // explicit gesture retries without discarding the user's composition.
+    if(gesture)notice(error.message||"音声を再開できません。再度タップしてください",true);
+  });
+}
+document.addEventListener("pointerdown",event=>{
+  if(event.target.closest(".ratio-app button,.ratio-app select,.ratio-app input[type=range]"))
+    resumeAudioContext({gesture:true});
+},{capture:true,passive:true});
+document.addEventListener("keydown",event=>{
+  if(!event.repeat&&(event.code==="Space"||event.code==="Enter"))
+    resumeAudioContext({gesture:true});
+},{capture:true});
+let audioWasHidden=false;
+function recoverAudioAfterFocus(){
+  if(document.visibilityState==="hidden"||!engine.ctx)return;
+  const ctx=engine.ctx;
+  if(ctx.state==="suspended"||ctx.state==="interrupted"){
+    resumeAudioContext();
+    return;
+  }
+  if(!audioWasHidden||ctx.state!=="running")return;
+  // WebKit has historically reported "running" with a frozen clock on
+  // return from the background. Recover only if time fails to advance.
+  audioWasHidden=false;
+  const time=ctx.currentTime;
+  setTimeout(()=>{
+    if(document.visibilityState==="hidden"||ctx!==engine.ctx)return;
+    if(ctx.state==="running"&&ctx.currentTime<=time+0.001){
+      void ctx.suspend().then(()=>ctx.resume()).catch(()=>{
+        notice("音声の再開には画面をタップしてください",true);
+      });
+    }
+  },200);
+}
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="hidden"){
+    audioWasHidden=true;
+    // Browser-managed background playback is not reliable on iOS: stop the
+    // transport visibly instead of keeping a silently advancing timer.
+    if(playing||tapVoiceIds.length)stopPlayback();
+  }else recoverAudioAfterFocus();
+});
+window.addEventListener("pageshow",recoverAudioAfterFocus);
+window.addEventListener("focus",recoverAudioAfterFocus);
 window.addEventListener("pagehide",()=>stopPlayback());
 boot();
