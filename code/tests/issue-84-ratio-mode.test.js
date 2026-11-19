@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFile} from "node:fs/promises";
-import {parsePitch,parseRatio,numberFromFraction,newProject,validateProject,flatten,exportText,importText} from "../ratio-mode/model.mjs";
+import {parsePitch,parseRatio,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
 import {frequencyFromPitch} from "../src/pitch.js";
+import {AudioEngine} from "../src/audio.js";
 const hz=(s)=>{const p=parsePitch(s);return frequencyFromPitch(440,p.octave,p.microStepInOctave)};
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,"frequency mismatch: "+a+" vs "+b);
 
@@ -54,4 +55,63 @@ test("μChordbot menu links to same-site mode and offline generator includes the
     assert.ok(generator.includes("./ratio-mode/"+asset),"missing PWA asset: "+asset);
   }
   for(const part of ["id=\"timeline\"","id=\"editPitch\"","id=\"editExpr\"","id=\"ioDialog\"","id=\"preview\""])assert.ok(html.includes(part),part);
+});
+
+test("legacy ratio v1 files become a single safe chunk without loss of chord data",()=>{
+  const legacy=JSON.parse(JSON.stringify(newProject()));
+  for(const section of legacy.sections){
+    delete section.chunkId;delete section.chunkName;
+  }
+  const restored=validateProject(legacy);
+  assert.equal(chunksOf(restored).length,1);
+  assert.equal(chunksOf(restored)[0].name,"チャンク 1");
+  assert.deepEqual(restored.sections.map(x=>x.steps),legacy.sections.map(x=>x.steps));
+  const oldText=exportText(restored).replace(/^@chunk .+\n/m,"");
+  assert.equal(chunksOf(importText(oldText)).length,1,"old text without @chunk must still import");
+  assert.deepEqual(importText(oldText).sections.map(x=>x.steps.map(c=>[c.expr,c.pitch,c.beats])),
+    restored.sections.map(x=>x.steps.map(c=>[c.expr,c.pitch,c.beats])));
+});
+test("chunk > section > chord: grouping, roundtrip, scope playback, invalid orphan rejection",()=>{
+  const draft=JSON.parse(JSON.stringify(newProject()));
+  draft.sections.push({
+    id:"third-section",chunkId:"chunk-2",chunkName:"間奏",name:"C",repeat:3,
+    steps:[{id:"third-step",expr:"4:11/2:6",pitch:"G4",beats:2}]
+  });
+  const data=validateProject(draft),chunks=chunksOf(data);
+  assert.equal(chunks.length,2);
+  assert.deepEqual(chunks.map(c=>[c.name,c.sections.map(s=>s.name)]),[
+    ["チャンク 1",["A","B"]],["間奏",["C"]]
+  ]);
+  assert.equal(flatten(data,null,"chunk-2").length,3);
+  assert.equal(flatten(data,"third-section","chunk-2").length,3);
+  assert.equal(flatten(data,null,"chunk-1").length,8);
+  assert.deepEqual(chunksOf(importText(exportText(data))).map(c=>[c.name,c.sections.map(s=>s.name)]),
+    chunks.map(c=>[c.name,c.sections.map(s=>s.name)]));
+  assert.deepEqual(validateProject(JSON.parse(JSON.stringify(data))),data);
+  const broken=JSON.parse(JSON.stringify(data));
+  broken.sections.push({...broken.sections[0],id:"orphan",steps:[{id:"newstep",expr:"Major",pitch:"C4",beats:4}]});
+  assert.throws(()=>validateProject(broken),/連続/);
+  assert.throws(()=>importText(exportText(data)+"\n@chunk 空\n"),/セクションが必要/);
+});
+
+test("shared audio engine recovers WebKit interrupted or suspended contexts",async()=>{
+  const original=globalThis.AudioContext;
+  class FakeAudioContext{
+    constructor(){this.state="interrupted";this.destination={};this.resumeCalls=0}
+    createGain(){return {gain:{value:0.3},connect(){}}}
+    async resume(){this.resumeCalls++;this.state="running"}
+  }
+  try{
+    globalThis.AudioContext=FakeAudioContext;
+    const engine=new AudioEngine();
+    await engine.ensure();
+    assert.equal(engine.ctx.resumeCalls,1);
+    assert.equal(engine.ctx.state,"running");
+    engine.ctx.state="suspended";
+    await engine.ensure();
+    assert.equal(engine.ctx.resumeCalls,2);
+  }finally{
+    if(original===undefined)delete globalThis.AudioContext;
+    else globalThis.AudioContext=original;
+  }
 });

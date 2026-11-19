@@ -1144,3 +1144,146 @@ dialog::backdrop{background:#0009}
 .ratio-app .preset-item>.preset-remove:focus-visible{
  color:#fff;background:#873c4f;border:0;
 }
+
+/* #84: native chunk > section > chord, one-line editor, ONE responsive height owner.
+   The older fixed timeline/editor max-heights above are intentionally
+   overridden: available height belongs to the progression list, not an
+   arbitrary 140/190/290px viewport bucket. */
+.ratio-app .view#view-progression.active{
+  display:flex;flex-direction:column;align-items:stretch;
+  min-height:0;min-width:0;gap:5px
+}
+.ratio-app #timeline.progression-grid{
+  flex:1 1 auto;height:auto;max-height:none;min-height:72px;
+  overflow-x:hidden;overflow-y:auto;resize:none;
+  padding:6px;scrollbar-gutter:auto
+}
+.ratio-app .progression-editor{
+  flex:0 1 auto;align-self:stretch;
+  margin-top:0;height:auto;max-height:none;min-height:0;
+  overflow-y:auto;box-shadow:none
+}
+.ratio-app .progression-heading-bar{flex:0 0 auto;gap:5px}
+.ratio-app .progression-heading-bar #newChunk,
+.ratio-app .progression-heading-bar #newSection{
+  white-space:nowrap;flex:0 0 auto;min-height:34px;
+  font-size:12px;padding:4px 7px
+}
+.ratio-app .progression-section-nav{display:flex;gap:5px;flex:0 1 auto;min-width:0}
+.ratio-app .progression-section-nav .progression-columns{
+  display:flex;align-items:center;gap:3px;min-width:0;font-size:12px
+}
+.ratio-app .progression-section-nav .progression-columns select{
+  min-width:0;width:clamp(66px,10vw,125px);max-width:125px;
+  min-height:36px;font-size:13px
+}
+.ratio-app .ratio-column-setting{gap:5px;font-size:12px}
+.ratio-app .ratio-column-setting #gridColumns{width:56px;min-height:35px;font-size:14px}
+.ratio-app .progression-chunk{width:100%;margin:0;min-width:0}
+.ratio-app .progression-chunk-head{
+  display:inline-flex;min-height:25px;max-width:100%;
+  padding:2px 8px;margin:0 0 2px;font-size:12px
+}
+.ratio-app .ratio-section-group{
+  display:block;width:100%;min-width:0;max-width:100%;
+  margin:0 0 7px
+}
+.ratio-app .ratio-section-group .progression-section-break{
+  display:inline-flex;min-height:27px;
+  align-items:center;max-width:100%;
+  margin:0 0 4px;padding:3px 8px;
+  font-size:12px;letter-spacing:0;color:#aee6dc;
+  border:1px solid #2d545c;border-radius:6px;
+  background:#172f3b;cursor:pointer
+}
+.ratio-app .ratio-section-group .progression-chunk-grid{margin:0;min-width:0}
+.ratio-app .progression-root-row{
+  display:grid;width:min(100%,48vw);
+  grid-template-columns:minmax(0,4.6fr) minmax(0,3.0fr) minmax(0,1.6fr);
+  align-items:end;gap:5px;min-width:0;max-width:100%
+}
+.ratio-app .progression-root-row>.ratio-field,
+.ratio-app .progression-root-row>.pitch-field,
+.ratio-app .progression-root-row>.beats-field{
+  display:flex;flex-direction:column;grid-column:auto;grid-row:auto;
+  min-width:0;width:100%;gap:2px
+}
+.ratio-app .progression-root-row input{
+  box-sizing:border-box;display:block;width:100%;min-width:0;
+  height:37px;padding:5px 7px;font-size:14px
+}
+.ratio-app .ratio-quick-row{gap:5px}
+@media(max-width:899px){
+  .ratio-app .progression-root-row{width:100%}
+}
+@media(max-width:640px){
+  .ratio-app .view#view-progression.active{gap:4px}
+  .ratio-app .progression-toolbar{
+    display:flex;flex-direction:row;flex-wrap:nowrap;
+    justify-content:space-between;align-items:center;
+    gap:4px;min-height:44px;padding:4px
+  }
+  .ratio-app .progression-section-nav{
+    display:flex;flex:0 1 40%;max-width:40%;
+    gap:3px;min-width:0;width:auto
+  }
+  .ratio-app .progression-section-nav .progression-columns{
+    display:flex;flex:1 1 0;width:auto;min-width:0;
+    overflow:hidden;font-size:0
+  }
+  .ratio-app .progression-section-nav .progression-columns>span{display:none}
+  .ratio-app .progression-section-nav .progression-columns select{
+    flex:1 1 0;width:100%;min-width:0;max-width:none;
+    min-height:36px;padding:3px 1px 3px 2px;font-size:12px
+  }
+  .ratio-app .progression-transport{
+    display:flex;flex:1 1 auto;justify-content:flex-end;
+    width:auto;min-width:0;gap:3px
+  }
+  .ratio-app .progression-transport #play{
+    flex:1 1 auto;min-width:0;min-height:36px;
+    width:auto;font-size:11px;padding:3px 4px
+  }
+  .ratio-app .progression-transport #stop{
+    flex:0 0 32px;min-width:32px;width:32px;min-height:36px
+  }
+  .ratio-app .progression-transport #progMenuToggleBtn{
+    flex:0 0 41px;min-width:41px;width:41px;min-height:36px;
+    font-size:11px;padding:3px
+  }
+  .ratio-app .progression-heading-bar{min-height:34px;gap:4px}
+  .ratio-app #title{font-size:13px;min-width:0;padding:1px 2px}
+  .ratio-app .progression-heading-bar #newChunk,
+  .ratio-app .progression-heading-bar #newSection{
+    min-height:32px;padding:2px 4px;font-size:11px
+  }
+  .ratio-app #timeline.progression-grid{
+    flex:1 1 auto;height:auto;max-height:none;min-height:70px;
+    padding:5px;overflow-y:auto
+  }
+  .ratio-app .progression-editor{
+    flex:0 1 auto;max-height:none;min-height:0;
+    height:auto;margin-top:0;overflow-y:auto
+  }
+  .ratio-app .progression-root-row{
+    width:100%;min-width:0;grid-template-columns:minmax(0,4.6fr) minmax(0,3fr) minmax(0,1.6fr);
+    gap:4px
+  }
+  .ratio-app .progression-root-row>.ratio-field,
+  .ratio-app .progression-root-row>.pitch-field,
+  .ratio-app .progression-root-row>.beats-field{grid-column:auto;grid-row:auto}
+  .ratio-app .progression-root-row input{
+    height:36px;min-height:36px;font-size:16px;padding:4px 4px
+  }
+  .ratio-app .progression-root-row label{font-size:11px}
+  .ratio-app .progression-toolbar-actions{max-width:min(340px,100%)}
+  .ratio-app .ratio-column-setting{font-size:12px}
+}
+
+/* Browser 320×667 evidence: shrinkable editor sacrificed 105px despite the
+   timeline retaining unused height. Give the editing controls their
+   intrinsic space FIRST; only the timeline absorbs remaining height. */
+.ratio-app .progression-editor{flex:0 0 auto;max-height:none}
+@media(max-width:640px){
+  .ratio-app .progression-editor{flex:0 0 auto;max-height:none}
+}

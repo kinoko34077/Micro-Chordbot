@@ -14,8 +14,30 @@ export class AudioEngine {
       this.master.gain.value = 0.3;
       this.master.connect(this.ctx.destination);
     }
-    if (this.ctx.state === "suspended") {
-      await this.ctx.resume();
+    // WebKit / iOS also uses the non-standard "interrupted" state after
+    // temporary focus, app, or screen interruptions. A subsequent gesture
+    // must be able to resume the existing context instead of silently
+    // creating oscillators against a stopped audio clock.
+    if (this.ctx.state === "suspended" || this.ctx.state === "interrupted") {
+      // Some iOS WebKit versions leave resume() pending indefinitely after
+      // a brief background interruption. Fail visibly and let the next
+      // genuine user gesture retry, rather than hanging every voice.
+      let timeoutId;
+      try {
+        await Promise.race([
+          this.ctx.resume(),
+          new Promise((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error(
+              "音声の再開が完了しませんでした。画面に戻って再度タップしてください"
+            )), 1500);
+          })
+        ]);
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+    if (this.ctx.state !== "running") {
+      throw new Error("音声が中断されています。画面に戻って再度タップしてください");
     }
   }
 

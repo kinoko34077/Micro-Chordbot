@@ -37,11 +37,11 @@ export function parseRatio(value,presets=[]) {
 export function newProject() {
   return { format:FORMAT,title:"比率コード進行",settings:{bpm:110,loop:true,wave:"sine"},
     presets:[{name:"Major",ratios:"4,5,6"},{name:"Minor",ratios:"10,12,15"},{name:"11th",ratios:"8,11,12"},{name:"7th",ratios:"4,5,6,7"}],
-    sections:[{id:"sA",name:"A",repeat:2,steps:[
+    sections:[{id:"sA",name:"A",chunkId:"chunk-1",chunkName:"チャンク 1",repeat:2,steps:[
       {id:"a1",expr:"Major",pitch:"C4",beats:4},
       {id:"a2",expr:"11th",pitch:"D‡4",beats:4},
       {id:"a3",expr:"Minor",pitch:"Bd3",beats:4}
-    ]},{id:"sB",name:"B",repeat:1,steps:[
+    ]},{id:"sB",name:"B",chunkId:"chunk-1",chunkName:"チャンク 1",repeat:1,steps:[
       {id:"b1",expr:"4:11/2:6",pitch:"G3",beats:2},
       {id:"b2",expr:"7:9:11",pitch:"A#3 +50￠",beats:2}
     ]}]
@@ -63,10 +63,21 @@ export function validateProject(value) {
     names.add(name.toLocaleLowerCase());parseRatio(ratios);
     presets.push({name,ratios});
   }
-  const sections=[],seen=new Set();let count=0;
+  const sections=[],seen=new Set(),chunkNames=new Map(),closedChunks=new Set();let count=0,lastChunk=null;
   for(const [si,section] of value.sections.entries()){
     const name=text(section.name);
     if(!name||name.length>64||/[\[\]\r\n|]/.test(name))fail("セクション名の形式が不正です");
+    const chunkId=text(section.chunkId)||"chunk-1";
+    const chunkName=text(section.chunkName)||"チャンク 1";
+    if(chunkId.length>128||/[\r\n]/.test(chunkId)||!chunkName||chunkName.length>64||/[\r\n]/.test(chunkName))
+      fail("チャンク名・IDの形式が不正です");
+    if(chunkId!==lastChunk){
+      if(closedChunks.has(chunkId))fail("チャンクのセクションは連続して配置してください");
+      if(lastChunk!==null)closedChunks.add(lastChunk);
+      lastChunk=chunkId;
+    }
+    if(chunkNames.has(chunkId)&&chunkNames.get(chunkId)!==chunkName)fail("同一チャンクの名称が一致しません");
+    chunkNames.set(chunkId,chunkName);
     const repeat=Number(section.repeat);
     if(!Number.isInteger(repeat)||repeat<1||repeat>16)fail("セクション反復は1〜16回です");
     if(!Array.isArray(section.steps)||!section.steps.length)fail("セクションにはコードが1つ以上必要です");
@@ -82,22 +93,42 @@ export function validateProject(value) {
       if(seen.has(id))fail("IDが重複しています");seen.add(id);
       return {id,expr,pitch,beats};
     });
-    sections.push({id:sectionId,name,repeat,steps});
+    sections.push({id:sectionId,name,chunkId,chunkName,repeat,steps});
   }
   return {format:FORMAT,title:text(value.title).slice(0,120)||"無題",settings:{bpm,loop:!!s.loop,wave},presets,sections};
 }
-export function flatten(project,oneSection=null) {
+export function chunksOf(project) {
+  const chunks=[];
+  for(const section of project.sections){
+    const chunkId=section.chunkId||"chunk-1";
+    let chunk=chunks.at(-1);
+    if(!chunk||chunk.id!==chunkId){
+      chunk={id:chunkId,name:section.chunkName||"チャンク 1",sections:[]};
+      chunks.push(chunk);
+    }
+    chunk.sections.push(section);
+  }
+  return chunks;
+}
+export function flatten(project,oneSection=null,oneChunk=null) {
   const out=[];
   for(const section of project.sections){
     if(oneSection && oneSection!==section.id)continue;
-    for(let n=0;n<section.repeat;n++)for(const step of section.steps)out.push({sectionId:section.id,stepId:step.id,sectionName:section.name,...step});
+    if(oneChunk && oneChunk!==(section.chunkId||"chunk-1"))continue;
+    for(let n=0;n<section.repeat;n++)for(const step of section.steps)out.push({chunkId:section.chunkId||"chunk-1",chunkName:section.chunkName||"チャンク 1",sectionId:section.id,stepId:step.id,sectionName:section.name,...step});
   }
   return out;
 }
 export function exportText(project) {
   const lines=["# "+project.title,"@settings bpm="+project.settings.bpm+" loop="+(project.settings.loop?"on":"off")+" wave="+project.settings.wave];
   for(const p of project.presets)lines.push("@preset "+p.name+" = "+p.ratios);
+  let currentChunkId=null;
   for(const section of project.sections){
+    const chunkId=section.chunkId||"chunk-1";
+    if(currentChunkId!==chunkId){
+      lines.push("","@chunk "+(section.chunkName||"チャンク 1"));
+      currentChunkId=chunkId;
+    }
     lines.push("","["+section.name+" x"+section.repeat+"]");
     for(const step of section.steps)lines.push(step.expr+" | "+step.pitch+" | "+step.beats);
   }
@@ -105,7 +136,7 @@ export function exportText(project) {
 }
 export function importText(raw){
   const project={format:FORMAT,title:"読み込んだ進行",settings:{bpm:110,loop:true,wave:"sine"},presets:[],sections:[]};
-  let current=null;
+  let current=null,chunkId="chunk-1",chunkName="チャンク 1",chunkCount=0;
   String(raw).split(/\r?\n/).forEach((line,index)=>{
     const s=line.trim(); if(!s||s.startsWith("//"))return;
     if(s.startsWith("#")){project.title=s.slice(1).trim();return}
@@ -125,15 +156,26 @@ export function importText(raw){
       if(!m)fail((index+1)+"行目の比率名定義が不正です");
       project.presets.push({name:m[1],ratios:m[2]});return;
     }
+    if(s.startsWith("@chunk ")){
+      if(current&&current.steps.length===0)fail((index+1)+"行目の前のセクションが空です");
+      const name=s.slice(7).trim();
+      if(!name||name.length>64)fail((index+1)+"行目のチャンク名が不正です");
+      if(chunkCount>0&&!project.sections.some(section=>section.chunkId===chunkId))
+        fail((index+1)+"行目のチャンクにはセクションが必要です");
+      chunkId="chunk-"+(++chunkCount);
+      chunkName=name;current=null;return;
+    }
     if(s.startsWith("[")){
       const m=/^\[(.+?)\s+x(\d+)\]$/.exec(s);
       if(!m)fail((index+1)+"行目は [A x2] の形式にしてください");
-      current={name:m[1],repeat:Number(m[2]),steps:[]};project.sections.push(current);return;
+      current={name:m[1],chunkId,chunkName,repeat:Number(m[2]),steps:[]};project.sections.push(current);return;
     }
-    if(!current){current={name:"A",repeat:1,steps:[]};project.sections.push(current)}
+    if(!current){current={name:"A",chunkId,chunkName,repeat:1,steps:[]};project.sections.push(current)}
     const items=s.split("|").map(x=>x.trim());
     if(items.length>3||!items[0])fail((index+1)+"行目のコードが不正です");
     current.steps.push({expr:items[0],pitch:items[1]||"C4",beats:items[2]===undefined?4:Number(items[2])});
   });
+  if(chunkCount>0&&!project.sections.some(section=>section.chunkId===chunkId))
+    fail("最後のチャンクにはセクションが必要です");
   return validateProject(project);
 }
