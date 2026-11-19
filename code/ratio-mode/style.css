@@ -1134,3 +1134,13 @@ dialog::backdrop{background:#0009}
   }
   .ratio-app #timeline.progression-grid{min-height:82px}
 }
+
+/* Prevent the inherited separate red deletion-button treatment from making
+   an in-card corner action look like a second standalone grid column. */
+.ratio-app .preset-item>.preset-remove{
+ background:transparent;border:0;color:#bdcddd;box-shadow:none;
+}
+.ratio-app .preset-item>.preset-remove:hover,
+.ratio-app .preset-item>.preset-remove:focus-visible{
+ color:#fff;background:#873c4f;border:0;
+}
