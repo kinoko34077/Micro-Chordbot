@@ -1648,7 +1648,7 @@ dialog::backdrop{background:#0009}
 }
 .ratio-app .ratio-section-remove svg{display:block;width:14px;height:14px}
 .ratio-app .ratio-section-repeat input{width:3ch!important}
-.ratio-app .progression-root-row #editBeats{width:min(100%,9ch)!important}
+.ratio-app .progression-root-row #editBeats{width:min(100%,7ch)!important}
 .ratio-app #editPitch[readonly]{cursor:ns-resize;caret-color:transparent}
 .ratio-app #editPitch.exact-editing{caret-color:auto}
 /* The numerator increases down the matrix, denominator rightward.
