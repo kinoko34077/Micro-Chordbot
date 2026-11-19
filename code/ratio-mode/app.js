@@ -78,6 +78,10 @@ function restore(snapshot){
   const wasPlaying=playing;
   stopPlayback();project=copy(snapshot);
   chooseFirst();saveSelection();save();render();if(saveAllowed)notice("");
+  // Undo/redo is authoritative even if a text field retains native focus.
+  const current=selectedLocation().step;
+  $("editExpr").value=current.expr;$("editPitch").value=current.pitch;
+  $("editBeats").value=String(current.beats);
   // History restores data, not unsolicited sound.
   if(wasPlaying)startPlayback();
 }
@@ -185,7 +189,7 @@ function bindPitchFlick(field){
   field.addEventListener("pointerdown",event=>{
     if(event.button!==0||!event.isPrimary||pitchGesture)return;
     const {section,step}=selectedLocation();
-    const parsed=/^([A-G])([#b‡d]?)(-?\d{1,2})/.exec(step.pitch);
+    const parsed=/^([A-G])([#b‡d]?)(-?\d{1,2})/.exec(parsePitch(step.pitch).label);
     if(!parsed)return;
     event.preventDefault();
     // Do not wake the text keyboard on a touch/flick. External keyboards can
@@ -196,7 +200,7 @@ function bindPitchFlick(field){
       x:event.clientX,y:event.clientY,moved:false,audioAt:0};
     field.setPointerCapture(event.pointerId);
     placeFlickPanel(field);
-    highlightFlickPitch(step.pitch);flickPanel.hidden=false;
+    highlightFlickPitch(parsePitch(step.pitch).label);flickPanel.hidden=false;
   });
   field.addEventListener("pointermove",event=>{
     const g=pitchGesture;if(!g||g.pointerId!==event.pointerId)return;
