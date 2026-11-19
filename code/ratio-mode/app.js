@@ -214,11 +214,8 @@ function bindPitchFlick(field){
     const now=performance.now();
     const isDouble=event.detail>=2 || (lastTap&&now-lastTap.time<350&&
       Math.hypot(event.clientX-lastTap.x,event.clientY-lastTap.y)<18);
-    if(isDouble){
-      event.preventDefault();lastTap=null;
-      activatePreciseInput(field);
-      return;
-    }
+    // Decide on release: a fast second pointerdown might turn into a
+    // drag, which must remain a flick rather than opening the keyboard.
     const {section,step}=selectedLocation();
     const parsed=parsePitch(step.pitch).label;
     const match=/^([A-G])([#b‡d]?)(-?\d{1,2})/.exec(parsed);
@@ -227,7 +224,7 @@ function bindPitchFlick(field){
     resumeAudioContext({gesture:true});
     pitchGesture={pointerId:event.pointerId,sectionId:section.id,stepId:step.id,
       original:step.pitch,candidate:step.pitch,x:event.clientX,y:event.clientY,
-      moved:false,audioAt:0};
+      moved:false,audioAt:0,doubleCandidate:isDouble};
     field.setPointerCapture(event.pointerId);
     placeGesturePanel(field,flickPanel,260,268);
     highlightFlickPitch(parsed);flickPanel.hidden=false;
@@ -236,7 +233,7 @@ function bindPitchFlick(field){
     const g=pitchGesture;if(!g||g.pointerId!==event.pointerId)return;
     const dx=event.clientX-g.x,dy=event.clientY-g.y;
     if(!g.moved&&Math.hypot(dx,dy)<7)return;
-    g.moved=true;
+    g.moved=true;lastTap=null;
     const next=flickGridPitch(g.original,Math.round(dy/23),Math.round(dx/28));
     if(next===g.candidate)return;
     g.candidate=next;field.value=next;highlightFlickPitch(next);
@@ -261,7 +258,10 @@ function bindPitchFlick(field){
         field.value=current.step.pitch;
     }else{
       field.value=current.step.pitch;
-      if(accept&&!g.moved)lastTap={time:performance.now(),x:event.clientX,y:event.clientY};
+      if(accept&&!g.moved){
+        if(g.doubleCandidate){lastTap=null;activatePreciseInput(field)}
+        else lastTap={time:performance.now(),x:event.clientX,y:event.clientY};
+      }
     }
   }
   field.addEventListener("pointerup",event=>finish(event,true));
@@ -300,13 +300,12 @@ function bindBeatFlick(field){
     const now=performance.now();
     const isDouble=event.detail>=2 || (lastTap&&now-lastTap.time<350&&
       Math.hypot(event.clientX-lastTap.x,event.clientY-lastTap.y)<18);
-    if(isDouble){
-      event.preventDefault();lastTap=null;activatePreciseInput(field);return;
-    }
+    // Only a second *completed* tap enters precise text; a drag stays a drag.
     event.preventDefault();
     const {section,step}=selectedLocation();
     beatGesture={pointerId:event.pointerId,sectionId:section.id,stepId:step.id,
-      original:step.beats,current:step.beats,x:event.clientX,y:event.clientY,moved:false};
+      original:step.beats,current:step.beats,x:event.clientX,y:event.clientY,
+      moved:false,doubleCandidate:isDouble};
     field.setPointerCapture(event.pointerId);
     placeGesturePanel(field,beatsPanel,270,225);
     highlightBeats(step.beats);beatsPanel.hidden=false;
@@ -315,7 +314,7 @@ function bindBeatFlick(field){
     const g=beatGesture;if(!g||g.pointerId!==event.pointerId)return;
     const dx=event.clientX-g.x,dy=event.clientY-g.y;
     if(!g.moved&&Math.hypot(dx,dy)<7)return;
-    g.moved=true;
+    g.moved=true;lastTap=null;
     const value=beatMatrixValue(g.original,Math.round(dy/29),Math.round(dx/33));
     g.current=value;field.value=String(value);
     highlightBeats(value);
@@ -332,7 +331,10 @@ function bindBeatFlick(field){
         field.value=String(current.step.beats);
     }else{
       field.value=String(current.step.beats);
-      if(accept&&!g.moved)lastTap={time:performance.now(),x:event.clientX,y:event.clientY};
+      if(accept&&!g.moved){
+        if(g.doubleCandidate){lastTap=null;activatePreciseInput(field)}
+        else lastTap={time:performance.now(),x:event.clientX,y:event.clientY};
+      }
     }
   }
   field.addEventListener("pointerup",event=>finish(event,true));
