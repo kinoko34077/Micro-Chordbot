@@ -59,7 +59,7 @@ function mutate(change,{structural=false,audition=false}={}){
     if(JSON.stringify(before)===JSON.stringify(next))return true;
     if(structural)stopPlayback();
     project=next;history.push({type:"ratio_edit",before,after:copy(next)});
-    chooseFirst();save();if(saveAllowed)notice("");render();
+    chooseFirst();saveSelection();save();if(saveAllowed)notice("");render();
     if(playing&&playingStepId)void refreshPlayingVoices();
     else if(audition)void preview();
     return true;
@@ -382,7 +382,6 @@ $("newSection").addEventListener("click",()=>{
 });
 $("newChunk").addEventListener("click",()=>{
   const chunks=chunksOf(project),current=selectedLocation().section;
-  const nextIndex=chunks.findIndex(c=>c.id===current.chunkId)+1;
   const chunkId=id("chunk-");
   const sec=makeSection(chunkId,"チャンク "+(chunks.length+1),project.sections.length+1);
   if(mutate(d=>{
@@ -391,10 +390,13 @@ $("newChunk").addEventListener("click",()=>{
   },{structural:true}))setSelection(sec.id,sec.steps[0].id);
 });
 $("removeChunk").addEventListener("click",()=>{
-  const target=selectedLocation().section.chunkId;
-  if(chunksOf(project).length<=1)return;
-  if(mutate(d=>{d.sections=d.sections.filter(s=>s.chunkId!==target)},{structural:true})){
-    $("chunkDetails").close();chooseFirst();renderTimeline();renderSelection();
+  const current=selectedLocation().section;
+  const allChunks=chunksOf(project),index=allChunks.findIndex(c=>c.id===current.chunkId);
+  if(allChunks.length<=1)return;
+  const neighbor=allChunks[index+1]||allChunks[index-1];
+  if(mutate(d=>{d.sections=d.sections.filter(s=>s.chunkId!==current.chunkId)},{structural:true})){
+    $("chunkDetails").close();
+    setSelection(neighbor.sections[0].id,neighbor.sections[0].steps[0].id);
   }
 });
 $("addStep").addEventListener("click",()=>{
@@ -405,8 +407,12 @@ $("addStep").addEventListener("click",()=>{
 $("duplicate").addEventListener("click",()=>$("addStep").click());
 $("removeSection").addEventListener("click",()=>{
   const {section}=selectedLocation();
+  if(project.sections.length<=1)return;
+  const index=project.sections.findIndex(s=>s.id===section.id);
+  const neighbor=project.sections[index+1]||project.sections[index-1];
   if(mutate(d=>d.sections=d.sections.filter(s=>s.id!==section.id),{structural:true})){
-    $("sectionDetails").close();chooseFirst();renderTimeline();renderSelection();
+    $("sectionDetails").close();
+    setSelection(neighbor.id,neighbor.steps[0].id);
   }
 });
 function swap(delta){
