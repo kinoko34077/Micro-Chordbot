@@ -466,14 +466,17 @@ function beginPresetEdit(name=null){
   editingPresetName=source?.name||null;
   const row=$("presetInlineRow"),field=$("presetInlineInput");
   field.value=source?"["+source.name+"]"+source.ratios:"";
-  row.hidden=false;presetEditorActive=true;
+  row.hidden=false;$("presetSearch").closest("label").hidden=true;
+  $("openPresetManager").hidden=true;presetEditorActive=true;
   field.focus();field.select();
 }
 function finishPresetEdit(commit){
   if(!presetEditorActive)return;
   if(!commit){
     presetEditorActive=false;editingPresetName=null;
-    $("presetInlineRow").hidden=true;return;
+    $("presetInlineRow").hidden=true;
+    $("presetSearch").closest("label").hidden=false;
+    $("openPresetManager").hidden=false;return;
   }
   let entry;
   try{entry=parseNamedRatio($("presetInlineInput").value)}
@@ -492,6 +495,8 @@ function finishPresetEdit(commit){
   presetEditorActive=false;editingPresetName=null;
   $("presetInlineInput").removeAttribute("aria-invalid");
   $("presetInlineRow").hidden=true;
+  $("presetSearch").closest("label").hidden=false;
+  $("openPresetManager").hidden=false;
 }
 function renderPresets(){
   const chips=$("presetChips"),scroll=chips.scrollTop,filter=$("presetSearch").value.trim().toLocaleLowerCase();

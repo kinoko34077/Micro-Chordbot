@@ -1665,3 +1665,11 @@ dialog::backdrop{background:#0009}
 }
 .ratio-app .preset-item>.preset-edit:hover,
 .ratio-app .preset-item>.preset-edit:focus-visible{color:#fff;background:#31536a}
+
+/* Reuse the search toolbar row during inline registration: never add a
+   separate extra-height form beneath it on a 320px mobile composition. */
+.ratio-app .progression-choice-tools>.ratio-preset-inline{
+  flex:1 1 auto;min-width:0;width:100%;margin:0;padding:0;
+}
+.ratio-app .progression-choice-tools>.ratio-preset-inline input{min-height:35px;height:35px}
+.ratio-app .progression-choice-tools>[hidden]{display:none!important}
