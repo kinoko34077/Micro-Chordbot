@@ -14,8 +14,15 @@ export class AudioEngine {
       this.master.gain.value = 0.3;
       this.master.connect(this.ctx.destination);
     }
-    if (this.ctx.state === "suspended") {
+    // WebKit / iOS also uses the non-standard "interrupted" state after
+    // temporary focus, app, or screen interruptions. A subsequent gesture
+    // must be able to resume the existing context instead of silently
+    // creating oscillators against a stopped audio clock.
+    if (this.ctx.state === "suspended" || this.ctx.state === "interrupted") {
       await this.ctx.resume();
+    }
+    if (this.ctx.state !== "running") {
+      throw new Error("音声が中断されています。画面に戻って再度タップしてください");
     }
   }
 
