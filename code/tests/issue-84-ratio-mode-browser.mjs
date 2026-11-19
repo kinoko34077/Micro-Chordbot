@@ -274,6 +274,14 @@ try{
     assert.equal(await page.locator("#chunkJump option").count(),2,"chunk hierarchy lost on reload");
     assert.equal(await page.locator("#chunkJump").inputValue(),await page.locator("#chunkJump option").last().getAttribute("value"),"active chunk lost on reload");
     await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-mode-"+width+"x"+height+"-edited.png"});
+    await page.locator(".progression-chunk-head").click();
+    await page.locator("#removeChunk").click();
+    assert.equal(await page.locator("#chunkJump option").count(),1,"chunk deletion left orphaned selectors");
+    assert.equal(await page.locator("#chunkJump option").first().innerText(),"チャンク 1","deleting active chunk should select a neighboring chunk");
+    await page.locator("#undo").click();
+    assert.equal(await page.locator("#chunkJump option").count(),2,"deleted chunk must be undoable");
+    await page.reload();
+    assert.equal(await page.locator("#chunkJump option").count(),2,"undo must restore chunk in storage");
     assert.deepEqual(errors,[],"browser errors "+width);
     console.log(JSON.stringify({width,height,layout,started,errors}));
     await page.close();
