@@ -1,7 +1,7 @@
 import {AudioEngine} from "../src/audio.js";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {HistoryManager, isNativeUndoTarget} from "../src/history.js";
-import {newProject,validateProject,parsePitch,parseRatio,flatten,importText,exportText} from "./model.mjs";
+import {newProject,validateProject,parsePitch,parseRatio,chunksOf,flatten,importText,exportText} from "./model.mjs";
 
 const $=id=>document.getElementById(id);
 const copy=value=>JSON.parse(JSON.stringify(value));
@@ -66,8 +66,12 @@ function mutate(change,{structural=false,audition=false}={}){
   }catch(error){notice(error.message||String(error),true);return false}
 }
 function setSelection(sid,cid){
+  const old=project.sections.find(s=>s.id===selection.sectionId)?.chunkId;
+  const next=project.sections.find(s=>s.id===sid)?.chunkId;
   selection={sectionId:sid,stepId:cid};
-  saveSelection();renderSelection();
+  saveSelection();
+  if(old!==next)renderTimeline();
+  renderSelection();
 }
 function restore(snapshot){
   const wasPlaying=playing;
@@ -148,9 +152,24 @@ function makeCard(section,step,index){
 }
 function renderTimeline(){
   const timeline=$("timeline"),top=timeline.scrollTop,fragment=document.createDocumentFragment();
-  for(const section of project.sections){
-    const wrap=document.createElement("section");wrap.className="progression-chunk";
-    const header=document.createElement("button");header.type="button";header.className="progression-chunk-head";
+  const selected=selectedLocation().section;
+  const chunk=chunksOf(project).find(c=>c.id===selected?.chunkId)||chunksOf(project)[0];
+  if(!chunk)return;
+  const wrap=document.createElement("section");wrap.className="progression-chunk";
+  wrap.dataset.chunkId=chunk.id;
+  const heading=document.createElement("button");heading.type="button";
+  heading.className="progression-chunk-head";
+  heading.textContent=chunk.name;
+  heading.title="チャンク名を編集";
+  heading.setAttribute("aria-label",chunk.name+" を編集");
+  heading.addEventListener("click",()=>{
+    $("chunkDetails").showModal();$("editChunkName").focus();$("editChunkName").select();
+  });
+  wrap.append(heading);
+  for(const section of chunk.sections){
+    const group=document.createElement("section");group.className="ratio-section-group";
+    group.dataset.sectionId=section.id;
+    const header=document.createElement("button");header.type="button";header.className="progression-section-break";
     header.textContent=section.name+" ×"+section.repeat;
     header.title="セクション名と反復回数を編集";
     header.setAttribute("aria-label",section.name+" の設定");
@@ -171,12 +190,12 @@ function renderTimeline(){
         requestAnimationFrame(()=>document.querySelector('.progression-cell[data-cid="'+next.id+'"]')?.scrollIntoView({inline:"nearest",block:"nearest"}));
       }
     });
-    grid.append(add);wrap.append(header,grid);fragment.append(wrap);
+    grid.append(add);group.append(header,grid);wrap.append(group);
   }
+  fragment.append(wrap);
   timeline.replaceChildren(fragment);timeline.scrollTop=top;
   updateGridColumns();
 }
-
 function removePreset(name){
   if(mutate(d=>{
     const p=d.presets.find(x=>x.name===name);
@@ -219,29 +238,30 @@ function updateGridColumns(){
   const actual=Math.min(columns,max);
   track.style.setProperty("--progression-columns",String(actual));
   track.dataset.columns=String(actual);
-  $("columnActual").textContent=actual===columns?actual+"列":actual+"列表示";
   $("gridColumns").value=String(columns);
+  $("gridColumns").title=actual<columns
+    ?"設定は"+columns+"列。画面幅に合わせて"+actual+"列で表示中"
+    :columns+"列";
 }
 
 function renderSectionNav(){
-  const select=$("sectionJump");
-  select.replaceChildren(...project.sections.map(s=>{
-    const opt=document.createElement("option");opt.value=s.id;opt.textContent=s.name;return opt;
-  }));
-  const idx=Math.max(0,project.sections.findIndex(s=>s.id===selection.sectionId));
-  select.value=project.sections[idx].id;
-  $("sectionCounter").textContent=(idx+1)+"/"+project.sections.length;
-  $("prevSection").disabled=idx===0;
-  $("nextSection").disabled=idx===project.sections.length-1;
+  const chunkSelect=$("chunkJump"),sectionSelect=$("sectionJump");
+  const chunks=chunksOf(project),selected=selectedLocation().section;
+  const chunk=chunks.find(c=>c.id===selected.chunkId)||chunks[0];
+  chunkSelect.replaceChildren(...chunks.map(c=>new Option(c.name,c.id)));
+  chunkSelect.value=chunk.id;
+  sectionSelect.replaceChildren(...chunk.sections.map(c=>new Option(c.name,c.id)));
+  sectionSelect.value=selected.id;
+  $("removeChunk").disabled=chunks.length===1;
 }
-
 function renderSelection(){
   const loc=selectedLocation();if(!loc.step)return;
   selection={sectionId:loc.section.id,stepId:loc.step.id};
   const step=loc.step;
-  $("selectionLabel").textContent=loc.section.name+" / "+(loc.index+1);
+  $("selectionLabel").textContent=loc.section.chunkName+" / "+loc.section.name+" / "+(loc.index+1);
   $("editExpr").value=step.expr;$("editPitch").value=step.pitch;$("editBeats").value=step.beats;
   $("editSectionName").value=loc.section.name;$("editRepeat").value=loc.section.repeat;
+  $("editChunkName").value=loc.section.chunkName;
   renderSectionNav();
   for(const card of $("timeline").querySelectorAll(".progression-cell[data-cid]")){
     const active=card.dataset.sid===selection.sectionId&&card.dataset.cid===selection.stepId;
@@ -273,11 +293,17 @@ function commitField(which,value,field){
   if(which==="expr")success=mutate(d=>selectedLocation(d).step.expr=value.trim(),{audition:true});
   if(which==="pitch")success=mutate(d=>selectedLocation(d).step.pitch=value.trim(),{audition:true});
   if(which==="beats")success=mutate(d=>selectedLocation(d).step.beats=Number(value));
+  if(which==="chunkName"){
+    const chunkId=selectedLocation().section.chunkId;
+    success=mutate(d=>{for(const section of d.sections)
+      if(section.chunkId===chunkId)section.chunkName=value.trim();
+    });
+  }
   if(which==="sectionName")success=mutate(d=>selectedLocation(d).section.name=value.trim());
   if(which==="repeat")success=mutate(d=>selectedLocation(d).section.repeat=Number(value));
   field.setAttribute("aria-invalid",success?"false":"true");
 }
-[["editExpr","expr"],["editPitch","pitch"],["editBeats","beats"],["editSectionName","sectionName"],["editRepeat","repeat"]].forEach(([key,kind])=>{
+[["editExpr","expr"],["editPitch","pitch"],["editBeats","beats"],["editChunkName","chunkName"],["editSectionName","sectionName"],["editRepeat","repeat"]].forEach(([key,kind])=>{
   $(key).addEventListener("change",e=>commitField(kind,e.target.value,e.target));
   $(key).addEventListener("input",e=>e.target.removeAttribute("aria-invalid"));
 });
@@ -302,6 +328,7 @@ $("presetSearch").addEventListener("input",()=>{$("presetChips").scrollTop=0;ren
 $("openPresetManager").addEventListener("click",()=>{$("presetManager").showModal();$("presetName").focus()});
 $("closePresetManager").addEventListener("click",()=>$("presetManager").close());
 $("closeSectionEditor").addEventListener("click",()=>$("sectionDetails").close());
+$("closeChunkEditor").addEventListener("click",()=>$("chunkDetails").close());
 $("masterVolume").addEventListener("input",e=>{
   $("masterVolumeMobile").value=e.target.value;
   engine.setMasterVolume(Number(e.target.value));
@@ -315,16 +342,14 @@ $("progMenuToggleBtn").addEventListener("click",()=>{
   btn.setAttribute("aria-expanded",String(open));
   $("progToolbarActions").classList.toggle("open",open);
 });
+$("chunkJump").addEventListener("change",e=>{
+  const chunk=chunksOf(project).find(c=>c.id===e.target.value);
+  if(chunk)setSelection(chunk.sections[0].id,chunk.sections[0].steps[0].id);
+});
 $("sectionJump").addEventListener("change",e=>{
   const section=project.sections.find(s=>s.id===e.target.value);
   if(section)setSelection(section.id,section.steps[0].id);
 });
-function moveSection(delta){
-  const idx=project.sections.findIndex(s=>s.id===selection.sectionId),sec=project.sections[idx+delta];
-  if(sec)setSelection(sec.id,sec.steps[0].id);
-}
-$("prevSection").addEventListener("click",()=>moveSection(-1));
-$("nextSection").addEventListener("click",()=>moveSection(1));
 $("progRootLetterButtons").addEventListener("click",e=>{
   const letter=e.target.closest("[data-note]")?.dataset.note;
   if(!letter)return;
@@ -343,9 +368,34 @@ $("loop").addEventListener("change",e=>mutate(d=>d.settings.loop=e.target.checke
 $("wave").addEventListener("change",e=>mutate(d=>d.settings.wave=e.target.value));
 $("undo").addEventListener("click",undo);
 $("redo").addEventListener("click",redo);
+const makeSection=(chunkId,chunkName,n)=>({
+  id:id("s"),chunkId,chunkName,name:"Section "+n,repeat:1,
+  steps:[{id:id("c"),expr:"4,5,6",pitch:"C4",beats:4}]
+});
 $("newSection").addEventListener("click",()=>{
-  const sec={id:id("s"),name:"Section "+(project.sections.length+1),repeat:1,steps:[{id:id("c"),expr:"4,5,6",pitch:"C4",beats:4}]};
-  if(mutate(d=>d.sections.push(sec),{structural:true}))setSelection(sec.id,sec.steps[0].id);
+  const current=selectedLocation().section;
+  const sec=makeSection(current.chunkId,current.chunkName,project.sections.length+1);
+  if(mutate(d=>{
+    const index=d.sections.findIndex(s=>s.id===current.id);
+    d.sections.splice(index+1,0,sec);
+  },{structural:true}))setSelection(sec.id,sec.steps[0].id);
+});
+$("newChunk").addEventListener("click",()=>{
+  const chunks=chunksOf(project),current=selectedLocation().section;
+  const nextIndex=chunks.findIndex(c=>c.id===current.chunkId)+1;
+  const chunkId=id("chunk-");
+  const sec=makeSection(chunkId,"チャンク "+(chunks.length+1),project.sections.length+1);
+  if(mutate(d=>{
+    const last=d.sections.findLastIndex(s=>s.chunkId===current.chunkId);
+    d.sections.splice(last+1,0,sec);
+  },{structural:true}))setSelection(sec.id,sec.steps[0].id);
+});
+$("removeChunk").addEventListener("click",()=>{
+  const target=selectedLocation().section.chunkId;
+  if(chunksOf(project).length<=1)return;
+  if(mutate(d=>{d.sections=d.sections.filter(s=>s.chunkId!==target)},{structural:true})){
+    $("chunkDetails").close();chooseFirst();renderTimeline();renderSelection();
+  }
 });
 $("addStep").addEventListener("click",()=>{
   const {section,step,index}=selectedLocation();
@@ -355,7 +405,9 @@ $("addStep").addEventListener("click",()=>{
 $("duplicate").addEventListener("click",()=>$("addStep").click());
 $("removeSection").addEventListener("click",()=>{
   const {section}=selectedLocation();
-  if(mutate(d=>d.sections=d.sections.filter(s=>s.id!==section.id),{structural:true}))chooseFirst(),renderSelection();
+  if(mutate(d=>d.sections=d.sections.filter(s=>s.id!==section.id),{structural:true})){
+    $("sectionDetails").close();chooseFirst();renderTimeline();renderSelection();
+  }
 });
 function swap(delta){
   const {section,index}=selectedLocation();const target=index+delta;
@@ -427,9 +479,9 @@ function highlightStep(step){
     card.classList.toggle("playing",card.dataset.cid===step.id);
   }
 }
-function startPlayback(sectionId=null){
+function startPlayback(sectionId=null,chunkId=null){
   stopPlayback();
-  const steps=flatten(project,sectionId);if(!steps.length)return;
+  const steps=flatten(project,sectionId,chunkId);if(!steps.length)return;
   const token=runId;
   const selectedIndex=steps.findIndex(s=>s.stepId===selection.stepId);
   let index=selectedIndex>=0?selectedIndex:0;
@@ -495,6 +547,7 @@ async function preview(){
 }
 $("play").addEventListener("click",()=>playing?stopPlayback():startPlayback());
 $("playSection").addEventListener("click",()=>startPlayback(selection.sectionId));
+$("playChunk").addEventListener("click",()=>startPlayback(null,selectedLocation().section.chunkId));
 $("stop").addEventListener("click",stopPlayback);
 $("preview").addEventListener("click",()=>{void preview()});
 document.addEventListener("keydown",e=>{
