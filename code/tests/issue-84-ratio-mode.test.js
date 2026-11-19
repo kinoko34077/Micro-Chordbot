@@ -3,6 +3,7 @@ import test from "node:test";
 import {readFile} from "node:fs/promises";
 import {parsePitch,parseRatio,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
 import {frequencyFromPitch} from "../src/pitch.js";
+import {AudioEngine} from "../src/audio.js";
 const hz=(s)=>{const p=parsePitch(s);return frequencyFromPitch(440,p.octave,p.microStepInOctave)};
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,"frequency mismatch: "+a+" vs "+b);
 
@@ -91,4 +92,26 @@ test("chunk > section > chord: grouping, roundtrip, scope playback, invalid orph
   broken.sections.push({...broken.sections[0],id:"orphan",steps:[{id:"newstep",expr:"Major",pitch:"C4",beats:4}]});
   assert.throws(()=>validateProject(broken),/連続/);
   assert.throws(()=>importText(exportText(data)+"\n@chunk 空\n"),/セクションが必要/);
+});
+
+test("shared audio engine recovers WebKit interrupted or suspended contexts",async()=>{
+  const original=globalThis.AudioContext;
+  class FakeAudioContext{
+    constructor(){this.state="interrupted";this.destination={};this.resumeCalls=0}
+    createGain(){return {gain:{value:0.3},connect(){}}}
+    async resume(){this.resumeCalls++;this.state="running"}
+  }
+  try{
+    globalThis.AudioContext=FakeAudioContext;
+    const engine=new AudioEngine();
+    await engine.ensure();
+    assert.equal(engine.ctx.resumeCalls,1);
+    assert.equal(engine.ctx.state,"running");
+    engine.ctx.state="suspended";
+    await engine.ensure();
+    assert.equal(engine.ctx.resumeCalls,2);
+  }finally{
+    if(original===undefined)delete globalThis.AudioContext;
+    else globalThis.AudioContext=original;
+  }
 });
