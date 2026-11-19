@@ -60,7 +60,6 @@
           <div class="progression-editor-header">
             <div class="progression-editor-heading">
               <h3>コード</h3>
-              <p id="selectionLabel" class="panel-note">コード 1</p>
               <p id="hzReadout" class="readout" aria-live="polite"></p>
             </div>
             <div class="progression-editor-header-actions">
@@ -79,28 +78,23 @@
                 <input id="editExpr" type="text" spellcheck="false" autocomplete="off" placeholder="例 4:11/2:6" title="4:11/2:6 と 8:11:12 は同じ比率。/ は各成分内の分数">
               </label>
               <label class="pitch-field">最低音
-                <input id="editPitch" type="text" spellcheck="false" autocomplete="off" placeholder="C4" title="指を下へ滑らせるとC→B→次のC。左右は50セント刻み。ダブルクリックで直接入力。" aria-label="最低音、スライドで7×5四分音表、ダブルクリックで直接編集">
+                <input id="editPitch" type="text" readonly spellcheck="false" autocomplete="off" placeholder="C4" title="上へ滑らせてC→D→…→B→次のC。左右は50セント刻み。ダブルクリック／ダブルタップで直接入力。" aria-label="最低音、スライドで7×5四分音表、ダブルクリックで直接編集">
               </label>
               <label class="beats-field">拍
-                <input id="editBeats" type="text" inputmode="decimal" autocomplete="off" title="4×4格子を上下左右にスライドして0.25拍刻みで変更。ダブルクリックで直接入力。" aria-label="拍数、4×4拍数表をスライド、ダブルクリックで直接編集">
+                <input id="editBeats" type="text" inputmode="decimal" autocomplete="off" title="4×4格子を上下左右にスライドして分子／分母を変更。ダブルクリックで直接入力。" aria-label="分子／分母の拍数、上下で分子・左右で分母をスライド、ダブルクリックで直接編集">
               </label>
             </div>
             <div class="progression-choice-tools">
               <label class="progression-filter-label"><span aria-hidden="true">⌕</span>
                 <input id="presetSearch" type="search" placeholder="比率を探す" aria-label="比率候補を検索">
               </label>
-              <button id="openPresetManager" class="ratio-small-action" type="button" aria-label="比率の追加・編集" title="比率を追加・編集">＋</button>
+              <button id="openPresetManager" class="ratio-small-action" type="button" aria-label="名前付き比率を追加" title="[名前]比率をその場で登録">＋</button>
             </div>
             <div id="presetChips" class="quick-grid chord-grid" tabindex="0" role="region" aria-label="周波数比の候補"></div>
-            <dialog id="presetManager" class="ratio-context-dialog" aria-label="比率の登録・編集">
-              <div class="ratio-dialog-header"><strong>比率の登録・編集</strong><button type="button" id="closePresetManager" aria-label="閉じる">×</button></div>
-              <div class="ratio-manager-row">
-                <label>登録済み <select id="presetManageSelect" aria-label="編集する比率プリセット"><option value="">新規</option></select></label>
-                <label>名前 <input id="presetName" type="text" placeholder="名前" maxlength="64"></label>
-                <label>比率 <input id="presetRatio" type="text" placeholder="4:11/2:6" title="8:11:12と等価" spellcheck="false"></label>
-                <button id="addPreset" type="button" class="primary">登録</button>
-              </div>
-            </dialog>
+            <div id="presetInlineRow" class="ratio-preset-inline" hidden>
+              <input id="presetInlineInput" type="text" autocomplete="off" spellcheck="false" placeholder="[名前]4:11/2:6" aria-label="名前付き比率を [名前]比率 で直接登録・編集">
+              <button id="presetInlineCancel" type="button" title="編集を取り消す" aria-label="名前付き比率の編集を取り消す">取消</button>
+            </div>
             <p id="status" class="status-text" role="status" aria-live="polite"></p>
           </div>
         </section>
@@ -109,12 +103,12 @@
     <div id="pitchFlickPanel" class="pitch-flick-panel" hidden aria-hidden="true">
       <div id="pitchFlickValue" class="pitch-flick-value"></div>
       <div id="pitchFlickGrid" class="pitch-flick-grid" aria-hidden="true"></div>
-      <div class="pitch-flick-caption">↓ C→D→…→B→次のC　左右 ±50￠</div>
+      <div class="pitch-flick-caption">↑ C→D→…→B→次のC　左右 ±50￠</div>
     </div>
     <div id="beatsFlickPanel" class="pitch-flick-panel beats-flick-panel" hidden aria-hidden="true">
       <div id="beatsFlickValue" class="pitch-flick-value"></div>
       <div id="beatsFlickGrid" class="beats-flick-grid" aria-hidden="true"></div>
-      <div class="pitch-flick-caption">↓ 次の拍へ　右へ +0.25拍　離して確定</div>
+      <div class="pitch-flick-caption">縦 分子 ／ 横 分母　離して確定</div>
     </div>
   </div>
   <dialog id="ioDialog" aria-label="コード進行の入出力">
