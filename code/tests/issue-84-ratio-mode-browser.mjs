@@ -9,7 +9,12 @@ try{
     const errors=[];page.on("pageerror",error=>errors.push(String(error)));
     await page.addInitScript(()=>{
       window.__ratioStarted=[];
-      const original=AudioContext.prototype.createOscillator;
+      window.__ratioAudioContexts=[];
+      const NativeAudioContext=window.AudioContext;
+      window.AudioContext=class extends NativeAudioContext{
+        constructor(...args){super(...args);window.__ratioAudioContexts.push(this)}
+      };
+      const original=NativeAudioContext.prototype.createOscillator;
       AudioContext.prototype.createOscillator=function(...args){
         const osc=original.apply(this,args),start=osc.start.bind(osc);
         osc.start=function(...values){
@@ -32,7 +37,7 @@ try{
       const boxes=cells.map(el=>el.getBoundingClientRect());
       const editor=document.querySelector(".progression-editor").getBoundingClientRect();
       const track=document.querySelector("#timeline"),trackBox=track.getBoundingClientRect();
-      const selectors=["#prevSection","#nextSection","#sectionJump","#play","#stop","#newSection","#preview","#addStep","#editPitch"];
+      const selectors=["#chunkJump","#sectionJump","#play","#stop","#newChunk","#newSection","#preview","#addStep","#editPitch"];
       const visibleControls=selectors.map(s=>{
         const el=document.querySelector(s),r=el.getBoundingClientRect();
         return {selector:s,x:r.x,right:r.right,width:r.width,top:r.top,bottom:r.bottom};
@@ -41,6 +46,9 @@ try{
         boxes:boxes.map(b=>({x:b.x,y:b.y,right:b.right,bottom:b.bottom})),
         effective:Number(track.dataset.columns),requested:Number(document.querySelector("#gridColumns").value),
         editorTop:editor.top,editorBottom:editor.bottom,timelineBottom:trackBox.bottom,
+        inputRow:[...["#editExpr","#editPitch","#editBeats"]].map(s=>{
+          const r=document.querySelector(s).getBoundingClientRect();return {selector:s,x:r.x,y:r.y,width:r.width,right:r.right};
+        }),
         toolbarHeight:document.querySelector(".progression-toolbar").getBoundingClientRect().height,
         topbarHeight:document.querySelector(".topbar").getBoundingClientRect().height,
         presetBottom:document.querySelector("#presetChips").getBoundingClientRect().bottom,
@@ -73,10 +81,17 @@ try{
       assert.ok(layout.editorScrollHeight<=layout.editorClientHeight+2,"basic mobile editing still requires an extra nested scroll "+JSON.stringify(layout));
       assert.ok(layout.presetBottom<=layout.editorBottom+2,"preset options are hidden below the editor "+JSON.stringify(layout));
     }
-    if(width>=1000)assert.ok(layout.timelineHeight<=285,"empty desktop timeline over-expands "+JSON.stringify(layout));
+    if(width>=1000)assert.ok(layout.timelineHeight>=245,"desktop timeline failed to use available height "+JSON.stringify(layout));
     if(width===390||width===430)
       assert.ok(layout.presetBottom<=layout.editorBottom+2,"normal phone preset choices hidden by editor scroller "+JSON.stringify(layout));
     for(const rect of layout.controls)assert.ok(rect.x>=-2&&rect.right<=width+2,"clipped core control "+JSON.stringify(rect)+" viewport "+width);
+    assert.ok(Math.max(...layout.inputRow.map(r=>r.y))-Math.min(...layout.inputRow.map(r=>r.y))<=2,
+      "ratio / pitch / beat fields are not on one row "+JSON.stringify(layout.inputRow));
+    for(const rect of layout.inputRow)assert.ok(rect.width>35&&rect.right<=width+2,"input clipped "+JSON.stringify(rect));
+    if(width>=1000)assert.ok(layout.inputRow[0].width<width*.4,"desktop ratio field too wide");
+    assert.equal(await page.locator("#columnActual").count(),0,"redundant detached '4列' label remains");
+    assert.equal(await page.locator("#chunkJump option").count(),1,"legacy progressions should start with one chunk");
+    assert.equal(await page.locator("#sectionJump option").count(),2,"first chunk must contain sections A/B");
     const actionGeometry=await page.locator(".progression-cell-shell").first().evaluate(el=>{
       const cell=el.querySelector(".progression-cell").getBoundingClientRect();
       const remove=el.querySelector(".cell-remove").getBoundingClientRect();
@@ -128,6 +143,16 @@ try{
     await cells.first().click();
     await page.waitForFunction(()=>window.__ratioStarted.length>=6);
     assert.ok(await cells.first().evaluate(el=>el.getAttribute("aria-pressed")==="true"));
+    await page.locator("#stop").click();
+    const ctxState=await page.evaluate(async()=>{
+      const ctx=window.__ratioAudioContexts[0];if(!ctx)throw Error("no AudioContext");
+      await ctx.suspend();return ctx.state;
+    });
+    assert.equal(ctxState,"suspended");
+    await page.evaluate(()=>window.__ratioStarted=[]);
+    await cells.first().click();
+    await page.waitForFunction(()=>window.__ratioStarted.length>=3&&window.__ratioAudioContexts[0].state==="running");
+    await page.locator("#stop").click();
     await page.locator("#editPitch").fill("D‡5");
     await page.locator("#editPitch").dispatchEvent("change");
     assert.equal(await cells.first().locator(".cell-note").innerText(),"D‡5");
@@ -220,6 +245,34 @@ try{
     await page.locator("#undo").click();
     assert.equal(await cells.count(),countBefore,"code deletion cannot be undone");
     assert.ok(await page.locator("#editPitch").isVisible());
+    await page.locator("#newChunk").click();
+    assert.equal(await page.locator("#chunkJump option").count(),2,"new chunk not selectable");
+    assert.equal(await cells.count(),1,"new chunk should start with one section/one chord");
+    await page.locator("#newSection").click();
+    assert.equal(await page.locator(".ratio-section-group").count(),2,"new section not created inside selected chunk");
+    assert.equal(await page.locator("#sectionJump option").count(),2);
+    await page.locator(".progression-chunk-head").click();
+    assert.ok(await page.locator("#chunkDetails").evaluate(el=>el.open),"chunk editor must open");
+    await page.locator("#editChunkName").fill("間奏");
+    await page.locator("#editChunkName").dispatchEvent("change");
+    await page.locator("#closeChunkEditor").click();
+    assert.equal(await page.locator("#chunkJump option").last().innerText(),"間奏","chunk rename did not persist");
+    await page.locator("#chunkJump").selectOption({label:"チャンク 1"});
+    assert.equal(await cells.count(),5,"switching chunk must show all original chord cells");
+    await page.locator("#chunkJump").selectOption({label:"間奏"});
+    assert.equal(await cells.count(),2,"switching chunk must show its own chord cells only");
+    if(width<=950)await page.locator("#progMenuToggleBtn").click();
+    await page.locator("#playChunk").click();
+    await page.waitForFunction(()=>document.querySelectorAll(".progression-cell.playing").length===1);
+    await page.locator("#stop").click();
+    if(width<=950)await page.locator("#progMenuToggleBtn").click();
+    await page.locator("#openIO").click();
+    assert.match(await page.locator("#ioText").inputValue(),/@chunk チャンク 1/);
+    assert.match(await page.locator("#ioText").inputValue(),/@chunk 間奏/);
+    await page.locator("#ioClose").click();
+    await page.reload();
+    assert.equal(await page.locator("#chunkJump option").count(),2,"chunk hierarchy lost on reload");
+    assert.equal(await page.locator("#chunkJump").inputValue(),await page.locator("#chunkJump option").last().getAttribute("value"),"active chunk lost on reload");
     await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-mode-"+width+"x"+height+"-edited.png"});
     assert.deepEqual(errors,[],"browser errors "+width);
     console.log(JSON.stringify({width,height,layout,started,errors}));
