@@ -100,7 +100,10 @@ try{
     assert.ok(playWidth<=80,"play button wastes space "+playWidth);
     assert.ok(layout.inputRow[1].width<=123,"pitch too wide "+layout.inputRow[1].width);
     assert.ok(layout.inputRow[2].width<=76,"beats too wide "+layout.inputRow[2].width);
-    assert.ok(layout.inputRow[0].width>=layout.inputRow[1].width,"ratio didn't get remaining width");
+    const columnWidths=await page.locator(".progression-root-row > label").evaluateAll(els=>
+      els.map(el=>el.getBoundingClientRect().width));
+    assert.ok(Math.max(...columnWidths)-Math.min(...columnWidths)<3,
+      "ratio/pitch/beat should each own an equally spaced column: "+JSON.stringify(columnWidths));
     const actionGeometry=await page.locator(".progression-cell-shell").first().evaluate(el=>{
       const cell=el.querySelector(".progression-cell").getBoundingClientRect();
       const remove=el.querySelector(".cell-remove").getBoundingClientRect();
