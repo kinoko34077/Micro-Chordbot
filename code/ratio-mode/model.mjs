@@ -100,19 +100,56 @@ export function flickEnharmonicCells(value){
 // row has four quarter-beat positions ending on that whole beat:
 //   0.25 0.50 0.75 1.00
 //   1.25 1.50 1.75 2.00  ... 3.25–4, then pages 5–8 etc.
-export function beatMatrixValue(value,rowDelta,columnDelta){
-  if(!Number.isFinite(value)||!Number.isInteger(rowDelta)||!Number.isInteger(columnDelta))
-    fail("拍数のスライド値が不正です");
-  const origin=Math.round(value*4);
-  const next=Math.max(1,Math.min(256,origin+rowDelta*4+columnDelta));
-  return next/4;
+// The normal μChordbot editor stores duration as numerator/denominator,
+// where the quarter-note equivalent is numerator*4/denominator. Keep legacy
+// numeric ratio projects playable without silently rewriting their timing.
+export function quarterBeats(step){
+  return Number(step.beats)*4/Number(step.beatUnit||4);
 }
-export function beatMatrixCells(value){
-  if(!Number.isFinite(value)||value<.25||value>64)fail("拍数は0.25〜64です");
-  const quarter=Math.max(1,Math.min(256,Math.round(value*4)));
-  const firstBeat=Math.floor((quarter-1)/16)*4+1;
-  return {firstBeat,rows:Array.from({length:4},(_,row)=>
-    Array.from({length:4},(_,column)=>firstBeat+row-1+(column+1)/4))};
+export function normalizeLegacyBeat(value){
+  const beats=Number(value);
+  if(!Number.isFinite(beats)||beats<.25||beats>64)fail("拍数は0.25〜64拍です");
+  if(Number.isInteger(beats))return {beats,beatUnit:4};
+  for(const unit of [8,16,32]){
+    const numerator=beats*unit/4;
+    if(Number.isInteger(numerator)&&numerator>=1&&numerator<=64)
+      return {beats:numerator,beatUnit:unit};
+  }
+  return {beats,beatUnit:4}; // keep a pre-existing non-quarter decimal losslessly
+}
+export function parseBeatNotation(value){
+  const m=/^\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+)\s*(?:拍)?\s*$/.exec(String(value));
+  if(!m)fail("拍数は 分子/分母（例 4/4、3/8）で指定してください");
+  const beats=Number(m[1]),beatUnit=Number(m[2]);
+  if(!Number.isFinite(beats)||beats<=0||beats>64||!Number.isInteger(beatUnit)||beatUnit<1||beatUnit>32)
+    fail("拍の分子は1〜64、分母は1〜32です");
+  return {beats,beatUnit};
+}
+export function beatLabel(step){return String(step.beats)+"/"+String(step.beatUnit||4)+"拍"}
+export function beatFractionGridValue(numerator,denominator,rowDelta,columnDelta){
+  if(![numerator,denominator,rowDelta,columnDelta].every(Number.isInteger))
+    fail("分子・分母のスライド値が不正です");
+  return {beats:Math.max(1,Math.min(64,numerator+rowDelta)),
+    beatUnit:Math.max(1,Math.min(32,denominator+columnDelta))};
+}
+export function beatFractionGridCells(step){
+  const num=Math.max(1,Math.min(64,Math.ceil(step.beats)));
+  const den=Math.max(1,Math.min(32,Number(step.beatUnit||4)));
+  const firstNumerator=Math.floor((num-1)/4)*4+1;
+  const firstDenominator=Math.floor((den-1)/4)*4+1;
+  return {firstNumerator,firstDenominator,rows:Array.from({length:4},(_,r)=>
+    Array.from({length:4},(_,c)=>({
+      beats:Math.min(64,firstNumerator+r),beatUnit:Math.min(32,firstDenominator+c)
+    })))};
+}
+export function parseNamedRatio(value){
+  const m=/^\s*\[([^\]\[\r\n]+)\]\s*(.+)\s*$/.exec(String(value));
+  if(!m)fail("名前と比率は [名前]4:5:6 の形式で入力してください");
+  const name=m[1].trim(),ratios=m[2].trim();
+  if(!name||name.length>64||/[,，:：|=@\[\]\r\n]/.test(name))
+    fail("比率名は1〜64文字で区切り記号を含めないでください");
+  parseRatio(ratios);
+  return {name,ratios};
 }
 
 export function numberFromFraction(value) {
@@ -125,13 +162,14 @@ export function numberFromFraction(value) {
 }
 export function parseRatio(value,presets=[]) {
   const input=text(value);
+  const inline=/^\s*\[([^\[\]\r\n]+)\]\s*(.+)$/.exec(input);
   const preset=presets.find(p=>text(p.name).toLocaleLowerCase()===input.toLocaleLowerCase());
-  const source=preset?text(preset.ratios):input;
+  const source=inline?text(inline[2]):preset?text(preset.ratios):input;
   const parts=source.split(/[,，:：]/).map(x=>x.trim());
   if(!source||parts.some(x=>!x)||parts.length>16) fail("コード比率は1〜16音をカンマまたはコロンで区切ってください");
   const values=parts.map(numberFromFraction);
   const min=Math.min(...values);
-  return { ratios:values.map(x=>x/min).sort((a,b)=>a-b), name:preset?.name||null, bassRatio:min, source };
+  return { ratios:values.map(x=>x/min).sort((a,b)=>a-b), name:inline?text(inline[1]):preset?.name||null, bassRatio:min, source };
 }
 export function newProject() {
   return { format:FORMAT,title:"比率コード進行",settings:{bpm:110,loop:true,wave:"sine"},
@@ -185,12 +223,17 @@ export function validateProject(value) {
     if(seen.has(sectionId))fail("IDが重複しています");
     seen.add(sectionId);
     const steps=section.steps.map((step,ti)=>{
-      const expr=text(step.expr),pitch=text(step.pitch),beats=Number(step.beats);
-      if(!finite(beats)||beats<0.25||beats>64)fail("拍数は0.25〜64拍です");
+      const expr=text(step.expr),pitch=text(step.pitch);
+      const beat=step.beatUnit===undefined?
+        normalizeLegacyBeat(step.beats):
+        {beats:Number(step.beats),beatUnit:Number(step.beatUnit)};
+      const {beats,beatUnit}=beat;
+      if(!finite(beats)||beats<=0||beats>64||!Number.isInteger(beatUnit)||beatUnit<1||beatUnit>32)
+        fail("拍の分子は1〜64、分母は1〜32です");
       parseRatio(expr,presets);parsePitch(pitch);
       const id=text(step.id)||("c"+si+"_"+ti);
       if(seen.has(id))fail("IDが重複しています");seen.add(id);
-      return {id,expr,pitch,beats};
+      return {id,expr,pitch,beats,beatUnit};
     });
     sections.push({id:sectionId,name,chunkId,chunkName,repeat,steps});
   }
@@ -229,7 +272,7 @@ export function exportText(project) {
       currentChunkId=chunkId;
     }
     lines.push("","["+section.name+" x"+section.repeat+"]");
-    for(const step of section.steps)lines.push(step.expr+" | "+step.pitch+" | "+step.beats);
+    for(const step of section.steps)lines.push(step.expr+" | "+step.pitch+" | "+step.beats+"/"+(step.beatUnit||4));
   }
   return lines.join("\n")+"\n";
 }
@@ -272,7 +315,10 @@ export function importText(raw){
     if(!current){current={name:"A",chunkId,chunkName,repeat:1,steps:[]};project.sections.push(current)}
     const items=s.split("|").map(x=>x.trim());
     if(items.length>3||!items[0])fail((index+1)+"行目のコードが不正です");
-    current.steps.push({expr:items[0],pitch:items[1]||"C4",beats:items[2]===undefined?4:Number(items[2])});
+    const beat=items[2]===undefined?{beats:4,beatUnit:4}:
+      items[2].includes("/")?parseBeatNotation(items[2]):
+      {beats:Number(items[2])};
+    current.steps.push({expr:items[0],pitch:items[1]||"C4",...beat});
   });
   if(chunkCount>0&&!project.sections.some(section=>section.chunkId===chunkId))
     fail("最後のチャンクにはセクションが必要です");

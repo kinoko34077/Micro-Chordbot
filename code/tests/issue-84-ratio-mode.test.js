@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFile} from "node:fs/promises";
-import {parsePitch,parseRatio,flickPitch,flickGridPitch,flickEnharmonicCells,beatMatrixValue,beatMatrixCells,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
+import {parsePitch,parseRatio,flickPitch,flickGridPitch,flickEnharmonicCells,parseNamedRatio,parseBeatNotation,beatLabel,quarterBeats,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {AudioEngine} from "../src/audio.js";
 const hz=(s)=>{const p=parsePitch(s);return frequencyFromPitch(440,p.octave,p.microStepInOctave)};
@@ -59,25 +59,43 @@ test("enharmonic spellings share selection without treating distinct quartertone
   assert.ok(!locations("D‡4").includes("Ed4"),"D‡ and Ed differ by a full semitone");
   assert.ok(locations("C5").includes("B#4"),"enharmonic across octave boundary");
 });
-test("4x4 beat gesture uses quarter-beat columns and paged rows without .25 lock-in",()=>{
-  assert.deepEqual(beatMatrixCells(.25).rows[0],[.25,.5,.75,1]);
-  assert.deepEqual(beatMatrixCells(.25).rows[3],[3.25,3.5,3.75,4]);
-  assert.equal(beatMatrixCells(4).firstBeat,1);
-  assert.equal(beatMatrixCells(4.25).firstBeat,5);
-  assert.deepEqual(beatMatrixCells(5).rows[0],[4.25,4.5,4.75,5]);
-  assert.equal(beatMatrixCells(8.25).firstBeat,9);
-  assert.equal(beatMatrixValue(.25,0,1),.5);
-  assert.equal(beatMatrixValue(.25,0,3),1);
-  assert.equal(beatMatrixValue(.25,1,0),1.25);
-  assert.equal(beatMatrixValue(1,0,1),1.25);
-  assert.equal(beatMatrixValue(4,1,0),5);
-  assert.equal(beatMatrixValue(8,1,0),9);
-  assert.equal(beatMatrixValue(5,-1,0),4);
-  assert.equal(beatMatrixValue(.25,0,-10),.25);
-  assert.equal(beatMatrixValue(64,4,0),64);
-  assert.equal(beatMatrixValue(1.3,0,0),1.25,"non-quantized persisted values remain usable until edited");
+test("numerator/denominator gesture has independent row and column moves",()=>{
+  assert.deepEqual(beatFractionGridValue(4,4,1,0),{beats:5,beatUnit:4});
+  assert.deepEqual(beatFractionGridValue(4,4,0,1),{beats:4,beatUnit:5});
+  assert.deepEqual(beatFractionGridValue(4,4,-2,-2),{beats:2,beatUnit:2});
+  assert.deepEqual(beatFractionGridValue(64,32,12,12),{beats:64,beatUnit:32});
+  assert.deepEqual(beatFractionGridValue(1,1,-12,-12),{beats:1,beatUnit:1});
+  const grid=beatFractionGridCells({beats:4,beatUnit:4});
+  assert.equal(grid.rows.length,4);assert.equal(grid.rows[0].length,4);
+  assert.deepEqual(grid.rows[0][0],{beats:1,beatUnit:1});
+  assert.deepEqual(grid.rows[3][3],{beats:4,beatUnit:4});
+  assert.equal(beatFractionGridCells({beats:5,beatUnit:5}).firstNumerator,5);
+  assert.equal(beatFractionGridCells({beats:5,beatUnit:5}).firstDenominator,5);
+  assert.deepEqual(parseBeatNotation("3/8"),{beats:3,beatUnit:8});
+  assert.deepEqual(parseBeatNotation("4/4拍"),{beats:4,beatUnit:4});
+  assert.equal(beatLabel({beats:3,beatUnit:8}),"3/8拍");
+  assert.equal(quarterBeats({beats:3,beatUnit:8}),1.5);
+  assert.throws(()=>parseBeatNotation("0.25"));
+  assert.throws(()=>parseBeatNotation("5/0"));
 });
-
+test("old numeric beat data migrates without changing duration, incl fractional",()=>{
+  const old=newProject();
+  old.sections[0].steps[0].beats=.25;
+  old.sections[0].steps[1].beats=1.5;
+  const next=validateProject(old),steps=next.sections[0].steps;
+  assert.deepEqual([steps[0].beats,steps[0].beatUnit],[1,16]);
+  assert.deepEqual([steps[1].beats,steps[1].beatUnit],[3,8]);
+  assert.equal(quarterBeats(steps[0]),.25);
+  assert.equal(quarterBeats(steps[1]),1.5);
+  assert.deepEqual(importText(exportText(next)).sections[0].steps.map(x=>[x.beats,x.beatUnit]),
+    steps.map(x=>[x.beats,x.beatUnit]));
+});
+test("inline [name]ratio grammar and ratio aliases are equivalent",()=>{
+  assert.deepEqual(parseNamedRatio("[Bright]4:11/2:6"),{name:"Bright",ratios:"4:11/2:6"});
+  assert.deepEqual(parseRatio("[Bright]4:11/2:6").ratios,parseRatio("8:11:12").ratios);
+  assert.throws(()=>parseNamedRatio("[Bad]4:0"),Error);
+  assert.throws(()=>parseNamedRatio("Bright 4:5:6"),Error);
+});
 test("base is always minimum numeric ratio and equivalent fraction expressions match",()=>{
   assert.deepEqual(parseRatio("8:11:12").ratios,parseRatio("4:11/2:6").ratios);
   assert.deepEqual(parseRatio("6,4,5").ratios,[1,1.25,1.5]);
@@ -101,8 +119,8 @@ test("text/JSON roundtrip preserve named ratios, pitch cents, sections, beats an
   const loaded=importText(exportText(original));
   assert.deepEqual(loaded.settings,original.settings);
   assert.deepEqual(loaded.presets,original.presets);
-  assert.deepEqual(loaded.sections.map(s=>({name:s.name,repeat:s.repeat,steps:s.steps.map(c=>[c.expr,c.pitch,c.beats])})),
-    original.sections.map(s=>({name:s.name,repeat:s.repeat,steps:s.steps.map(c=>[c.expr,c.pitch,c.beats])})));
+  assert.deepEqual(loaded.sections.map(s=>({name:s.name,repeat:s.repeat,steps:s.steps.map(c=>[c.expr,c.pitch,c.beats,c.beatUnit])})),
+    original.sections.map(s=>({name:s.name,repeat:s.repeat,steps:s.steps.map(c=>[c.expr,c.pitch,c.beats,c.beatUnit])})));
   assert.equal(flatten(loaded).length,original.sections.reduce((n,s)=>n+s.repeat*s.steps.length,0));
   assert.deepEqual(validateProject(JSON.parse(JSON.stringify(original))),original);
 });
@@ -126,7 +144,9 @@ test("legacy ratio v1 files become a single safe chunk without loss of chord dat
   const restored=validateProject(legacy);
   assert.equal(chunksOf(restored).length,1);
   assert.equal(chunksOf(restored)[0].name,"チャンク 1");
-  assert.deepEqual(restored.sections.map(x=>x.steps),legacy.sections.map(x=>x.steps));
+  assert.deepEqual(restored.sections.map(x=>x.steps.map(s=>[s.expr,s.pitch,s.beats])),
+    legacy.sections.map(x=>x.steps.map(s=>[s.expr,s.pitch,s.beats])));
+  assert.ok(restored.sections.every(x=>x.steps.every(s=>s.beatUnit===4)));
   const oldText=exportText(restored).replace(/^@chunk .+\n/m,"");
   assert.equal(chunksOf(importText(oldText)).length,1,"old text without @chunk must still import");
   assert.deepEqual(importText(oldText).sections.map(x=>x.steps.map(c=>[c.expr,c.pitch,c.beats])),

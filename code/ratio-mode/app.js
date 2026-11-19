@@ -1,7 +1,7 @@
 import {AudioEngine} from "../src/audio.js";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {HistoryManager, isNativeUndoTarget} from "../src/history.js";
-import {newProject,validateProject,parsePitch,parseRatio,flickGridPitch,flickEnharmonicCells,beatMatrixValue,beatMatrixCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,importText,exportText} from "./model.mjs";
+import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,importText,exportText} from "./model.mjs";
 
 const $=id=>document.getElementById(id);
 const copy=value=>JSON.parse(JSON.stringify(value));
@@ -81,7 +81,7 @@ function restore(snapshot){
   // Undo/redo is authoritative even if a text field retains native focus.
   const current=selectedLocation().step;
   $("editExpr").value=current.expr;$("editPitch").value=current.pitch;
-  $("editBeats").value=String(current.beats);
+  $("editBeats").value=current.beats+"/"+(current.beatUnit||4);
   // History restores data, not unsolicited sound.
   if(wasPlaying)startPlayback();
 }
@@ -119,10 +119,10 @@ function makeCard(section,step,index){
   if(step.id===playingStepId)card.classList.add("playing");
   card.draggable=true;
   // Grid width is owned by the standard progression columns setting.
-  card.setAttribute("aria-label",section.name+" のコード "+(index+1)+" "+step.expr+" "+step.pitch+" "+step.beats+"拍、押すと試聴");
+  card.setAttribute("aria-label",section.name+" のコード "+step.expr+" "+step.pitch+" "+beatLabel(step)+"、押すと試聴");
   const name=document.createElement("span");name.className="cell-title";name.textContent=step.expr;
   const note=document.createElement("span");note.className="cell-note";note.textContent=step.pitch;
-  const meta=document.createElement("span");meta.className="cell-meta";meta.textContent=(index+1)+" · "+step.beats+"拍";
+  const meta=document.createElement("span");meta.className="cell-meta";meta.textContent=beatLabel(step);
   card.append(name,note,meta);
   card.addEventListener("click",()=>{setSelection(section.id,step.id);void auditionCard(step)});
   card.addEventListener("dragstart",e=>{
@@ -162,7 +162,7 @@ function makeCard(section,step,index){
 const flickPanel=$("pitchFlickPanel"),flickGrid=$("pitchFlickGrid");
 const beatsPanel=$("beatsFlickPanel"),beatsGrid=$("beatsFlickGrid");
 const accidentalSymbols=["♭","d","","‡","♯"];
-for(const note of FLICK_LETTERS)for(let acc=0;acc<5;acc++){
+for(const note of [...FLICK_LETTERS].reverse())for(let acc=0;acc<5;acc++){
   const cell=document.createElement("div");
   cell.className="pitch-flick-cell";
   cell.dataset.note=note;cell.dataset.acc=String(acc);
@@ -196,14 +196,15 @@ function placeGesturePanel(source,panel,width,height){
 }
 function activatePreciseInput(field){
   field.classList.add("exact-editing");
-  field.focus();field.select();
+  field.readOnly=false;field.focus();field.select();
 }
-// In a 7x5 sheet the rows read C, D, E, F, G, A, B from TOP to BOTTOM.
-// Moving DOWN therefore increases the diatonic row; the old sign was wrong.
+// In a 7x5 sheet the rows read B, A, G, F, E, D, C from TOP to BOTTOM.
+// Moving UP raises pitch, following the bottom-C, top-B orientation.
 let pitchGesture=null,beatGesture=null;
 function bindPitchFlick(field){
   let lastTap=null;
-  field.addEventListener("blur",()=>field.classList.remove("exact-editing"));
+  field.readOnly=true;
+  field.addEventListener("blur",()=>{field.classList.remove("exact-editing");field.readOnly=true});
   field.addEventListener("dblclick",event=>{
     event.preventDefault();lastTap=null;
     activatePreciseInput(field);
@@ -234,7 +235,7 @@ function bindPitchFlick(field){
     const dx=event.clientX-g.x,dy=event.clientY-g.y;
     if(!g.moved&&Math.hypot(dx,dy)<7)return;
     g.moved=true;lastTap=null;
-    const next=flickGridPitch(g.original,Math.round(dy/23),Math.round(dx/28));
+    const next=flickGridPitch(g.original,Math.round(-dy/23),Math.round(dx/28));
     if(next===g.candidate)return;
     g.candidate=next;field.value=next;highlightFlickPitch(next);
     const now=performance.now();
@@ -272,23 +273,25 @@ function bindPitchFlick(field){
   });
 }
 function highlightBeats(value){
-  const grid=beatMatrixCells(value);
-  if(beatsGrid.dataset.start!==String(grid.firstBeat)){
-    beatsGrid.dataset.start=String(grid.firstBeat);
-    const cells=document.createDocumentFragment();
-    grid.rows.forEach((row,i)=>row.forEach((n,j)=>{
+  const grid=beatFractionGridCells(value);
+  const key=grid.firstNumerator+":"+grid.firstDenominator;
+  if(beatsGrid.dataset.window!==key){
+    beatsGrid.dataset.window=key;
+    const fragment=document.createDocumentFragment();
+    grid.rows.forEach((row,i)=>row.forEach((part,j)=>{
       const cell=document.createElement("div");
-      cell.className="beats-flick-cell";cell.dataset.beats=String(n);
+      cell.className="beats-flick-cell";
+      cell.dataset.num=String(part.beats);cell.dataset.den=String(part.beatUnit);
       cell.dataset.row=String(i);cell.dataset.col=String(j);
-      cell.textContent=String(n);
-      cells.append(cell);
+      cell.textContent=part.beats+"/"+part.beatUnit;fragment.append(cell);
     }));
-    beatsGrid.replaceChildren(cells);
+    beatsGrid.replaceChildren(fragment);
   }
-  const snapped=beatMatrixValue(value,0,0);
   for(const cell of beatsGrid.children)
-    cell.classList.toggle("selected",Number(cell.dataset.beats)===snapped);
-  $("beatsFlickValue").textContent=String(value)+"拍";
+    cell.classList.toggle("selected",
+      Number(cell.dataset.num)===Number(value.beats)&&
+      Number(cell.dataset.den)===Number(value.beatUnit));
+  $("beatsFlickValue").textContent=beatLabel(value);
 }
 function bindBeatFlick(field){
   let lastTap=null;
@@ -298,25 +301,25 @@ function bindBeatFlick(field){
     if(event.button!==0||!event.isPrimary||beatGesture)return;
     if(field.classList.contains("exact-editing"))return;
     const now=performance.now();
-    const isDouble=event.detail>=2 || (lastTap&&now-lastTap.time<350&&
+    const isDouble=event.detail>=2||(lastTap&&now-lastTap.time<350&&
       Math.hypot(event.clientX-lastTap.x,event.clientY-lastTap.y)<18);
-    // Only a second *completed* tap enters precise text; a drag stays a drag.
     event.preventDefault();
     const {section,step}=selectedLocation();
+    const original={beats:step.beats,beatUnit:step.beatUnit||4};
     beatGesture={pointerId:event.pointerId,sectionId:section.id,stepId:step.id,
-      original:step.beats,current:step.beats,x:event.clientX,y:event.clientY,
-      moved:false,doubleCandidate:isDouble};
+      original,current:original,x:event.clientX,y:event.clientY,moved:false,doubleCandidate:isDouble};
     field.setPointerCapture(event.pointerId);
     placeGesturePanel(field,beatsPanel,270,225);
-    highlightBeats(step.beats);beatsPanel.hidden=false;
+    highlightBeats(original);beatsPanel.hidden=false;
   });
   field.addEventListener("pointermove",event=>{
     const g=beatGesture;if(!g||g.pointerId!==event.pointerId)return;
     const dx=event.clientX-g.x,dy=event.clientY-g.y;
     if(!g.moved&&Math.hypot(dx,dy)<7)return;
     g.moved=true;lastTap=null;
-    const value=beatMatrixValue(g.original,Math.round(dy/29),Math.round(dx/33));
-    g.current=value;field.value=String(value);
+    const value=beatFractionGridValue(Math.round(g.original.beats),g.original.beatUnit,
+      Math.round(dy/29),Math.round(dx/33));
+    g.current=value;field.value=value.beats+"/"+value.beatUnit;
     highlightBeats(value);
   });
   function finish(event,accept){
@@ -324,24 +327,28 @@ function bindBeatFlick(field){
     beatGesture=null;beatsPanel.hidden=true;
     if(field.hasPointerCapture(event.pointerId))field.releasePointerCapture(event.pointerId);
     const current=selectedLocation();
-    if(accept&&g.moved&&g.current!==g.original&&
+    if(accept&&g.moved&&
+       (g.current.beats!==g.original.beats||g.current.beatUnit!==g.original.beatUnit)&&
        current.section.id===g.sectionId&&current.step.id===g.stepId){
-      if(!mutate(d=>{d.sections.find(s=>s.id===g.sectionId)
-          .steps.find(x=>x.id===g.stepId).beats=g.current}))
-        field.value=String(current.step.beats);
+      if(!mutate(d=>{
+        const st=d.sections.find(s=>s.id===g.sectionId).steps.find(x=>x.id===g.stepId);
+        st.beats=g.current.beats;st.beatUnit=g.current.beatUnit;
+      }))field.value=current.step.beats+"/"+(current.step.beatUnit||4);
     }else{
-      field.value=String(current.step.beats);
+      field.value=current.step.beats+"/"+(current.step.beatUnit||4);
       if(accept&&!g.moved){
         if(g.doubleCandidate){lastTap=null;activatePreciseInput(field)}
         else lastTap={time:performance.now(),x:event.clientX,y:event.clientY};
       }
     }
   }
-  field.addEventListener("pointerup",event=>finish(event,true));
-  field.addEventListener("pointercancel",event=>finish(event,false));
+  field.addEventListener("pointerup",e=>finish(e,true));
+  field.addEventListener("pointercancel",e=>finish(e,false));
   window.addEventListener("blur",()=>{
     if(!beatGesture)return;
-    beatGesture=null;beatsPanel.hidden=true;field.value=String(selectedLocation().step.beats);
+    beatGesture=null;beatsPanel.hidden=true;
+    const current=selectedLocation().step;
+    field.value=current.beats+"/"+(current.beatUnit||4);
   });
 }
 // Repeat count has its own integral range; unlike beats it does not use a
@@ -415,7 +422,8 @@ function renderTimeline(){
     repeatLabel.append(repeat);header.append(name,repeatLabel);
     if(project.sections.length>1){
       const remove=document.createElement("button");remove.type="button";
-      remove.className="ratio-section-remove";remove.textContent="×";
+      remove.className="ratio-section-remove";
+      remove.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 4h4M6 7l1 14h10l1-14M10 11v6M14 11v6"/></svg>';
       remove.setAttribute("aria-label",section.name+" を削除");
       remove.title="セクションを削除（元に戻せます）";
       remove.addEventListener("click",()=>removeSectionById(section.id));
@@ -428,7 +436,7 @@ function renderTimeline(){
     add.title=section.name+" にコードを追加";add.setAttribute("aria-label",section.name+" にコードを追加");
     add.addEventListener("click",()=>{
       const previous=section.steps.at(-1);
-      const next={id:id("c"),expr:"4,5,6",pitch:previous?.pitch||"C4",beats:4};
+      const next={id:id("c"),expr:"4,5,6",pitch:previous?.pitch||"C4",beats:4,beatUnit:4};
       if(mutate(d=>d.sections.find(s=>s.id===section.id).steps.push(next),{structural:true})){
         setSelection(section.id,next.id);
         requestAnimationFrame(()=>document.querySelector('.progression-cell[data-cid="'+next.id+'"]')?.scrollIntoView({inline:"nearest",block:"nearest"}));
@@ -442,13 +450,53 @@ function renderTimeline(){
   updateGridColumns();
 }
 function removePreset(name){
-  if(mutate(d=>{
+  mutate(d=>{
     const p=d.presets.find(x=>x.name===name);
     if(!p)throw new Error("対象の比率が見つかりません");
     for(const section of d.sections)for(const step of section.steps)
       if(step.expr.toLocaleLowerCase()===name.toLocaleLowerCase())step.expr=p.ratios;
     d.presets=d.presets.filter(x=>x.name!==name);
-  }))renderPresetManager();
+  });
+}
+// Name and ratio are ONE inline expression. Existing preset tiles remain
+// named+ratio tiles; neither registration nor editing opens a dialog.
+let editingPresetName=null,presetEditorActive=false;
+function beginPresetEdit(name=null){
+  const source=project.presets.find(p=>p.name===name);
+  editingPresetName=source?.name||null;
+  const row=$("presetInlineRow"),field=$("presetInlineInput");
+  field.value=source?"["+source.name+"]"+source.ratios:"";
+  row.hidden=false;$("presetSearch").closest("label").hidden=true;
+  $("openPresetManager").hidden=true;presetEditorActive=true;
+  field.focus();field.select();
+}
+function finishPresetEdit(commit){
+  if(!presetEditorActive)return;
+  if(!commit){
+    presetEditorActive=false;editingPresetName=null;
+    $("presetInlineRow").hidden=true;
+    $("presetSearch").closest("label").hidden=false;
+    $("openPresetManager").hidden=false;return;
+  }
+  let entry;
+  try{entry=parseNamedRatio($("presetInlineInput").value)}
+  catch(error){notice(error.message,true);$("presetInlineInput").setAttribute("aria-invalid","true");return}
+  const previous=editingPresetName;
+  const okay=mutate(d=>{
+    if(previous){
+      const target=d.presets.find(p=>p.name===previous);
+      if(!target)throw new Error("編集対象が見つかりません");
+      target.name=entry.name;target.ratios=entry.ratios;
+      for(const section of d.sections)for(const step of section.steps)
+        if(step.expr.toLocaleLowerCase()===previous.toLocaleLowerCase())step.expr=entry.name;
+    }else d.presets.push(entry);
+  });
+  if(!okay)return;
+  presetEditorActive=false;editingPresetName=null;
+  $("presetInlineInput").removeAttribute("aria-invalid");
+  $("presetInlineRow").hidden=true;
+  $("presetSearch").closest("label").hidden=false;
+  $("openPresetManager").hidden=false;
 }
 function renderPresets(){
   const chips=$("presetChips"),scroll=chips.scrollTop,filter=$("presetSearch").value.trim().toLocaleLowerCase();
@@ -461,20 +509,28 @@ function renderPresets(){
     const ratio=document.createElement("small");ratio.textContent=preset.ratios;
     chip.append(name,ratio);chip.title="選択コードへ "+preset.name+" を設定";
     chip.addEventListener("click",()=>mutate(d=>{selectedLocation(d).step.expr=preset.name},{audition:true}));
+    chip.addEventListener("dblclick",e=>{e.preventDefault();beginPresetEdit(preset.name)});
+    const edit=document.createElement("button");edit.type="button";edit.className="preset-edit";
+    edit.textContent="✎";edit.title=preset.name+" を直接編集";
+    edit.setAttribute("aria-label",preset.name+" をその場で編集");
+    edit.addEventListener("click",()=>beginPresetEdit(preset.name));
     const del=document.createElement("button");del.type="button";del.className="preset-remove";
     del.textContent="×";del.title=preset.name+" を解除";
     del.setAttribute("aria-label",preset.name+" を登録解除");
     del.addEventListener("click",e=>{e.stopPropagation();removePreset(preset.name)});
-    item.append(chip,del);fragment.append(item);
+    item.append(chip,edit,del);fragment.append(item);
   }
   chips.replaceChildren(fragment);chips.scrollTop=scroll;
 }
-function renderPresetManager(){
-  const select=$("presetManageSelect"),value=select.value;
-  const options=[new Option("新規登録",""),...project.presets.map(p=>new Option(p.name,p.name))];
-  select.replaceChildren(...options);
-  select.value=project.presets.some(p=>p.name===value)?value:"";
-  $("addPreset").textContent=select.value?"変更を保存":"登録";
+function setRatioExpression(d,value){
+  const expression=value.trim();
+  if(expression.startsWith("[")){
+    const entry=parseNamedRatio(expression);
+    const existing=d.presets.find(p=>p.name.toLocaleLowerCase()===entry.name.toLocaleLowerCase());
+    if(existing){existing.name=entry.name;existing.ratios=entry.ratios}
+    else d.presets.push(entry);
+    selectedLocation(d).step.expr=entry.name;
+  }else selectedLocation(d).step.expr=expression;
 }
 function updateGridColumns(){
   const track=$("timeline"),width=track.clientWidth||window.innerWidth;
@@ -560,10 +616,9 @@ function renderSelection(){
   const loc=selectedLocation();if(!loc.step)return;
   selection={sectionId:loc.section.id,stepId:loc.step.id};
   const step=loc.step;
-  $("selectionLabel").textContent=String(loc.index+1);
   if(document.activeElement!==$("editExpr"))$("editExpr").value=step.expr;
   if(!pitchGesture&&document.activeElement!==$("editPitch"))$("editPitch").value=step.pitch;
-  if(!beatGesture&&document.activeElement!==$("editBeats"))$("editBeats").value=step.beats;
+  if(!beatGesture&&document.activeElement!==$("editBeats"))$("editBeats").value=step.beats+"/"+(step.beatUnit||4);
   renderSectionNav();
   for(const card of $("timeline").querySelectorAll(".progression-cell[data-cid]")){
     const active=card.dataset.sid===selection.sectionId&&card.dataset.cid===selection.stepId;
@@ -580,15 +635,23 @@ function render(){
   $("title").value=project.title;$("bpm").value=project.settings.bpm;
   $("playScope").value=playScope;
   $("loop").checked=project.settings.loop;$("wave").value=project.settings.wave;
-  renderTimeline();renderPresets();renderPresetManager();renderSelection();renderHistory();
+  renderTimeline();renderPresets();renderSelection();renderHistory();
 }
 function commitField(which,value,field){
   let success=false;
-  if(which==="expr")success=mutate(d=>selectedLocation(d).step.expr=value.trim(),{audition:true});
+  if(which==="expr")success=mutate(d=>setRatioExpression(d,value),{audition:true});
   if(which==="pitch")success=mutate(d=>selectedLocation(d).step.pitch=value.trim(),{audition:true});
-  if(which==="beats"&&field.dataset.dragging!=="true")success=mutate(d=>selectedLocation(d).step.beats=Number(value));
+  if(which==="beats"&&field.dataset.dragging!=="true")success=mutate(d=>{
+    const fraction=parseBeatNotation(value);
+    selectedLocation(d).step.beats=fraction.beats;
+    selectedLocation(d).step.beatUnit=fraction.beatUnit;
+  });
 
   field.setAttribute("aria-invalid",success?"false":"true");
+  // Once [name]ratios is committed, the actual chord expression is its
+  // registered name. Present that authoritative value immediately in place.
+  if(success&&which==="expr"&&value.trim().startsWith("["))
+    field.value=selectedLocation().step.expr;
 }
 [["editExpr","expr"],["editPitch","pitch"],["editBeats","beats"]].forEach(([key,kind])=>{
   $(key).addEventListener("change",e=>commitField(kind,e.target.value,e.target));
@@ -602,11 +665,12 @@ for(const [key,which] of [["editExpr","expr"],["editPitch","pitch"]]){
     const value=e.target.value,field=e.target,origin={...selection};
     const timer=setTimeout(()=>{
       if(field.value!==value||field.dataset.composing==="true"||selection.stepId!==origin.stepId||selection.sectionId!==origin.sectionId)return;
+      if(which==="expr"&&value.trim().startsWith("["))return; // named registration is atomic on Enter/blur
       const draft=copy(project);
-      if(which==="expr")selectedLocation(draft).step.expr=value.trim();
+      if(which==="expr")setRatioExpression(draft,value);
       else selectedLocation(draft).step.pitch=value.trim();
       try{validateProject(draft)}catch(error){return}
-      mutate(d=>{selectedLocation(d).step[which==="expr"?"expr":"pitch"]=value.trim()},{audition:true});
+      mutate(d=>which==="expr"?setRatioExpression(d,value):selectedLocation(d).step.pitch=value.trim(),{audition:true});
     },260);
     typingTimers.set(key,timer);
   });
@@ -619,8 +683,19 @@ for(const [key,which] of [["editExpr","expr"],["editPitch","pitch"]]){
   });
 }
 $("presetSearch").addEventListener("input",()=>{$("presetChips").scrollTop=0;renderPresets()});
-$("openPresetManager").addEventListener("click",()=>{$("presetManager").showModal();$("presetName").focus()});
-$("closePresetManager").addEventListener("click",()=>$("presetManager").close());
+$("openPresetManager").addEventListener("click",()=>beginPresetEdit());
+// Pressing Cancel must win over the field's on-blur auto-commit.
+$("presetInlineCancel").addEventListener("pointerdown",e=>e.preventDefault());
+$("presetInlineCancel").addEventListener("click",()=>finishPresetEdit(false));
+$("presetInlineInput").addEventListener("keydown",e=>{
+  if(e.isComposing)return;
+  if(e.key==="Enter"){e.preventDefault();finishPresetEdit(true)}
+  if(e.key==="Escape"){e.preventDefault();finishPresetEdit(false)}
+});
+$("presetInlineInput").addEventListener("blur",()=>{if(presetEditorActive)finishPresetEdit(true)});
+$("editExpr").addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&!e.isComposing){e.preventDefault();e.target.blur()}
+});
 $("renameChunk").addEventListener("click",()=>chunkRenameActive?finishChunkRename(true):beginChunkRename());
 $("chunkInlineName").addEventListener("blur",()=>finishChunkRename(true));
 $("chunkInlineName").addEventListener("keydown",e=>{
@@ -656,7 +731,7 @@ $("undo").addEventListener("click",undo);
 $("redo").addEventListener("click",redo);
 const makeSection=(chunkId,chunkName,n)=>({
   id:id("s"),chunkId,chunkName,name:"Section "+n,repeat:1,
-  steps:[{id:id("c"),expr:"4,5,6",pitch:"C4",beats:4}]
+  steps:[{id:id("c"),expr:"4,5,6",pitch:"C4",beats:4,beatUnit:4}]
 });
 $("newSection").addEventListener("click",()=>{
   const current=selectedLocation().section;
@@ -691,7 +766,7 @@ $("removeChunk").addEventListener("click",()=>{
 function insertChord(duplicate){
   const {section,step,index}=selectedLocation();
   const next=duplicate?{...copy(step),id:id("c")}:
-    {id:id("c"),expr:"4,5,6",pitch:step.pitch,beats:4};
+    {id:id("c"),expr:"4,5,6",pitch:step.pitch,beats:4,beatUnit:4};
   if(mutate(d=>d.sections.find(s=>s.id===section.id).steps.splice(index+1,0,next),{structural:true}))
     setSelection(section.id,next.id);
 }
@@ -704,35 +779,12 @@ function swap(delta){
 }
 $("moveLeft").addEventListener("click",()=>swap(-1));
 $("moveRight").addEventListener("click",()=>swap(1));
-$("presetManageSelect").addEventListener("change",e=>{
-  const selected=project.presets.find(p=>p.name===e.target.value);
-  $("presetName").value=selected?.name||"";
-  $("presetRatio").value=selected?.ratios||"";
-  $("addPreset").textContent=selected?"変更を保存":"登録";
-});
-
 $("gridColumns").addEventListener("change",e=>{
   const v=Number(e.target.value);
   if(!Number.isInteger(v)||v<1||v>12){e.target.value=String(columns);return}
   columns=v;saveSelection();updateGridColumns();
 });
 window.addEventListener("resize",updateGridColumns);
-$("addPreset").addEventListener("click",()=>{
-  const previous=$("presetManageSelect").value;
-  const name=$("presetName").value.trim(),ratios=$("presetRatio").value.trim();
-  if(mutate(d=>{
-    if(!previous){d.presets.push({name,ratios});return}
-    const preset=d.presets.find(p=>p.name===previous);
-    if(!preset)throw new Error("編集対象が見つかりません");
-    preset.name=name;preset.ratios=ratios;
-    for(const section of d.sections)for(const step of section.steps){
-      if(step.expr.toLocaleLowerCase()===previous.toLocaleLowerCase())step.expr=name;
-    }
-  })){
-    $("presetManageSelect").value="";$("presetName").value="";$("presetRatio").value="";
-    renderPresetManager();
-  }
-});
 function stopPlayback(){
   clearTimeout(tapTimer);tapVersion++;tapVoiceIds=[];
   runId++;playing=false;playingStepId=null;voiceCount=0;clearTimeout(timer);timer=null;
@@ -782,7 +834,7 @@ function startPlayback(sectionId=null,chunkId=null){
       const ok=await startVoices(step,token);
       if(!ok)return;
       highlightStep(step);
-      const duration=step.beats*60000/project.settings.bpm;
+      const duration=quarterBeats(step)*60000/project.settings.bpm;
       timer=setTimeout(advance,duration);
     }catch(error){stopPlayback();notice(error.message||"再生できません",true)}
   };
@@ -817,7 +869,7 @@ async function auditionCard(step){
       if(version!==tapVersion)return;
       for(const id of ownIds)engine.stopVoice(id);
       tapVoiceIds=[];
-    },Math.max(320,Math.min(850,step.beats*60000/project.settings.bpm)));
+    },Math.max(320,Math.min(850,quarterBeats(step)*60000/project.settings.bpm)));
   }catch(error){
     for(const id of ownIds)engine.stopVoice(id);
     notice("コードの試聴に失敗しました: "+error.message,true);
@@ -830,7 +882,7 @@ async function preview(){
   try{
     const ok=await startVoices(step,token);if(!ok)return;
     highlightStep(step);
-    timer=setTimeout(()=>{if(token===runId)stopPlayback()},Math.min(1800,step.beats*60000/project.settings.bpm));
+    timer=setTimeout(()=>{if(token===runId)stopPlayback()},Math.min(1800,quarterBeats(step)*60000/project.settings.bpm));
   }catch(error){stopPlayback();notice(error.message||"試聴できません",true)}
 }
 function playSelectedScope(){
