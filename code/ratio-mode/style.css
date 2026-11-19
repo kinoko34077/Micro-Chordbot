@@ -1656,3 +1656,12 @@ dialog::backdrop{background:#0009}
    a horizontal or nested document scroll bar. */
 .ratio-app .beats-flick-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 .ratio-app .beats-flick-cell{font-size:12px;white-space:nowrap}
+
+/* Editing the preset must not create a second row or consume card height. */
+.ratio-app .preset-item>.preset-edit{
+  position:absolute;z-index:3;right:3px;bottom:2px;
+  width:22px;min-width:22px;height:20px;min-height:20px;
+  background:transparent;border:0;color:#a9bdce;font-size:12px;padding:0
+}
+.ratio-app .preset-item>.preset-edit:hover,
+.ratio-app .preset-item>.preset-edit:focus-visible{color:#fff;background:#31536a}
