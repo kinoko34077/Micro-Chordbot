@@ -1615,3 +1615,44 @@ dialog::backdrop{background:#0009}
   .ratio-app .progression-root-row{width:100%!important}
   .ratio-app .beats-flick-cell{font-size:13px}
 }
+
+/* #84 latest UX: the value itself is editable, not a settings dialog. */
+.ratio-app .ratio-preset-inline{
+  display:flex;align-items:center;gap:5px;min-width:0;
+  padding:2px 0;margin:2px 0 5px;
+}
+.ratio-app .ratio-preset-inline[hidden]{display:none!important}
+.ratio-app #presetInlineInput{
+  flex:1 1 auto;min-width:0;width:100%;
+  border:0;border-bottom:1px solid var(--muted,#7892a3);
+  border-radius:0;background:transparent;color:var(--ink);
+  font:inherit;font-size:15px;outline-offset:2px;padding:4px 2px;
+}
+.ratio-app #presetInlineCancel{
+  flex:0 0 auto;min-height:26px;padding:2px 5px;
+  border:0;border-bottom:1px solid var(--muted,#7892a3);
+  background:transparent;color:var(--muted);font-size:11px;
+}
+.ratio-app .preset-edit{
+  flex:0 0 auto;width:24px;min-width:24px;height:26px;min-height:26px;
+  display:flex;align-items:center;justify-content:center;
+  background:transparent;color:var(--muted);border:0;
+  padding:0 2px;font-size:13px
+}
+.ratio-app .preset-edit:focus-visible{outline:2px solid var(--accent)}
+.ratio-app .ratio-section-remove{
+  width:22px!important;min-width:22px!important;
+  height:25px!important;min-height:25px!important;
+  padding:2px!important;
+  font-size:0!important;color:var(--muted)
+}
+.ratio-app .ratio-section-remove svg{display:block;width:14px;height:14px}
+.ratio-app .ratio-section-repeat input{width:3ch!important}
+.ratio-app .progression-root-row #editBeats{width:min(100%,9ch)!important}
+.ratio-app #editPitch[readonly]{cursor:ns-resize;caret-color:transparent}
+.ratio-app #editPitch.exact-editing{caret-color:auto}
+/* The numerator increases down the matrix, denominator rightward.
+   Rows/columns are virtual pages, so old two-digit values never create
+   a horizontal or nested document scroll bar. */
+.ratio-app .beats-flick-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.ratio-app .beats-flick-cell{font-size:12px;white-space:nowrap}
