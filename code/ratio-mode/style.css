@@ -1547,3 +1547,18 @@ dialog::backdrop{background:#0009}
   .ratio-app .pitch-flick-panel{padding:4px 5px}
   .ratio-app .pitch-flick-cell{font-size:12px}
 }
+
+/* The selected chunk and ordinary settings values are values, not buttons:
+   use the same understated underline as the pitch/beat/section editors. */
+.ratio-app #chunkJump,
+.ratio-app #playScope,
+.ratio-app #gridColumns,
+.ratio-app #bpm,
+.ratio-app #wave,
+.ratio-app #presetSearch{
+  border:0!important;
+  border-bottom:1px solid var(--muted,#7892a3)!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  background:transparent!important;
+}

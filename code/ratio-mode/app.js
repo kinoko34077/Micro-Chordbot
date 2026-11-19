@@ -197,7 +197,7 @@ function bindPitchFlick(field){
     resumeAudioContext({gesture:true});
     pitchGesture={pointerId:event.pointerId,sectionId:section.id,stepId:step.id,
       original:step.pitch,candidate:step.pitch,acc:FLICK_ACCIDENTALS.indexOf(parsed[2]),
-      x:event.clientX,y:event.clientY,moved:false,audioAt:0};
+      x:event.clientX,y:event.clientY,moved:false,audioAt:0,startedAt:performance.now()};
     field.setPointerCapture(event.pointerId);
     placeFlickPanel(field);
     highlightFlickPitch(parsePitch(step.pitch).label);flickPanel.hidden=false;
@@ -232,7 +232,14 @@ function bindPitchFlick(field){
       // Entire gesture is one state mutation and one Undo record.
       if(!mutate(d=>{d.sections.find(x=>x.id===g.sectionId).steps.find(x=>x.id===g.stepId).pitch=g.candidate}))
         field.value=current.step.pitch;
-    }else field.value=current.step.pitch;
+    }else{
+      field.value=current.step.pitch;
+      // Rare precision edits (+cent) remain accessible without reinstating
+      // any pitch-grid tap selection. Holding then releasing enters text mode.
+      if(accept&&!g.moved&&performance.now()-g.startedAt>=550){
+        field.focus();field.select();
+      }
+    }
   }
   field.addEventListener("pointerup",event=>finish(event,true));
   field.addEventListener("pointercancel",event=>finish(event,false));

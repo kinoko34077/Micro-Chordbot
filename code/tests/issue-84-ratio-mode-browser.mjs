@@ -180,6 +180,8 @@ try{
     await page.mouse.move(fx,fy);await page.mouse.down();
     assert.ok(await page.locator("#pitchFlickPanel").isVisible(),"panel not shown by initial gesture");
     assert.equal(await page.locator("#pitchFlickGrid .selected").count(),1);
+    if(width===320||width===390)
+      await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-flick-open-"+width+".png"});
     await page.mouse.up();
     assert.equal(await page.locator("#editPitch").inputValue(),"B4","tap selected pitch despite flick-only requirement");
     await page.mouse.move(fx,fy);await page.mouse.down();
@@ -207,6 +209,22 @@ try{
     assert.equal(await page.locator("#editBeats").inputValue(),"4","one Undo must revert numeric scrub");
     await page.locator("#redo").click();
     assert.equal(await page.locator("#editBeats").inputValue(),"6","one Redo must replay numeric scrub");
+    if(width===390){
+      // Precision cents are still editable after a deliberate hold, without
+      // turning a bare tap into an alternative pitch-grid selection.
+      const precise=await page.locator("#editPitch").boundingBox();
+      const px=precise.x+precise.width/2,py=precise.y+precise.height/2;
+      await page.mouse.move(px,py);await page.mouse.down();
+      await page.waitForTimeout(580);await page.mouse.up();
+      assert.ok(await page.locator("#editPitch").evaluate(el=>el===document.activeElement),
+        "long-hold did not expose precise keyboard pitch input");
+      await page.locator("#editPitch").fill("A#5 +50￠");
+      await page.locator("#editPitch").dispatchEvent("change");
+      assert.equal(await page.locator("#editPitch").inputValue(),"A#5 +50￠");
+      await page.locator("#editPitch").fill("C‡5");
+      await page.locator("#editPitch").dispatchEvent("change");
+      await page.locator("#stop").click();
+    }
     await page.locator("#editPitch").fill("D‡5");
     await page.locator("#editPitch").dispatchEvent("change");
     assert.equal(await cells.first().locator(".cell-note").innerText(),"D‡5");
