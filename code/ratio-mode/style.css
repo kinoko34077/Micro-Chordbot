@@ -1409,3 +1409,20 @@ dialog::backdrop{background:#0009}
     gap:4px
   }
 }
+
+/* Playback is one action plus a remembered range, not a row of parallel buttons.
+   In a project with only one chunk there is nothing to delete: hide the dead
+   action instead of permanently reserving scarce mobile toolbar space. */
+.ratio-app #removeChunk:disabled{display:none}
+.ratio-app .ratio-play-scope{
+  display:inline-flex;align-items:center;gap:4px;white-space:nowrap;
+  font-size:12px;color:var(--muted)
+}
+.ratio-app .ratio-play-scope #playScope{
+  width:clamp(6.25rem,10vw,7.8rem);min-height:34px;
+  padding:3px 4px;font-size:12px
+}
+@media(max-width:640px){
+  .ratio-app .ratio-play-scope{flex:0 1 auto;min-width:0}
+  .ratio-app .ratio-play-scope #playScope{width:7rem;max-width:100%}
+}
