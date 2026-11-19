@@ -273,23 +273,25 @@ function bindPitchFlick(field){
   });
 }
 function highlightBeats(value){
-  const grid=beatMatrixCells(value);
-  if(beatsGrid.dataset.start!==String(grid.firstBeat)){
-    beatsGrid.dataset.start=String(grid.firstBeat);
-    const cells=document.createDocumentFragment();
-    grid.rows.forEach((row,i)=>row.forEach((n,j)=>{
+  const grid=beatFractionGridCells(value);
+  const key=grid.firstNumerator+":"+grid.firstDenominator;
+  if(beatsGrid.dataset.window!==key){
+    beatsGrid.dataset.window=key;
+    const fragment=document.createDocumentFragment();
+    grid.rows.forEach((row,i)=>row.forEach((part,j)=>{
       const cell=document.createElement("div");
-      cell.className="beats-flick-cell";cell.dataset.beats=String(n);
+      cell.className="beats-flick-cell";
+      cell.dataset.num=String(part.beats);cell.dataset.den=String(part.beatUnit);
       cell.dataset.row=String(i);cell.dataset.col=String(j);
-      cell.textContent=String(n);
-      cells.append(cell);
+      cell.textContent=part.beats+"/"+part.beatUnit;fragment.append(cell);
     }));
-    beatsGrid.replaceChildren(cells);
+    beatsGrid.replaceChildren(fragment);
   }
-  const snapped=beatMatrixValue(value,0,0);
   for(const cell of beatsGrid.children)
-    cell.classList.toggle("selected",Number(cell.dataset.beats)===snapped);
-  $("beatsFlickValue").textContent=String(value)+"拍";
+    cell.classList.toggle("selected",
+      Number(cell.dataset.num)===Number(value.beats)&&
+      Number(cell.dataset.den)===Number(value.beatUnit));
+  $("beatsFlickValue").textContent=beatLabel(value);
 }
 function bindBeatFlick(field){
   let lastTap=null;
@@ -299,25 +301,25 @@ function bindBeatFlick(field){
     if(event.button!==0||!event.isPrimary||beatGesture)return;
     if(field.classList.contains("exact-editing"))return;
     const now=performance.now();
-    const isDouble=event.detail>=2 || (lastTap&&now-lastTap.time<350&&
+    const isDouble=event.detail>=2||(lastTap&&now-lastTap.time<350&&
       Math.hypot(event.clientX-lastTap.x,event.clientY-lastTap.y)<18);
-    // Only a second *completed* tap enters precise text; a drag stays a drag.
     event.preventDefault();
     const {section,step}=selectedLocation();
+    const original={beats:step.beats,beatUnit:step.beatUnit||4};
     beatGesture={pointerId:event.pointerId,sectionId:section.id,stepId:step.id,
-      original:step.beats,current:step.beats,x:event.clientX,y:event.clientY,
-      moved:false,doubleCandidate:isDouble};
+      original,current:original,x:event.clientX,y:event.clientY,moved:false,doubleCandidate:isDouble};
     field.setPointerCapture(event.pointerId);
     placeGesturePanel(field,beatsPanel,270,225);
-    highlightBeats(step.beats);beatsPanel.hidden=false;
+    highlightBeats(original);beatsPanel.hidden=false;
   });
   field.addEventListener("pointermove",event=>{
     const g=beatGesture;if(!g||g.pointerId!==event.pointerId)return;
     const dx=event.clientX-g.x,dy=event.clientY-g.y;
     if(!g.moved&&Math.hypot(dx,dy)<7)return;
     g.moved=true;lastTap=null;
-    const value=beatMatrixValue(g.original,Math.round(dy/29),Math.round(dx/33));
-    g.current=value;field.value=String(value);
+    const value=beatFractionGridValue(Math.round(g.original.beats),g.original.beatUnit,
+      Math.round(dy/29),Math.round(dx/33));
+    g.current=value;field.value=value.beats+"/"+value.beatUnit;
     highlightBeats(value);
   });
   function finish(event,accept){
@@ -325,24 +327,28 @@ function bindBeatFlick(field){
     beatGesture=null;beatsPanel.hidden=true;
     if(field.hasPointerCapture(event.pointerId))field.releasePointerCapture(event.pointerId);
     const current=selectedLocation();
-    if(accept&&g.moved&&g.current!==g.original&&
+    if(accept&&g.moved&&
+       (g.current.beats!==g.original.beats||g.current.beatUnit!==g.original.beatUnit)&&
        current.section.id===g.sectionId&&current.step.id===g.stepId){
-      if(!mutate(d=>{d.sections.find(s=>s.id===g.sectionId)
-          .steps.find(x=>x.id===g.stepId).beats=g.current}))
-        field.value=String(current.step.beats);
+      if(!mutate(d=>{
+        const st=d.sections.find(s=>s.id===g.sectionId).steps.find(x=>x.id===g.stepId);
+        st.beats=g.current.beats;st.beatUnit=g.current.beatUnit;
+      }))field.value=current.step.beats+"/"+(current.step.beatUnit||4);
     }else{
-      field.value=String(current.step.beats);
+      field.value=current.step.beats+"/"+(current.step.beatUnit||4);
       if(accept&&!g.moved){
         if(g.doubleCandidate){lastTap=null;activatePreciseInput(field)}
         else lastTap={time:performance.now(),x:event.clientX,y:event.clientY};
       }
     }
   }
-  field.addEventListener("pointerup",event=>finish(event,true));
-  field.addEventListener("pointercancel",event=>finish(event,false));
+  field.addEventListener("pointerup",e=>finish(e,true));
+  field.addEventListener("pointercancel",e=>finish(e,false));
   window.addEventListener("blur",()=>{
     if(!beatGesture)return;
-    beatGesture=null;beatsPanel.hidden=true;field.value=String(selectedLocation().step.beats);
+    beatGesture=null;beatsPanel.hidden=true;
+    const current=selectedLocation().step;
+    field.value=current.beats+"/"+(current.beatUnit||4);
   });
 }
 // Repeat count has its own integral range; unlike beats it does not use a
