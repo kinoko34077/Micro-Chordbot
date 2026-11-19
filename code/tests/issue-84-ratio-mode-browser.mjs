@@ -375,4 +375,31 @@ try{
     console.log(JSON.stringify({width,height,layout,started,errors}));
     await page.close();
   }
+  // Actual Chromium touch pointer path, not only mouse emulation: a finger
+  // starts on the pitch value and stays down across an octave boundary.
+  const touchContext=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
+  const touchPage=await touchContext.newPage();
+  try{
+    await touchPage.goto("http://127.0.0.1:4173/ratio-mode/",{waitUntil:"domcontentloaded"});
+    await touchPage.locator("#editPitch").fill("B4");
+    await touchPage.locator("#editPitch").dispatchEvent("change");
+    const box=await touchPage.locator("#editPitch").boundingBox();
+    const x=box.x+box.width/2,y=box.y+box.height/2;
+    const cdp=await touchContext.newCDPSession(touchPage);
+    await cdp.send("Emulation.setTouchEmulationEnabled",{enabled:true,maxTouchPoints:1});
+    const point=(px,py)=>[{x:px,y:py,id:1}];
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:point(x,y)});
+    assert.ok(await touchPage.locator("#pitchFlickPanel").isVisible(),"touchstart did not open grid");
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
+    assert.equal(await touchPage.locator("#editPitch").inputValue(),"B4","touch tap should not select");
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:point(x,y)});
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:point(x,y-26)});
+    assert.equal(await touchPage.locator("#editPitch").inputValue(),"C5","touch B4 to C5 wrap failed");
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:point(x,y)});
+    assert.equal(await touchPage.locator("#editPitch").inputValue(),"B4","touch C5 to B4 wrap failed");
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
+    assert.equal(await touchPage.locator("#editPitch").inputValue(),"B4");
+    assert.equal(await touchPage.locator("#pitchFlickPanel").isVisible(),false);
+    console.log("touch pointer flick B4→C5→B4 PASS");
+  }finally{await touchContext.close()}
 }finally{await browser.close()}
