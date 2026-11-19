@@ -41,6 +41,11 @@ try{
         boxes:boxes.map(b=>({x:b.x,y:b.y,right:b.right,bottom:b.bottom})),
         effective:Number(track.dataset.columns),requested:Number(document.querySelector("#gridColumns").value),
         editorTop:editor.top,editorBottom:editor.bottom,timelineBottom:trackBox.bottom,
+        toolbarHeight:document.querySelector(".progression-toolbar").getBoundingClientRect().height,
+        presetBottom:document.querySelector("#presetChips").getBoundingClientRect().bottom,
+        editorScrollHeight:document.querySelector(".progression-editor").scrollHeight,
+        editorClientHeight:document.querySelector(".progression-editor").clientHeight,
+        timelineHeight:trackBox.height,
         viewport:innerHeight,docWidth:document.documentElement.scrollWidth,windowWidth:innerWidth,
         scrollWidth:track.scrollWidth,clientWidth:track.clientWidth,
         controls:visibleControls
@@ -61,6 +66,10 @@ try{
     assert.ok(layout.scrollWidth<=layout.clientWidth+2,"infinite horizontal track still present "+JSON.stringify(layout));
     assert.ok(layout.editorBottom<=layout.viewport+2,"editor overflows visible viewport "+JSON.stringify(layout));
     assert.ok(layout.editorTop>=layout.timelineBottom-2,"timeline obscured by editor "+JSON.stringify(layout));
+    if(width<=640)assert.ok(layout.toolbarHeight<=60,"mobile transport wastefully spans multiple rows "+JSON.stringify(layout));
+    if(width>=1000)assert.ok(layout.timelineHeight<=285,"empty desktop timeline over-expands "+JSON.stringify(layout));
+    if(width===390||width===430)
+      assert.ok(layout.presetBottom<=layout.editorBottom+2,"normal phone preset choices hidden by editor scroller "+JSON.stringify(layout));
     for(const rect of layout.controls)assert.ok(rect.x>=-2&&rect.right<=width+2,"clipped core control "+JSON.stringify(rect)+" viewport "+width);
     const actionGeometry=await page.locator(".progression-cell-shell").first().evaluate(el=>{
       const cell=el.querySelector(".progression-cell").getBoundingClientRect();
