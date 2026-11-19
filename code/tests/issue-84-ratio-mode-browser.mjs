@@ -87,6 +87,9 @@ try{
       actionGeometry.removeTop>=actionGeometry.cellTop &&
       actionGeometry.removeBottom<actionGeometry.cellTop+36,"code delete must overlay upper right, not add width "+JSON.stringify(actionGeometry));
     assert.equal(await page.locator(".preset-remove").count(),4,"preset delete should be in each card corner");
+    const deleteSurface=await page.locator(".preset-item>.preset-remove").first()
+      .evaluate(el=>getComputedStyle(el).backgroundColor);
+    assert.equal(deleteSurface,"rgba(0, 0, 0, 0)","in-card X must not look like a separate filled button");
     const presetGeometry=await page.locator(".preset-item").first().evaluate(el=>{
       const a=el.querySelector(".ratio-preset").getBoundingClientRect(),b=el.querySelector(".preset-remove").getBoundingClientRect();
       return {cardRight:a.right,delRight:b.right,cardTop:a.top,delTop:b.top};
