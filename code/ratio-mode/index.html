@@ -79,29 +79,11 @@
                 <input id="editExpr" type="text" spellcheck="false" autocomplete="off" placeholder="例 4:11/2:6" title="4:11/2:6 と 8:11:12 は同じ比率。/ は各成分内の分数">
               </label>
               <label class="pitch-field">最低音
-                <input id="editPitch" type="text" spellcheck="false" autocomplete="off" placeholder="C4" title="D‡5 や A#5 +50￠にも対応">
+                <input id="editPitch" type="text" spellcheck="false" autocomplete="off" placeholder="C4" title="上下左右へスライドして音名・変化記号・オクターブを変更。キーボードでは直接入力可能。" aria-label="最低音、上下左右スライドで7×5四分音表を操作">
               </label>
               <label class="beats-field">拍
-                <input id="editBeats" type="number" min=".25" max="64" step=".25">
+                <input id="editBeats" type="text" inputmode="decimal" autocomplete="off" title="上下スライドで拍数変更。タップで小数を直接入力。" aria-label="拍数、上下スライドで変更">
               </label>
-            </div>
-            <div class="ratio-quick-row">
-              <div id="progRootLetterButtons" class="quick-grid root-grid">
-            <button type="button" data-note="C">C</button>
-            <button type="button" data-note="D">D</button>
-            <button type="button" data-note="E">E</button>
-            <button type="button" data-note="F">F</button>
-            <button type="button" data-note="G">G</button>
-            <button type="button" data-note="A">A</button>
-            <button type="button" data-note="B">B</button>
-          </div>
-              <div class="quick-row ratio-accidentals" aria-label="臨時記号">
-                <button type="button" data-acc="b">♭</button>
-                <button type="button" data-acc="d">d</button>
-                <button type="button" data-acc="">♮</button>
-                <button type="button" data-acc="‡">‡</button>
-                <button type="button" data-acc="#">♯</button>
-              </div>
             </div>
             <div class="progression-choice-tools">
               <label class="progression-filter-label"><span aria-hidden="true">⌕</span>
@@ -124,6 +106,11 @@
         </section>
       </section>
     </main>
+    <div id="pitchFlickPanel" class="pitch-flick-panel" hidden aria-hidden="true">
+      <div id="pitchFlickValue" class="pitch-flick-value"></div>
+      <div id="pitchFlickGrid" class="pitch-flick-grid" aria-hidden="true"></div>
+      <div class="pitch-flick-caption">↑ 音高　左右 変化記号　離して確定</div>
+    </div>
   </div>
   <dialog id="ioDialog" aria-label="コード進行の入出力">
     <div class="dialog-header"><strong>コード進行の入出力</strong><button type="button" id="ioClose" aria-label="閉じる">×</button></div>
