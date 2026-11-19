@@ -96,6 +96,25 @@ export function flickEnharmonicCells(value){
   return matches;
 }
 
+// A 4x4 beat sheet displays four consecutive numbered beats. Each
+// row has four quarter-beat positions ending on that whole beat:
+//   0.25 0.50 0.75 1.00
+//   1.25 1.50 1.75 2.00  ... 3.25–4, then pages 5–8 etc.
+export function beatMatrixValue(value,rowDelta,columnDelta){
+  if(!Number.isFinite(value)||!Number.isInteger(rowDelta)||!Number.isInteger(columnDelta))
+    fail("拍数のスライド値が不正です");
+  const origin=Math.round(value*4);
+  const next=Math.max(1,Math.min(256,origin+rowDelta*4+columnDelta));
+  return next/4;
+}
+export function beatMatrixCells(value){
+  if(!Number.isFinite(value)||value<.25||value>64)fail("拍数は0.25〜64です");
+  const quarter=Math.max(1,Math.min(256,Math.round(value*4)));
+  const firstBeat=Math.floor((quarter-1)/16)*4+1;
+  return {firstBeat,rows:Array.from({length:4},(_,row)=>
+    Array.from({length:4},(_,column)=>firstBeat+row-1+(column+1)/4))};
+}
+
 export function numberFromFraction(value) {
   const s=text(value);
   if (!/^(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:\s*\/\s*(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)?$/i.test(s)) fail("比率「"+s+"」は正の整数・小数・分数で入力してください");
