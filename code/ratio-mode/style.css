@@ -1287,3 +1287,142 @@ dialog::backdrop{background:#0009}
 @media(max-width:640px){
   .ratio-app .progression-editor{flex:0 0 auto;max-height:none}
 }
+
+/* #84 UX correction: size by task, not by leftover whitespace. These rules
+   supersede the old viewport-based field and transport flex distribution. */
+.ratio-app [hidden]{display:none!important}
+.ratio-app .progression-section-nav{
+  display:flex;align-items:center;flex:0 0 auto;width:auto;max-width:none;
+  min-width:0;gap:3px
+}
+.ratio-app .progression-section-nav .ratio-chunk-jump{
+  display:flex;flex:0 1 auto;width:auto;min-width:0;max-width:none;
+  align-items:center;gap:0;font-size:0
+}
+.ratio-app .progression-section-nav .ratio-chunk-jump>span{display:none}
+.ratio-app .progression-section-nav .ratio-chunk-jump select,
+.ratio-app .progression-section-nav .ratio-chunk-jump input{
+  display:block;flex:0 1 auto;
+  width:clamp(5.4rem,16vw,10rem);min-width:0;max-width:10rem;
+  min-height:34px;height:34px;padding:2px 5px;font-size:13px
+}
+.ratio-app .ratio-inline-action{
+  display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;
+  width:30px;min-width:30px;height:34px;min-height:34px;
+  padding:2px;font-size:15px
+}
+.ratio-app .ratio-inline-action.active{border-color:var(--accent);color:var(--accent)}
+.ratio-app .progression-transport{
+  display:flex;align-items:center;flex:0 0 auto;width:auto;min-width:0;
+  justify-content:flex-end;margin-left:auto;gap:3px
+}
+.ratio-app .progression-transport #play{
+  flex:0 0 auto;width:max-content;min-width:0;max-width:none;
+  padding:4px 7px;min-height:34px;font-size:12px;white-space:nowrap
+}
+.ratio-app .progression-transport #play.playing{border-color:var(--accent)}
+.ratio-app .progression-transport #stop{
+  flex:0 0 auto;width:32px;min-width:32px;min-height:34px;height:34px;padding:3px
+}
+.ratio-app .progression-transport #progMenuToggleBtn{
+  flex:0 0 auto;width:max-content;min-width:39px;min-height:34px;height:34px;
+  padding:4px;font-size:11px
+}
+.ratio-app .progression-root-row{
+  width:min(100%,35rem);max-width:100%;min-width:0;
+  grid-template-columns:minmax(0,1fr) minmax(9ch,12ch) minmax(6.5ch,7.5ch);
+  gap:5px
+}
+.ratio-app .progression-root-row>.ratio-field,
+.ratio-app .progression-root-row>.pitch-field,
+.ratio-app .progression-root-row>.beats-field{
+  grid-row:auto;grid-column:auto;min-width:0;width:100%
+}
+.ratio-app .progression-root-row input{width:100%;min-width:0;font-size:16px}
+.ratio-app .ratio-section-header{
+  display:flex;align-items:center;gap:5px;min-height:30px;max-width:100%;
+  margin:0 0 4px;min-width:0
+}
+.ratio-app .ratio-section-name,
+.ratio-app .ratio-section-name-input{
+  display:inline-flex;align-items:center;min-height:29px;height:29px;
+  max-width:min(65%,22rem);min-width:3.5ch;width:fit-content;
+  border:1px solid #2d545c;border-radius:6px;
+  background:#172f3b;color:#aee6dc;
+  font-size:12px;font-weight:600;letter-spacing:0;text-align:left;
+  padding:3px 8px;margin:0
+}
+.ratio-app .ratio-section-name-input{
+  display:block;width:clamp(8ch,35vw,20rem);
+  font-size:16px;color:var(--ink)
+}
+.ratio-app .ratio-section-repeat{
+  display:inline-flex;align-items:center;flex:0 0 auto;gap:2px;
+  white-space:nowrap;color:var(--muted);font-size:12px
+}
+.ratio-app .ratio-section-repeat input{
+  display:inline-block;width:5.2ch;min-width:0;
+  height:29px;min-height:29px;font-size:14px;
+  text-align:center;padding:2px 1px
+}
+.ratio-app .ratio-section-remove{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:30px;min-width:30px;height:30px;min-height:30px;
+  padding:2px;background:transparent;border-color:transparent;
+  color:var(--muted);font-size:18px
+}
+.ratio-app .ratio-section-remove:hover,
+.ratio-app .ratio-section-remove:focus-visible{color:var(--danger);border-color:#703c4a}
+.ratio-app #selectionLabel{font-size:12px}
+@media(max-width:640px){
+  .ratio-app .progression-toolbar{
+    display:flex;align-items:center;justify-content:space-between;
+    flex-wrap:nowrap;gap:3px;padding:4px
+  }
+  .ratio-app .progression-section-nav{
+    flex:0 1 auto;max-width:none;width:auto;min-width:0;gap:2px
+  }
+  .ratio-app .progression-section-nav .ratio-chunk-jump{
+    flex:0 1 auto;max-width:none;min-width:0;width:auto
+  }
+  .ratio-app .progression-section-nav .ratio-chunk-jump select,
+  .ratio-app .progression-section-nav .ratio-chunk-jump input{
+    width:clamp(5.15rem,25vw,8.5rem);max-width:8.5rem;
+    min-height:34px;height:34px;font-size:12px
+  }
+  .ratio-app .ratio-inline-action{width:28px;min-width:28px;height:34px;padding:1px}
+  .ratio-app .progression-transport{
+    flex:0 0 auto;min-width:0;width:auto;margin-left:auto;
+    justify-content:flex-end;gap:2px
+  }
+  .ratio-app .progression-transport #play{
+    flex:0 0 auto;min-width:0;width:max-content;
+    min-height:34px;height:34px;font-size:11px;padding:3px 4px
+  }
+  .ratio-app .progression-transport #stop{flex:0 0 auto;width:30px;min-width:30px}
+  .ratio-app .progression-transport #progMenuToggleBtn{
+    flex:0 0 auto;min-width:36px;width:36px;padding:2px
+  }
+  .ratio-app .progression-root-row{
+    width:100%;max-width:100%;
+    grid-template-columns:minmax(0,1fr) minmax(9ch,12ch) minmax(6.5ch,7.5ch);
+    gap:4px
+  }
+}
+
+/* Playback is one action plus a remembered range, not a row of parallel buttons.
+   In a project with only one chunk there is nothing to delete: hide the dead
+   action instead of permanently reserving scarce mobile toolbar space. */
+.ratio-app #removeChunk:disabled{display:none}
+.ratio-app .ratio-play-scope{
+  display:inline-flex;align-items:center;gap:4px;white-space:nowrap;
+  font-size:12px;color:var(--muted)
+}
+.ratio-app .ratio-play-scope #playScope{
+  width:clamp(6.25rem,10vw,7.8rem);min-height:34px;
+  padding:3px 4px;font-size:12px
+}
+@media(max-width:640px){
+  .ratio-app .ratio-play-scope{flex:0 1 auto;min-width:0}
+  .ratio-app .ratio-play-scope #playScope{width:7rem;max-width:100%}
+}
