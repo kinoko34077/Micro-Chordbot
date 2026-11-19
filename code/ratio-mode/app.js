@@ -1,7 +1,7 @@
 import {AudioEngine} from "../src/audio.js";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {HistoryManager, isNativeUndoTarget} from "../src/history.js";
-import {newProject,validateProject,parsePitch,parseRatio,flickGridPitch,flickEnharmonicCells,beatMatrixValue,beatMatrixCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,importText,exportText} from "./model.mjs";
+import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,importText,exportText} from "./model.mjs";
 
 const $=id=>document.getElementById(id);
 const copy=value=>JSON.parse(JSON.stringify(value));
@@ -81,7 +81,7 @@ function restore(snapshot){
   // Undo/redo is authoritative even if a text field retains native focus.
   const current=selectedLocation().step;
   $("editExpr").value=current.expr;$("editPitch").value=current.pitch;
-  $("editBeats").value=String(current.beats);
+  $("editBeats").value=current.beats+"/"+(current.beatUnit||4);
   // History restores data, not unsolicited sound.
   if(wasPlaying)startPlayback();
 }
@@ -119,10 +119,10 @@ function makeCard(section,step,index){
   if(step.id===playingStepId)card.classList.add("playing");
   card.draggable=true;
   // Grid width is owned by the standard progression columns setting.
-  card.setAttribute("aria-label",section.name+" のコード "+(index+1)+" "+step.expr+" "+step.pitch+" "+step.beats+"拍、押すと試聴");
+  card.setAttribute("aria-label",section.name+" のコード "+step.expr+" "+step.pitch+" "+beatLabel(step)+"、押すと試聴");
   const name=document.createElement("span");name.className="cell-title";name.textContent=step.expr;
   const note=document.createElement("span");note.className="cell-note";note.textContent=step.pitch;
-  const meta=document.createElement("span");meta.className="cell-meta";meta.textContent=(index+1)+" · "+step.beats+"拍";
+  const meta=document.createElement("span");meta.className="cell-meta";meta.textContent=beatLabel(step);
   card.append(name,note,meta);
   card.addEventListener("click",()=>{setSelection(section.id,step.id);void auditionCard(step)});
   card.addEventListener("dragstart",e=>{
@@ -162,7 +162,7 @@ function makeCard(section,step,index){
 const flickPanel=$("pitchFlickPanel"),flickGrid=$("pitchFlickGrid");
 const beatsPanel=$("beatsFlickPanel"),beatsGrid=$("beatsFlickGrid");
 const accidentalSymbols=["♭","d","","‡","♯"];
-for(const note of FLICK_LETTERS)for(let acc=0;acc<5;acc++){
+for(const note of [...FLICK_LETTERS].reverse())for(let acc=0;acc<5;acc++){
   const cell=document.createElement("div");
   cell.className="pitch-flick-cell";
   cell.dataset.note=note;cell.dataset.acc=String(acc);
@@ -196,14 +196,15 @@ function placeGesturePanel(source,panel,width,height){
 }
 function activatePreciseInput(field){
   field.classList.add("exact-editing");
-  field.focus();field.select();
+  field.readOnly=false;field.focus();field.select();
 }
-// In a 7x5 sheet the rows read C, D, E, F, G, A, B from TOP to BOTTOM.
-// Moving DOWN therefore increases the diatonic row; the old sign was wrong.
+// In a 7x5 sheet the rows read B, A, G, F, E, D, C from TOP to BOTTOM.
+// Moving UP raises pitch, following the bottom-C, top-B orientation.
 let pitchGesture=null,beatGesture=null;
 function bindPitchFlick(field){
   let lastTap=null;
-  field.addEventListener("blur",()=>field.classList.remove("exact-editing"));
+  field.readOnly=true;
+  field.addEventListener("blur",()=>{field.classList.remove("exact-editing");field.readOnly=true});
   field.addEventListener("dblclick",event=>{
     event.preventDefault();lastTap=null;
     activatePreciseInput(field);
@@ -234,7 +235,7 @@ function bindPitchFlick(field){
     const dx=event.clientX-g.x,dy=event.clientY-g.y;
     if(!g.moved&&Math.hypot(dx,dy)<7)return;
     g.moved=true;lastTap=null;
-    const next=flickGridPitch(g.original,Math.round(dy/23),Math.round(dx/28));
+    const next=flickGridPitch(g.original,Math.round(-dy/23),Math.round(dx/28));
     if(next===g.candidate)return;
     g.candidate=next;field.value=next;highlightFlickPitch(next);
     const now=performance.now();
@@ -415,7 +416,8 @@ function renderTimeline(){
     repeatLabel.append(repeat);header.append(name,repeatLabel);
     if(project.sections.length>1){
       const remove=document.createElement("button");remove.type="button";
-      remove.className="ratio-section-remove";remove.textContent="×";
+      remove.className="ratio-section-remove";
+      remove.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 4h4M6 7l1 14h10l1-14M10 11v6M14 11v6"/></svg>';
       remove.setAttribute("aria-label",section.name+" を削除");
       remove.title="セクションを削除（元に戻せます）";
       remove.addEventListener("click",()=>removeSectionById(section.id));
@@ -428,7 +430,7 @@ function renderTimeline(){
     add.title=section.name+" にコードを追加";add.setAttribute("aria-label",section.name+" にコードを追加");
     add.addEventListener("click",()=>{
       const previous=section.steps.at(-1);
-      const next={id:id("c"),expr:"4,5,6",pitch:previous?.pitch||"C4",beats:4};
+      const next={id:id("c"),expr:"4,5,6",pitch:previous?.pitch||"C4",beats:4,beatUnit:4};
       if(mutate(d=>d.sections.find(s=>s.id===section.id).steps.push(next),{structural:true})){
         setSelection(section.id,next.id);
         requestAnimationFrame(()=>document.querySelector('.progression-cell[data-cid="'+next.id+'"]')?.scrollIntoView({inline:"nearest",block:"nearest"}));
@@ -560,10 +562,9 @@ function renderSelection(){
   const loc=selectedLocation();if(!loc.step)return;
   selection={sectionId:loc.section.id,stepId:loc.step.id};
   const step=loc.step;
-  $("selectionLabel").textContent=String(loc.index+1);
   if(document.activeElement!==$("editExpr"))$("editExpr").value=step.expr;
   if(!pitchGesture&&document.activeElement!==$("editPitch"))$("editPitch").value=step.pitch;
-  if(!beatGesture&&document.activeElement!==$("editBeats"))$("editBeats").value=step.beats;
+  if(!beatGesture&&document.activeElement!==$("editBeats"))$("editBeats").value=step.beats+"/"+(step.beatUnit||4);
   renderSectionNav();
   for(const card of $("timeline").querySelectorAll(".progression-cell[data-cid]")){
     const active=card.dataset.sid===selection.sectionId&&card.dataset.cid===selection.stepId;
@@ -656,7 +657,7 @@ $("undo").addEventListener("click",undo);
 $("redo").addEventListener("click",redo);
 const makeSection=(chunkId,chunkName,n)=>({
   id:id("s"),chunkId,chunkName,name:"Section "+n,repeat:1,
-  steps:[{id:id("c"),expr:"4,5,6",pitch:"C4",beats:4}]
+  steps:[{id:id("c"),expr:"4,5,6",pitch:"C4",beats:4,beatUnit:4}]
 });
 $("newSection").addEventListener("click",()=>{
   const current=selectedLocation().section;
@@ -691,7 +692,7 @@ $("removeChunk").addEventListener("click",()=>{
 function insertChord(duplicate){
   const {section,step,index}=selectedLocation();
   const next=duplicate?{...copy(step),id:id("c")}:
-    {id:id("c"),expr:"4,5,6",pitch:step.pitch,beats:4};
+    {id:id("c"),expr:"4,5,6",pitch:step.pitch,beats:4,beatUnit:4};
   if(mutate(d=>d.sections.find(s=>s.id===section.id).steps.splice(index+1,0,next),{structural:true}))
     setSelection(section.id,next.id);
 }
@@ -782,7 +783,7 @@ function startPlayback(sectionId=null,chunkId=null){
       const ok=await startVoices(step,token);
       if(!ok)return;
       highlightStep(step);
-      const duration=step.beats*60000/project.settings.bpm;
+      const duration=quarterBeats(step)*60000/project.settings.bpm;
       timer=setTimeout(advance,duration);
     }catch(error){stopPlayback();notice(error.message||"再生できません",true)}
   };
@@ -817,7 +818,7 @@ async function auditionCard(step){
       if(version!==tapVersion)return;
       for(const id of ownIds)engine.stopVoice(id);
       tapVoiceIds=[];
-    },Math.max(320,Math.min(850,step.beats*60000/project.settings.bpm)));
+    },Math.max(320,Math.min(850,quarterBeats(step)*60000/project.settings.bpm)));
   }catch(error){
     for(const id of ownIds)engine.stopVoice(id);
     notice("コードの試聴に失敗しました: "+error.message,true);
@@ -830,7 +831,7 @@ async function preview(){
   try{
     const ok=await startVoices(step,token);if(!ok)return;
     highlightStep(step);
-    timer=setTimeout(()=>{if(token===runId)stopPlayback()},Math.min(1800,step.beats*60000/project.settings.bpm));
+    timer=setTimeout(()=>{if(token===runId)stopPlayback()},Math.min(1800,quarterBeats(step)*60000/project.settings.bpm));
   }catch(error){stopPlayback();notice(error.message||"試聴できません",true)}
 }
 function playSelectedScope(){
