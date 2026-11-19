@@ -1095,3 +1095,42 @@ dialog::backdrop{background:#0009}
   .ratio-app .progression-editor{max-height:min(56dvh,372px)}
   .ratio-app #timeline.progression-grid{min-height:82px}
 }
+
+/* One-line smartphone app header: retain Undo/Redo and data access, move
+   the cramped slider to the already available settings overlay. */
+.ratio-app .io-icon{display:none}
+.ratio-app .mobile-volume{display:none}
+@media(min-width:641px){
+  .ratio-app .progression-editor{margin-top:0}
+}
+@media(max-width:640px){
+  .ratio-app .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    flex-wrap:nowrap;gap:5px;padding:5px 8px;min-height:45px;
+  }
+  .ratio-app .brand-nav{display:flex;flex:0 1 auto;min-width:0;gap:5px}
+  .ratio-app .ratio-mode-label{min-width:0}
+  .ratio-app .ratio-mode-label strong{font-size:12px;white-space:nowrap}
+  .ratio-app .ratio-mode-label small{display:none}
+  .ratio-app .history-buttons{
+    display:flex;flex:0 0 auto;justify-content:flex-end;align-items:center;
+    width:auto;min-width:0;gap:4px
+  }
+  .ratio-app .history-buttons #undo,
+  .ratio-app .history-buttons #redo,
+  .ratio-app .history-buttons #openIO{
+    min-height:35px;height:35px;min-width:33px;width:33px;
+    padding:3px;font-size:17px
+  }
+  .ratio-app .history-buttons .master-volume-inline{display:none}
+  .ratio-app .io-label{display:none}
+  .ratio-app .io-icon{display:inline}
+  .ratio-app .mobile-volume{
+    display:flex;grid-column:1/-1;align-items:center;gap:7px
+  }
+  .ratio-app .mobile-volume input{width:100%;flex:1;min-width:0}
+  .ratio-app .progression-editor{
+    max-height:min(63dvh,430px)
+  }
+  .ratio-app #timeline.progression-grid{min-height:82px}
+}

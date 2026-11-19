@@ -302,7 +302,14 @@ $("presetSearch").addEventListener("input",()=>{$("presetChips").scrollTop=0;ren
 $("openPresetManager").addEventListener("click",()=>{$("presetManager").showModal();$("presetName").focus()});
 $("closePresetManager").addEventListener("click",()=>$("presetManager").close());
 $("closeSectionEditor").addEventListener("click",()=>$("sectionDetails").close());
-$("masterVolume").addEventListener("input",e=>engine.setMasterVolume(Number(e.target.value)));
+$("masterVolume").addEventListener("input",e=>{
+  $("masterVolumeMobile").value=e.target.value;
+  engine.setMasterVolume(Number(e.target.value));
+});
+$("masterVolumeMobile").addEventListener("input",e=>{
+  $("masterVolume").value=e.target.value;
+  engine.setMasterVolume(Number(e.target.value));
+});
 $("progMenuToggleBtn").addEventListener("click",()=>{
   const btn=$("progMenuToggleBtn"),open=btn.getAttribute("aria-expanded")!=="true";
   btn.setAttribute("aria-expanded",String(open));

@@ -22,7 +22,7 @@
         <label class="master-volume-inline" title="Master 音量"><span aria-hidden="true">Vol</span>
           <input id="masterVolume" type="range" min="0" max="1" step=".01" value=".3" aria-label="マスター音量">
         </label>
-        <button id="openIO" type="button">入出力</button>
+        <button id="openIO" type="button" aria-label="データの入出力" title="データの入出力"><span class="io-label">入出力</span><span class="io-icon" aria-hidden="true">⇅</span></button>
       </div>
     </header>
     <main class="ratio-main">
@@ -45,6 +45,7 @@
             <label class="inline-check loop-inline"><input id="loop" type="checkbox" checked><span>ループ</span></label>
             <label>BPM <input id="bpm" type="number" min="20" max="300" step="1" value="110"></label>
             <label>音色 <select id="wave"><option value="sine">sine</option><option value="square">square</option><option value="sawtooth">sawtooth</option></select></label>
+            <label class="mobile-volume">音量 <input id="masterVolumeMobile" type="range" min="0" max="1" step=".01" value=".3" aria-label="マスター音量"></label>
           </div>
         </div>
         <div class="progression-heading-bar">
