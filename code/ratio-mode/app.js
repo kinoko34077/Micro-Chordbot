@@ -9,7 +9,7 @@ const STORE="muChordbot.ratioMode.v1";
 const UI_STORE="muChordbot.ratioMode.ui.v1";
 const history=new HistoryManager(100);
 const engine=new AudioEngine();
-let project,saveAllowed=true,selection={sectionId:null,stepId:null},columns=4;
+let project,saveAllowed=true,selection={sectionId:null,stepId:null},columns=4,playScope="all";
 let timer=null,runId=0,playing=false,playingStepId=null,voiceCount=0;
 let tapVersion=0,tapTimer=null,tapVoiceIds=[];
 const id=prefix=>prefix+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
@@ -32,11 +32,12 @@ function boot(){
     const ui=JSON.parse(localStorage.getItem(UI_STORE)||"null");
     if(ui&&typeof ui.sectionId==="string"&&typeof ui.stepId==="string")selection={sectionId:ui.sectionId,stepId:ui.stepId};
     if(ui&&Number.isInteger(ui.columns)&&ui.columns>=1&&ui.columns<=12)columns=ui.columns;
+    if(ui&&["all","chunk","section"].includes(ui.playScope))playScope=ui.playScope;
   }catch(error){/* UI-only state is non-authoritative. */}
   chooseFirst();render();
 }
 function saveSelection(){
-  try{localStorage.setItem(UI_STORE,JSON.stringify({...selection,columns}))}catch(error){/* UI selection optional. */}
+  try{localStorage.setItem(UI_STORE,JSON.stringify({...selection,columns,playScope}))}catch(error){/* UI selection optional. */}
 }
 function save(){
   if(!saveAllowed){$("saveState").textContent="保存停止";$("saveState").dataset.error="true";notice("保存停止中です。入出力からファイルに退避してください。",true);return}
@@ -352,6 +353,7 @@ function renderSelection(){
 }
 function render(){
   $("title").value=project.title;$("bpm").value=project.settings.bpm;
+  $("playScope").value=playScope;
   $("loop").checked=project.settings.loop;$("wave").value=project.settings.wave;
   renderTimeline();renderPresets();renderPresetManager();renderSelection();renderHistory();
 }
@@ -616,9 +618,15 @@ async function preview(){
     timer=setTimeout(()=>{if(token===runId)stopPlayback()},Math.min(1800,step.beats*60000/project.settings.bpm));
   }catch(error){stopPlayback();notice(error.message||"試聴できません",true)}
 }
-$("play").addEventListener("click",()=>startPlayback());
-$("playSection").addEventListener("click",()=>startPlayback(selection.sectionId));
-$("playChunk").addEventListener("click",()=>startPlayback(null,selectedLocation().section.chunkId));
+function playSelectedScope(){
+  if(playScope==="section")startPlayback(selection.sectionId);
+  else if(playScope==="chunk")startPlayback(null,selectedLocation().section.chunkId);
+  else startPlayback();
+}
+$("playScope").addEventListener("change",e=>{
+  playScope=e.target.value;saveSelection();
+});
+$("play").addEventListener("click",playSelectedScope);
 $("stop").addEventListener("click",stopPlayback);
 $("preview").addEventListener("click",()=>{void preview()});
 document.addEventListener("keydown",e=>{
