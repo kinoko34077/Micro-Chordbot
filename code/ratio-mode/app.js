@@ -11,6 +11,7 @@ const history=new HistoryManager(100);
 const engine=new AudioEngine();
 let project,saveAllowed=true,selection={sectionId:null,stepId:null},columns=4;
 let timer=null,runId=0,playing=false,playingStepId=null,voiceCount=0;
+let tapVersion=0,tapTimer=null,tapVoiceIds=[];
 const id=prefix=>prefix+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 
 function notice(value="",error=false) {
@@ -90,19 +91,30 @@ function calculate(step){
 }
 function hz(value){return value>=1000?value.toFixed(1):value.toFixed(2)}
 // Transplanted from the normal progression tab's renderProgressionGrid cell model.
+function removeStep(sectionId,stepId){
+  const section=project.sections.find(s=>s.id===sectionId);
+  if(!section||section.steps.length<=1)return;
+  const index=section.steps.findIndex(c=>c.id===stepId);
+  if(index<0)return;
+  const successor=section.steps[index+1]||section.steps[index-1];
+  const wasSelected=selection.stepId===stepId;
+  if(mutate(d=>d.sections.find(s=>s.id===sectionId).steps.splice(index,1),{structural:true})&&wasSelected)
+    setSelection(sectionId,successor.id);
+}
 function makeCard(section,step,index){
+  // A sibling button is used instead of nesting a delete button inside a button.
+  const shell=document.createElement("div");shell.className="progression-cell-shell";
   const card=document.createElement("button");card.type="button";
   card.className="progression-cell";card.dataset.sid=section.id;card.dataset.cid=step.id;
   if(step.id===playingStepId)card.classList.add("playing");
   card.draggable=true;
   // Grid width is owned by the standard progression columns setting.
-  card.setAttribute("aria-label",section.name+" のコード "+(index+1)+" "+step.expr+" "+step.pitch+" "+step.beats+"拍");
+  card.setAttribute("aria-label",section.name+" のコード "+(index+1)+" "+step.expr+" "+step.pitch+" "+step.beats+"拍、押すと試聴");
   const name=document.createElement("span");name.className="cell-title";name.textContent=step.expr;
   const note=document.createElement("span");note.className="cell-note";note.textContent=step.pitch;
   const meta=document.createElement("span");meta.className="cell-meta";meta.textContent=(index+1)+" · "+step.beats+"拍";
   card.append(name,note,meta);
-  card.addEventListener("click",()=>setSelection(section.id,step.id));
-  card.addEventListener("dblclick",()=>{setSelection(section.id,step.id);void preview()});
+  card.addEventListener("click",()=>{setSelection(section.id,step.id);void auditionCard(step)});
   card.addEventListener("dragstart",e=>{
     e.dataTransfer.setData("text/plain",section.id+":"+step.id);
     e.dataTransfer.effectAllowed="move";card.classList.add("reorder-source");
@@ -123,18 +135,28 @@ function makeCard(section,step,index){
       b.steps.splice(at,0,moved);
     },{structural:true}))setSelection(section.id,source[1]);
   });
-  return card;
+  shell.append(card);
+  if(section.steps.length>1){
+    const remove=document.createElement("button");remove.type="button";
+    remove.className="cell-remove";remove.textContent="×";
+    remove.setAttribute("aria-label",section.name+" のコード"+(index+1)+"を削除");
+    remove.title="削除（元に戻せます）";
+    remove.addEventListener("click",event=>{event.stopPropagation();removeStep(section.id,step.id)});
+    shell.append(remove);
+  }
+  return shell;
 }
 function renderTimeline(){
   const timeline=$("timeline"),top=timeline.scrollTop,fragment=document.createDocumentFragment();
   for(const section of project.sections){
     const wrap=document.createElement("section");wrap.className="progression-chunk";
-    const header=document.createElement("div");header.className="progression-chunk-head";
+    const header=document.createElement("button");header.type="button";header.className="progression-chunk-head";
     header.textContent=section.name+" ×"+section.repeat;
-    header.title="ダブルクリックでセクション名を変更";
-    header.addEventListener("dblclick",()=>{
+    header.title="セクション名と反復回数を編集";
+    header.setAttribute("aria-label",section.name+" の設定");
+    header.addEventListener("click",()=>{
       setSelection(section.id,section.steps[0].id);
-      $("sectionDetails").open=true;$("editSectionName").focus();$("editSectionName").select();
+      $("sectionDetails").showModal();$("editSectionName").focus();$("editSectionName").select();
     });
     const grid=document.createElement("div");grid.className="progression-chunk-grid";
     section.steps.forEach((step,index)=>grid.append(makeCard(section,step,index)));
@@ -155,17 +177,31 @@ function renderTimeline(){
   updateGridColumns();
 }
 
+function removePreset(name){
+  if(mutate(d=>{
+    const p=d.presets.find(x=>x.name===name);
+    if(!p)throw new Error("対象の比率が見つかりません");
+    for(const section of d.sections)for(const step of section.steps)
+      if(step.expr.toLocaleLowerCase()===name.toLocaleLowerCase())step.expr=p.ratios;
+    d.presets=d.presets.filter(x=>x.name!==name);
+  }))renderPresetManager();
+}
 function renderPresets(){
   const chips=$("presetChips"),scroll=chips.scrollTop,filter=$("presetSearch").value.trim().toLocaleLowerCase();
   const fragment=document.createDocumentFragment();
   for(const preset of project.presets){
     if(filter&&!((preset.name+" "+preset.ratios).toLocaleLowerCase().includes(filter)))continue;
+    const item=document.createElement("div");item.className="preset-item";
     const chip=document.createElement("button");chip.type="button";chip.className="ratio-preset";
     const name=document.createElement("strong");name.textContent=preset.name;
     const ratio=document.createElement("small");ratio.textContent=preset.ratios;
     chip.append(name,ratio);chip.title="選択コードへ "+preset.name+" を設定";
     chip.addEventListener("click",()=>mutate(d=>{selectedLocation(d).step.expr=preset.name},{audition:true}));
-    fragment.append(chip);
+    const del=document.createElement("button");del.type="button";del.className="preset-remove";
+    del.textContent="×";del.title=preset.name+" を解除";
+    del.setAttribute("aria-label",preset.name+" を登録解除");
+    del.addEventListener("click",e=>{e.stopPropagation();removePreset(preset.name)});
+    item.append(chip,del);fragment.append(item);
   }
   chips.replaceChildren(fragment);chips.scrollTop=scroll;
 }
@@ -174,7 +210,6 @@ function renderPresetManager(){
   const options=[new Option("新規登録",""),...project.presets.map(p=>new Option(p.name,p.name))];
   select.replaceChildren(...options);
   select.value=project.presets.some(p=>p.name===value)?value:"";
-  $("deletePreset").disabled=!select.value;
   $("addPreset").textContent=select.value?"変更を保存":"登録";
 }
 function updateGridColumns(){
@@ -222,7 +257,6 @@ function renderSelection(){
   for(const btn of document.querySelectorAll(".ratio-accidentals button"))
     btn.classList.toggle("active",btn.dataset.acc===(match?.[2]||""));
   $("moveLeft").disabled=loc.index===0;$("moveRight").disabled=loc.index===loc.section.steps.length-1;
-  $("remove").disabled=loc.section.steps.length===1;
   $("removeSection").disabled=project.sections.length===1;
   try{
     const result=calculate(step);
@@ -265,7 +299,17 @@ for(const [key,which] of [["editExpr","expr"],["editPitch","pitch"]]){
   });
 }
 $("presetSearch").addEventListener("input",()=>{$("presetChips").scrollTop=0;renderPresets()});
-$("masterVolume").addEventListener("input",e=>engine.setMasterVolume(Number(e.target.value)));
+$("openPresetManager").addEventListener("click",()=>{$("presetManager").showModal();$("presetName").focus()});
+$("closePresetManager").addEventListener("click",()=>$("presetManager").close());
+$("closeSectionEditor").addEventListener("click",()=>$("sectionDetails").close());
+$("masterVolume").addEventListener("input",e=>{
+  $("masterVolumeMobile").value=e.target.value;
+  engine.setMasterVolume(Number(e.target.value));
+});
+$("masterVolumeMobile").addEventListener("input",e=>{
+  $("masterVolume").value=e.target.value;
+  engine.setMasterVolume(Number(e.target.value));
+});
 $("progMenuToggleBtn").addEventListener("click",()=>{
   const btn=$("progMenuToggleBtn"),open=btn.getAttribute("aria-expanded")!=="true";
   btn.setAttribute("aria-expanded",String(open));
@@ -309,10 +353,6 @@ $("addStep").addEventListener("click",()=>{
   if(mutate(d=>d.sections.find(s=>s.id===section.id).steps.splice(index+1,0,next),{structural:true}))setSelection(section.id,next.id);
 });
 $("duplicate").addEventListener("click",()=>$("addStep").click());
-$("remove").addEventListener("click",()=>{
-  const {section,index}=selectedLocation();
-  if(mutate(d=>d.sections.find(s=>s.id===section.id).steps.splice(index,1),{structural:true}))chooseFirst(),renderSelection();
-});
 $("removeSection").addEventListener("click",()=>{
   const {section}=selectedLocation();
   if(mutate(d=>d.sections=d.sections.filter(s=>s.id!==section.id),{structural:true}))chooseFirst(),renderSelection();
@@ -328,24 +368,9 @@ $("presetManageSelect").addEventListener("change",e=>{
   const selected=project.presets.find(p=>p.name===e.target.value);
   $("presetName").value=selected?.name||"";
   $("presetRatio").value=selected?.ratios||"";
-  $("deletePreset").disabled=!selected;
   $("addPreset").textContent=selected?"変更を保存":"登録";
 });
-$("deletePreset").addEventListener("click",()=>{
-  const target=$("presetManageSelect").value;
-  if(!target)return;
-  if(mutate(d=>{
-    const preset=d.presets.find(p=>p.name===target);
-    if(!preset)throw new Error("削除対象が見つかりません");
-    for(const section of d.sections)for(const step of section.steps){
-      if(step.expr.toLocaleLowerCase()===target.toLocaleLowerCase())step.expr=preset.ratios;
-    }
-    d.presets=d.presets.filter(p=>p.name!==target);
-  })){
-    $("presetManageSelect").value="";$("presetName").value="";$("presetRatio").value="";
-    renderPresetManager();
-  }
-});
+
 $("gridColumns").addEventListener("change",e=>{
   const v=Number(e.target.value);
   if(!Number.isInteger(v)||v<1||v>12){e.target.value=String(columns);return}
@@ -369,6 +394,7 @@ $("addPreset").addEventListener("click",()=>{
   }
 });
 function stopPlayback(){
+  clearTimeout(tapTimer);tapVersion++;tapVoiceIds=[];
   runId++;playing=false;playingStepId=null;voiceCount=0;clearTimeout(timer);timer=null;
   engine.stopAll();$("play").textContent="▶ 選択から再生";
   document.querySelectorAll(".progression-cell.playing").forEach(el=>el.classList.remove("playing"));
@@ -421,6 +447,41 @@ function startPlayback(sectionId=null){
     }catch(error){stopPlayback();notice(error.message||"再生できません",true)}
   };
   void advance();
+}
+// Independent tap-preview voices allow repeated audition without stopping
+// an already running progression. Previous tap voices are faded on each tap.
+async function auditionCard(step){
+  const version=++tapVersion;
+  clearTimeout(tapTimer);
+  for(const id of tapVoiceIds)engine.stopVoice(id);
+  tapVoiceIds=[];
+  const ownIds=[];
+  try{
+    const {freqs}=calculate(step);
+    await engine.ensure();
+    if(version!==tapVersion)return;
+    engine.setMasterVolume(Number($("masterVolume").value));
+    const gain=Math.min(.13,.22/Math.sqrt(freqs.length));
+    const voices=freqs.map((freq,i)=>{
+      const id="tap-"+version+"-"+i;
+      ownIds.push(id);
+      return engine.startVoice(id,freq,project.settings.wave,gain);
+    });
+    await Promise.all(voices);
+    if(version!==tapVersion){
+      for(const id of ownIds)engine.stopVoice(id);
+      return;
+    }
+    tapVoiceIds=ownIds;
+    tapTimer=setTimeout(()=>{
+      if(version!==tapVersion)return;
+      for(const id of ownIds)engine.stopVoice(id);
+      tapVoiceIds=[];
+    },Math.max(320,Math.min(850,step.beats*60000/project.settings.bpm)));
+  }catch(error){
+    for(const id of ownIds)engine.stopVoice(id);
+    notice("コードの試聴に失敗しました: "+error.message,true);
+  }
 }
 async function preview(){
   const step=selectedLocation().step;
