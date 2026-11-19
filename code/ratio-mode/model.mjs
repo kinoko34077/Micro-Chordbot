@@ -35,6 +35,67 @@ export function flickPitch(value,diatonicDelta,accidentalIndex){
   return pitch;
 }
 
+// 24EDO quartertone positions. The visible 7x5 cells overlap at
+// enharmonic spellings; finger motion is chromatic at 50-cent increments,
+// rather than clamping the accidental column.
+const FLICK_QUARTERS=Object.freeze({C:0,D:4,E:8,F:10,G:14,A:18,B:22});
+const FLICK_DELTAS=Object.freeze([-2,-1,0,1,2]);
+function flickParts(value){
+  const parsed=parsePitch(value);
+  const match=/^([A-G])([#b‡d]?)(-?\d{1,2})(.*)$/.exec(parsed.label);
+  if(!match)fail("音高を読み取れません");
+  return {letter:match[1],acc:FLICK_ACCIDENTALS.indexOf(match[2]),
+    octave:Number(match[3]),suffix:match[4],centOffset:parsed.centOffset};
+}
+export function flickCellQuarter(letter,accidentalIndex,octave){
+  if(!(letter in FLICK_QUARTERS)||!Number.isInteger(accidentalIndex)||
+     accidentalIndex<0||accidentalIndex>=5||!Number.isInteger(octave))
+    fail("四分音表の位置が不正です");
+  return octave*24+FLICK_QUARTERS[letter]+FLICK_DELTAS[accidentalIndex];
+}
+export function flickGridPitch(value,rowDelta,quarterDelta){
+  const base=flickParts(value);
+  if(!Number.isInteger(rowDelta)||!Number.isInteger(quarterDelta))
+    fail("スライド値が不正です");
+  const row=Math.max(-7,Math.min(9*7+6,
+    base.octave*7+FLICK_LETTERS.indexOf(base.letter)+rowDelta));
+  const rowOctave=Math.floor(row/7),rowLetter=FLICK_LETTERS[row-rowOctave*7];
+  const originQuarter=flickCellQuarter(rowLetter,base.acc,rowOctave);
+  const target=Math.max(-26,Math.min(240,originQuarter+quarterDelta));
+  // Pick a notation with the correct *absolute* pitch. Prefer the
+  // expected vertical row when multiple spellings are enharmonic; do
+  // not change pitch merely to fit an accidental inside its five columns.
+  const options=[];
+  for(let octave=Math.max(-1,rowOctave-2);octave<=Math.min(9,rowOctave+2);octave++){
+    for(let ni=0;ni<FLICK_LETTERS.length;ni++){
+      const letter=FLICK_LETTERS[ni];
+      for(let acc=0;acc<5;acc++)if(flickCellQuarter(letter,acc,octave)===target)
+        options.push({letter,acc,octave,rowDistance:Math.abs(octave*7+ni-row),
+          accDistance:Math.abs(acc-base.acc)});
+    }
+  }
+  options.sort((a,b)=>a.rowDistance-b.rowDistance||a.accDistance-b.accDistance||a.acc-b.acc);
+  const selected=options[0];
+  if(!selected)fail("有効な音高候補がありません");
+  const result=selected.letter+FLICK_ACCIDENTALS[selected.acc]+selected.octave+base.suffix;
+  parsePitch(result);
+  return result;
+}
+// All spellings for the same sounding 24EDO note should light up,
+// including notes on different diatonic rows, e.g. D# and Eb.
+export function flickEnharmonicCells(value){
+  const base=flickParts(value);
+  const tone=flickCellQuarter(base.letter,base.acc,base.octave);
+  const matches=[];
+  for(const letter of FLICK_LETTERS)for(let acc=0;acc<5;acc++)
+    for(const octave of [base.octave-1,base.octave,base.octave+1]){
+      if(octave < -1 || octave > 9)continue;
+      if(flickCellQuarter(letter,acc,octave)===tone)
+        matches.push({letter,acc,octave});
+    }
+  return matches;
+}
+
 export function numberFromFraction(value) {
   const s=text(value);
   if (!/^(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:\s*\/\s*(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)?$/i.test(s)) fail("比率「"+s+"」は正の整数・小数・分数で入力してください");
