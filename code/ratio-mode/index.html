@@ -56,15 +56,15 @@
         <section id="progressionEditor" class="progression-editor editor" aria-label="選択コードの編集">
           <div class="progression-editor-header">
             <div class="progression-editor-heading">
-              <h3>選択コード</h3>
+              <h3>コード</h3>
               <p id="selectionLabel" class="panel-note">A / 1</p>
               <p id="hzReadout" class="readout" aria-live="polite"></p>
             </div>
             <div class="progression-editor-header-actions">
-              <button id="preview" type="button">♫ 試聴</button>
+              <button id="preview" type="button" aria-label="選択コードの再試聴" title="選択コードを再試聴">♪</button>
               <div class="progression-actions">
-                <button id="moveLeft" type="button" title="前へ">←</button>
-                <button id="moveRight" type="button" title="後ろへ">→</button>
+                <button id="moveLeft" type="button" title="コードを左へ移動" aria-label="コードを左へ移動">←</button>
+                <button id="moveRight" type="button" title="コードを右へ移動" aria-label="コードを右へ移動">→</button>
                 <button id="duplicate" type="button">複製</button>
                 <button id="addStep" type="button" aria-label="コードを追加">＋ コード</button>
               </div>
@@ -72,11 +72,11 @@
           </div>
           <div id="progressionEditorBody" class="progression-editor-body">
             <div class="progression-root-row">
-              <label class="ratio-field">周波数比 / コード名
-                <input id="editExpr" type="text" spellcheck="false" autocomplete="off" placeholder="4,5,6 / 8:11/2:6 / Major">
+              <label class="ratio-field">比率・名前
+                <input id="editExpr" type="text" spellcheck="false" autocomplete="off" placeholder="例 4:11/2:6" title="4:11/2:6 と 8:11:12 は同じ比率。/ は各成分内の分数">
               </label>
-              <label class="pitch-field">ベース音高・セント
-                <input id="editPitch" type="text" spellcheck="false" autocomplete="off" placeholder="C4 / A#5 +50￠ / D‡5 / Bd6">
+              <label class="pitch-field">最低音
+                <input id="editPitch" type="text" spellcheck="false" autocomplete="off" placeholder="C4 / D‡5">
               </label>
               <label class="beats-field">拍
                 <input id="editBeats" type="number" min=".25" max="64" step=".25">
@@ -101,34 +101,29 @@
               </div>
             </div>
             <div class="progression-choice-tools">
-              <label class="progression-filter-label">🔎
-                <input id="presetSearch" type="search" placeholder="比率名・構成比を検索" aria-label="周波数比プリセットを検索">
+              <label class="progression-filter-label"><span aria-hidden="true">⌕</span>
+                <input id="presetSearch" type="search" placeholder="比率を探す" aria-label="比率候補を検索">
               </label>
-              <span class="preset-hint">選択すると和音に適用</span>
+              <button id="openPresetManager" class="ratio-small-action" type="button" aria-label="比率の追加・編集" title="比率を追加・編集">＋</button>
             </div>
             <div id="presetChips" class="quick-grid chord-grid" tabindex="0" role="region" aria-label="周波数比の候補"></div>
-            <details id="presetManager" class="ratio-details">
-              <summary>比率の登録・管理</summary>
+            <dialog id="presetManager" class="ratio-context-dialog" aria-label="比率の登録・編集">
+              <div class="ratio-dialog-header"><strong>比率の登録・編集</strong><button type="button" id="closePresetManager" aria-label="閉じる">×</button></div>
               <div class="ratio-manager-row">
-                <label>編集対象 <select id="presetManageSelect" aria-label="管理する比率プリセット"><option value="">新規登録</option></select></label>
-                <label>名前 <input id="presetName" type="text" placeholder="例: 11th" maxlength="64"></label>
-                <label>比率 <input id="presetRatio" type="text" placeholder="8,11,12" spellcheck="false"></label>
-                <button id="addPreset" type="button">登録</button>
-                <button id="deletePreset" type="button" class="danger" disabled>削除</button>
+                <label>登録済み <select id="presetManageSelect" aria-label="編集する比率プリセット"><option value="">新規</option></select></label>
+                <label>名前 <input id="presetName" type="text" placeholder="名前" maxlength="64"></label>
+                <label>比率 <input id="presetRatio" type="text" placeholder="4:11/2:6" title="8:11:12と等価" spellcheck="false"></label>
+                <button id="addPreset" type="button" class="primary">登録</button>
               </div>
-            </details>
-            <details id="editTools" class="ratio-details">
-              <summary>コードのその他操作</summary>
-              <div class="ratio-manager-row"><button id="remove" type="button" class="danger">選択コードを削除</button></div>
-            </details>
-            <details id="sectionDetails" class="ratio-details">
-              <summary>セクションの編集</summary>
+            </dialog>
+            <dialog id="sectionDetails" class="ratio-context-dialog" aria-label="セクションを編集">
+              <div class="ratio-dialog-header"><strong>セクション編集</strong><button type="button" id="closeSectionEditor" aria-label="閉じる">×</button></div>
               <div class="ratio-manager-row">
-                <label>セクション名 <input id="editSectionName" type="text" maxlength="64"></label>
+                <label>名前 <input id="editSectionName" type="text" maxlength="64"></label>
                 <label>反復 <input id="editRepeat" type="number" min="1" max="16" step="1"></label>
                 <button id="removeSection" type="button" class="danger">セクション削除</button>
               </div>
-            </details>
+            </dialog>
             <p id="status" class="status-text" role="status" aria-live="polite"></p>
           </div>
         </section>
