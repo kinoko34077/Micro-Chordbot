@@ -1043,3 +1043,55 @@ dialog::backdrop{background:#0009}
  .ratio-app #addStep{font-size:0;padding-inline:5px}
  .ratio-app #addStep::before{content:"＋";font-size:16px}
 }
+
+/* Visual-screen evidence from Chromium 320×667,390×844,1280×844:
+   fix oversized empty timeline and compressed phone editor.
+   Keep the selected editor anchored at the bottom without inventing a
+   second horizontal scroller or making detail dialogs permanent. */
+.ratio-app #timeline.progression-grid{
+  flex:0 1 auto;height:auto;max-height:min(38dvh,320px);
+  min-height:88px;overflow-x:hidden;overflow-y:auto;
+}
+.ratio-app .progression-editor{
+  flex:0 0 auto;margin-top:auto;height:auto;max-height:min(54dvh,410px)
+}
+.ratio-app #status:empty{display:none}
+.ratio-app .cell-remove,.ratio-app .preset-remove{width:32px;height:32px;min-width:0;min-height:0}
+.ratio-app .cell-remove::after,.ratio-app .preset-remove::after{content:"";position:absolute;inset:-3px}
+@media(max-width:640px){
+  .ratio-app .progression-toolbar{
+    display:flex;flex-direction:row;flex-wrap:nowrap;
+    align-items:center;gap:5px;min-height:44px;padding:4px
+  }
+  .ratio-app .progression-section-nav{
+    display:flex;flex:0 0 77px;width:77px;min-width:0
+  }
+  .ratio-app #prevSection,.ratio-app #nextSection,.ratio-app #sectionCounter{display:none}
+  .ratio-app .progression-section-nav .progression-columns{
+    display:flex;width:77px;min-width:0;overflow:visible
+  }
+  .ratio-app .progression-section-nav .progression-columns select{
+    width:77px;max-width:77px;min-width:0;min-height:38px;
+    font-size:13px;padding:4px 7px
+  }
+  .ratio-app .progression-transport{
+    display:flex;flex:1 1 auto;width:auto;min-width:0;
+    align-items:center;gap:4px
+  }
+  .ratio-app .progression-transport #play{flex:1 1 auto;width:auto;min-width:0;min-height:38px}
+  .ratio-app .progression-transport #stop{flex:0 0 37px;width:37px;min-width:37px;min-height:38px}
+  .ratio-app .progression-transport #progMenuToggleBtn{
+    flex:0 0 50px;width:50px;min-width:50px;min-height:38px
+  }
+  .ratio-app .progression-editor{
+    flex:0 0 auto;margin-top:auto;
+    max-height:min(56dvh,386px)
+  }
+  .ratio-app #timeline.progression-grid{
+    flex:0 1 auto;max-height:min(35dvh,290px);min-height:75px;
+  }
+}
+@media(max-width:360px) and (max-height:720px){
+  .ratio-app .progression-editor{max-height:min(56dvh,372px)}
+  .ratio-app #timeline.progression-grid{min-height:82px}
+}
