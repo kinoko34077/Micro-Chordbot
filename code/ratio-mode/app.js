@@ -1,7 +1,7 @@
 import {AudioEngine} from "../src/audio.js";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {HistoryManager, isNativeUndoTarget} from "../src/history.js";
-import {newProject,validateProject,parsePitch,parseRatio,chunksOf,flatten,importText,exportText} from "./model.mjs";
+import {newProject,validateProject,parsePitch,parseRatio,flickPitch,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,importText,exportText} from "./model.mjs";
 
 const $=id=>document.getElementById(id);
 const copy=value=>JSON.parse(JSON.stringify(value));
@@ -170,10 +170,17 @@ function renderTimeline(){
     name.addEventListener("click",()=>beginSectionRename(section.id));
     const repeatLabel=document.createElement("label");repeatLabel.className="ratio-section-repeat";
     repeatLabel.append("×");
-    const repeat=document.createElement("input");repeat.type="number";
+    const repeat=document.createElement("input");repeat.type="text";repeat.inputMode="numeric";repeat.autocomplete="off";
     repeat.min="1";repeat.max="16";repeat.step="1";repeat.value=String(section.repeat);
-    repeat.setAttribute("aria-label",section.name+" の反復回数");
+    repeat.setAttribute("aria-label",section.name+" の反復回数、上下スライドで変更");
+    repeat.title="上下へスライドして反復回数を変更。タップで直接入力";
+    bindNumberScrub(repeat,{
+      get:()=>project.sections.find(s=>s.id===section.id)?.repeat??section.repeat,
+      commit:value=>mutate(d=>{d.sections.find(s=>s.id===section.id).repeat=value}),
+      min:1,max:16,step:1
+    });
     repeat.addEventListener("change",()=>{
+      if(repeat.dataset.dragging==="true")return;
       const value=Number(repeat.value);
       if(!Number.isInteger(value)||value<1||value>16){
         repeat.value=String(project.sections.find(s=>s.id===section.id).repeat);return;
@@ -202,7 +209,8 @@ function renderTimeline(){
         requestAnimationFrame(()=>document.querySelector('.progression-cell[data-cid="'+next.id+'"]')?.scrollIntoView({inline:"nearest",block:"nearest"}));
       }
     });
-    grid.append(add);group.append(header,grid);wrap.append(group);
+    add.classList.add("ratio-add-small");
+    group.append(header,grid,add);wrap.append(group);
   }
   fragment.append(wrap);
   timeline.replaceChildren(fragment);timeline.scrollTop=top;
@@ -329,7 +337,7 @@ function renderSelection(){
   const step=loc.step;
   $("selectionLabel").textContent=String(loc.index+1);
   if(document.activeElement!==$("editExpr"))$("editExpr").value=step.expr;
-  if(document.activeElement!==$("editPitch"))$("editPitch").value=step.pitch;
+  if(!pitchGesture&&document.activeElement!==$("editPitch"))$("editPitch").value=step.pitch;
   if(document.activeElement!==$("editBeats"))$("editBeats").value=step.beats;
   renderSectionNav();
   for(const card of $("timeline").querySelectorAll(".progression-cell[data-cid]")){
@@ -337,14 +345,6 @@ function renderSelection(){
     card.classList.toggle("active",active);
     card.setAttribute("aria-pressed",active?"true":"false");
   }
-  const match=/^([A-G])([#b‡d]?)/.exec(step.pitch);
-  for(const btn of $("progRootLetterButtons").querySelectorAll("button")){
-    const active=btn.dataset.note===match?.[1];
-    btn.classList.toggle("active",active);
-    btn.setAttribute("aria-pressed",active?"true":"false");
-  }
-  for(const btn of document.querySelectorAll(".ratio-accidentals button"))
-    btn.classList.toggle("active",btn.dataset.acc===(match?.[2]||""));
   $("moveLeft").disabled=loc.index===0;$("moveRight").disabled=loc.index===loc.section.steps.length-1;
   try{
     const result=calculate(step);
@@ -361,7 +361,7 @@ function commitField(which,value,field){
   let success=false;
   if(which==="expr")success=mutate(d=>selectedLocation(d).step.expr=value.trim(),{audition:true});
   if(which==="pitch")success=mutate(d=>selectedLocation(d).step.pitch=value.trim(),{audition:true});
-  if(which==="beats")success=mutate(d=>selectedLocation(d).step.beats=Number(value));
+  if(which==="beats"&&field.dataset.dragging!=="true")success=mutate(d=>selectedLocation(d).step.beats=Number(value));
 
   field.setAttribute("aria-invalid",success?"false":"true");
 }
@@ -421,18 +421,12 @@ $("chunkJump").addEventListener("change",e=>{
   if(chunk)setSelection(chunk.sections[0].id,chunk.sections[0].steps[0].id);
 });
 
-$("progRootLetterButtons").addEventListener("click",e=>{
-  const letter=e.target.closest("[data-note]")?.dataset.note;
-  if(!letter)return;
-  const pitch=selectedLocation().step.pitch,next=pitch.replace(/^[A-G]/,letter);
-  mutate(d=>selectedLocation(d).step.pitch=next,{audition:true});
+bindNumberScrub($("editBeats"),{
+  get:()=>selectedLocation().step.beats,
+  commit:value=>mutate(d=>{selectedLocation(d).step.beats=value}),
+  min:.25,max:64,step:1,fineStep:.25
 });
-document.querySelector(".ratio-accidentals").addEventListener("click",e=>{
-  const btn=e.target.closest("button[data-acc]");if(!btn)return;
-  const pitch=selectedLocation().step.pitch;
-  const next=pitch.replace(/^([A-G])([#b‡d]?)/,(full,letter)=>letter+btn.dataset.acc);
-  mutate(d=>selectedLocation(d).step.pitch=next,{audition:true});
-});
+bindPitchFlick($("editPitch"));
 $("title").addEventListener("change",e=>mutate(d=>d.title=e.target.value));
 $("bpm").addEventListener("change",e=>mutate(d=>d.settings.bpm=Number(e.target.value)));
 $("loop").addEventListener("change",e=>mutate(d=>d.settings.loop=e.target.checked));
