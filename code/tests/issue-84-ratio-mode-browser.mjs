@@ -365,6 +365,11 @@ try{
     await page.locator(".preset-item").filter({hasText:"Major"}).first().locator(".preset-edit").click();
     assert.ok(await page.locator("#presetInlineRow").isVisible(),"edit must be inline");
     assert.equal(await page.locator("#presetInlineInput").inputValue(),"[Major]4,5,6");
+    assert.equal(await page.locator("#presetSearch").isVisible(),false,"search should be temporarily replaced, not pushed down");
+    if(width===320){
+      const size=await page.locator(".progression-editor").evaluate(el=>({scroll:el.scrollHeight,client:el.clientHeight}));
+      assert.ok(size.scroll<=size.client+2,"inline registration pushed mobile editor into nested scrolling "+JSON.stringify(size));
+    }
     await page.locator("#presetInlineInput").fill("[Major2]4,5,6");
     await page.locator("#presetInlineInput").press("Enter");
     assert.equal(await page.locator(".ratio-preset").filter({hasText:"Major2"}).count(),1);
@@ -373,6 +378,13 @@ try{
     await page.locator("#presetInlineInput").fill("[Extra]4:11/2:6");
     await page.locator("#presetInlineInput").press("Enter");
     assert.equal(await page.locator(".ratio-preset").filter({hasText:"Extra"}).count(),1);
+    await page.locator(".preset-item").filter({hasText:"Extra"}).locator(".preset-edit").click();
+    await page.locator("#presetInlineInput").fill("[ShouldNotSave]4:5:6");
+    await page.locator("#presetInlineCancel").click();
+    assert.equal(await page.locator(".ratio-preset").filter({hasText:"ShouldNotSave"}).count(),0,
+      "cancel unexpectedly saved an inline rename");
+    assert.equal(await page.locator(".ratio-preset").filter({hasText:"Extra"}).count(),1,
+      "cancel unexpectedly lost the original preset");
     await page.locator("#editExpr").fill("[Own]4:5:6");
     await page.locator("#editExpr").dispatchEvent("change");
     assert.equal(await page.locator(".ratio-preset").filter({hasText:"Own"}).count(),1);
