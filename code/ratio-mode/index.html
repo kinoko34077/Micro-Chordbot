@@ -79,10 +79,10 @@
                 <input id="editExpr" type="text" spellcheck="false" autocomplete="off" placeholder="例 4:11/2:6" title="4:11/2:6 と 8:11:12 は同じ比率。/ は各成分内の分数">
               </label>
               <label class="pitch-field">最低音
-                <input id="editPitch" type="text" spellcheck="false" autocomplete="off" placeholder="C4" title="上下左右へスライドして音名・変化記号・オクターブを変更。キーボードでは直接入力可能。" aria-label="最低音、上下左右スライドで7×5四分音表を操作">
+                <input id="editPitch" type="text" spellcheck="false" autocomplete="off" placeholder="C4" title="指を下へ滑らせるとC→B→次のC。左右は50セント刻み。ダブルクリックで直接入力。" aria-label="最低音、スライドで7×5四分音表、ダブルクリックで直接編集">
               </label>
               <label class="beats-field">拍
-                <input id="editBeats" type="text" inputmode="decimal" autocomplete="off" title="上下スライドで拍数変更。タップで小数を直接入力。" aria-label="拍数、上下スライドで変更">
+                <input id="editBeats" type="text" inputmode="decimal" autocomplete="off" title="4×4格子を上下左右にスライドして0.25拍刻みで変更。ダブルクリックで直接入力。" aria-label="拍数、4×4拍数表をスライド、ダブルクリックで直接編集">
               </label>
             </div>
             <div class="progression-choice-tools">
@@ -109,7 +109,12 @@
     <div id="pitchFlickPanel" class="pitch-flick-panel" hidden aria-hidden="true">
       <div id="pitchFlickValue" class="pitch-flick-value"></div>
       <div id="pitchFlickGrid" class="pitch-flick-grid" aria-hidden="true"></div>
-      <div class="pitch-flick-caption">↑ 音高　左右 変化記号　離して確定</div>
+      <div class="pitch-flick-caption">↓ C→D→…→B→次のC　左右 ±50￠</div>
+    </div>
+    <div id="beatsFlickPanel" class="pitch-flick-panel beats-flick-panel" hidden aria-hidden="true">
+      <div id="beatsFlickValue" class="pitch-flick-value"></div>
+      <div id="beatsFlickGrid" class="beats-flick-grid" aria-hidden="true"></div>
+      <div class="pitch-flick-caption">↓ 次の拍へ　右へ +0.25拍　離して確定</div>
     </div>
   </div>
   <dialog id="ioDialog" aria-label="コード進行の入出力">
