@@ -450,13 +450,48 @@ function renderTimeline(){
   updateGridColumns();
 }
 function removePreset(name){
-  if(mutate(d=>{
+  mutate(d=>{
     const p=d.presets.find(x=>x.name===name);
     if(!p)throw new Error("対象の比率が見つかりません");
     for(const section of d.sections)for(const step of section.steps)
       if(step.expr.toLocaleLowerCase()===name.toLocaleLowerCase())step.expr=p.ratios;
     d.presets=d.presets.filter(x=>x.name!==name);
-  }))renderPresetManager();
+  });
+}
+// Name and ratio are ONE inline expression. Existing preset tiles remain
+// named+ratio tiles; neither registration nor editing opens a dialog.
+let editingPresetName=null,presetEditorActive=false;
+function beginPresetEdit(name=null){
+  const source=project.presets.find(p=>p.name===name);
+  editingPresetName=source?.name||null;
+  const row=$("presetInlineRow"),field=$("presetInlineInput");
+  field.value=source?"["+source.name+"]"+source.ratios:"";
+  row.hidden=false;presetEditorActive=true;
+  field.focus();field.select();
+}
+function finishPresetEdit(commit){
+  if(!presetEditorActive)return;
+  if(!commit){
+    presetEditorActive=false;editingPresetName=null;
+    $("presetInlineRow").hidden=true;return;
+  }
+  let entry;
+  try{entry=parseNamedRatio($("presetInlineInput").value)}
+  catch(error){notice(error.message,true);$("presetInlineInput").setAttribute("aria-invalid","true");return}
+  const previous=editingPresetName;
+  const okay=mutate(d=>{
+    if(previous){
+      const target=d.presets.find(p=>p.name===previous);
+      if(!target)throw new Error("編集対象が見つかりません");
+      target.name=entry.name;target.ratios=entry.ratios;
+      for(const section of d.sections)for(const step of section.steps)
+        if(step.expr.toLocaleLowerCase()===previous.toLocaleLowerCase())step.expr=entry.name;
+    }else d.presets.push(entry);
+  });
+  if(!okay)return;
+  presetEditorActive=false;editingPresetName=null;
+  $("presetInlineInput").removeAttribute("aria-invalid");
+  $("presetInlineRow").hidden=true;
 }
 function renderPresets(){
   const chips=$("presetChips"),scroll=chips.scrollTop,filter=$("presetSearch").value.trim().toLocaleLowerCase();
@@ -469,20 +504,28 @@ function renderPresets(){
     const ratio=document.createElement("small");ratio.textContent=preset.ratios;
     chip.append(name,ratio);chip.title="選択コードへ "+preset.name+" を設定";
     chip.addEventListener("click",()=>mutate(d=>{selectedLocation(d).step.expr=preset.name},{audition:true}));
+    chip.addEventListener("dblclick",e=>{e.preventDefault();beginPresetEdit(preset.name)});
+    const edit=document.createElement("button");edit.type="button";edit.className="preset-edit";
+    edit.textContent="✎";edit.title=preset.name+" を直接編集";
+    edit.setAttribute("aria-label",preset.name+" をその場で編集");
+    edit.addEventListener("click",()=>beginPresetEdit(preset.name));
     const del=document.createElement("button");del.type="button";del.className="preset-remove";
     del.textContent="×";del.title=preset.name+" を解除";
     del.setAttribute("aria-label",preset.name+" を登録解除");
     del.addEventListener("click",e=>{e.stopPropagation();removePreset(preset.name)});
-    item.append(chip,del);fragment.append(item);
+    item.append(chip,edit,del);fragment.append(item);
   }
   chips.replaceChildren(fragment);chips.scrollTop=scroll;
 }
-function renderPresetManager(){
-  const select=$("presetManageSelect"),value=select.value;
-  const options=[new Option("新規登録",""),...project.presets.map(p=>new Option(p.name,p.name))];
-  select.replaceChildren(...options);
-  select.value=project.presets.some(p=>p.name===value)?value:"";
-  $("addPreset").textContent=select.value?"変更を保存":"登録";
+function setRatioExpression(d,value){
+  const expression=value.trim();
+  if(expression.startsWith("[")){
+    const entry=parseNamedRatio(expression);
+    const existing=d.presets.find(p=>p.name.toLocaleLowerCase()===entry.name.toLocaleLowerCase());
+    if(existing){existing.name=entry.name;existing.ratios=entry.ratios}
+    else d.presets.push(entry);
+    selectedLocation(d).step.expr=entry.name;
+  }else selectedLocation(d).step.expr=expression;
 }
 function updateGridColumns(){
   const track=$("timeline"),width=track.clientWidth||window.innerWidth;
@@ -587,13 +630,17 @@ function render(){
   $("title").value=project.title;$("bpm").value=project.settings.bpm;
   $("playScope").value=playScope;
   $("loop").checked=project.settings.loop;$("wave").value=project.settings.wave;
-  renderTimeline();renderPresets();renderPresetManager();renderSelection();renderHistory();
+  renderTimeline();renderPresets();renderSelection();renderHistory();
 }
 function commitField(which,value,field){
   let success=false;
-  if(which==="expr")success=mutate(d=>selectedLocation(d).step.expr=value.trim(),{audition:true});
+  if(which==="expr")success=mutate(d=>setRatioExpression(d,value),{audition:true});
   if(which==="pitch")success=mutate(d=>selectedLocation(d).step.pitch=value.trim(),{audition:true});
-  if(which==="beats"&&field.dataset.dragging!=="true")success=mutate(d=>selectedLocation(d).step.beats=Number(value));
+  if(which==="beats"&&field.dataset.dragging!=="true")success=mutate(d=>{
+    const fraction=parseBeatNotation(value);
+    selectedLocation(d).step.beats=fraction.beats;
+    selectedLocation(d).step.beatUnit=fraction.beatUnit;
+  });
 
   field.setAttribute("aria-invalid",success?"false":"true");
 }
@@ -609,11 +656,12 @@ for(const [key,which] of [["editExpr","expr"],["editPitch","pitch"]]){
     const value=e.target.value,field=e.target,origin={...selection};
     const timer=setTimeout(()=>{
       if(field.value!==value||field.dataset.composing==="true"||selection.stepId!==origin.stepId||selection.sectionId!==origin.sectionId)return;
+      if(which==="expr"&&value.trim().startsWith("["))return; // named registration is atomic on Enter/blur
       const draft=copy(project);
-      if(which==="expr")selectedLocation(draft).step.expr=value.trim();
+      if(which==="expr")setRatioExpression(draft,value);
       else selectedLocation(draft).step.pitch=value.trim();
       try{validateProject(draft)}catch(error){return}
-      mutate(d=>{selectedLocation(d).step[which==="expr"?"expr":"pitch"]=value.trim()},{audition:true});
+      mutate(d=>which==="expr"?setRatioExpression(d,value):selectedLocation(d).step.pitch=value.trim(),{audition:true});
     },260);
     typingTimers.set(key,timer);
   });
@@ -626,8 +674,17 @@ for(const [key,which] of [["editExpr","expr"],["editPitch","pitch"]]){
   });
 }
 $("presetSearch").addEventListener("input",()=>{$("presetChips").scrollTop=0;renderPresets()});
-$("openPresetManager").addEventListener("click",()=>{$("presetManager").showModal();$("presetName").focus()});
-$("closePresetManager").addEventListener("click",()=>$("presetManager").close());
+$("openPresetManager").addEventListener("click",()=>beginPresetEdit());
+$("presetInlineCancel").addEventListener("click",()=>finishPresetEdit(false));
+$("presetInlineInput").addEventListener("keydown",e=>{
+  if(e.isComposing)return;
+  if(e.key==="Enter"){e.preventDefault();finishPresetEdit(true)}
+  if(e.key==="Escape"){e.preventDefault();finishPresetEdit(false)}
+});
+$("presetInlineInput").addEventListener("blur",()=>{if(presetEditorActive)finishPresetEdit(true)});
+$("editExpr").addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&!e.isComposing){e.preventDefault();e.target.blur()}
+});
 $("renameChunk").addEventListener("click",()=>chunkRenameActive?finishChunkRename(true):beginChunkRename());
 $("chunkInlineName").addEventListener("blur",()=>finishChunkRename(true));
 $("chunkInlineName").addEventListener("keydown",e=>{
@@ -711,35 +768,12 @@ function swap(delta){
 }
 $("moveLeft").addEventListener("click",()=>swap(-1));
 $("moveRight").addEventListener("click",()=>swap(1));
-$("presetManageSelect").addEventListener("change",e=>{
-  const selected=project.presets.find(p=>p.name===e.target.value);
-  $("presetName").value=selected?.name||"";
-  $("presetRatio").value=selected?.ratios||"";
-  $("addPreset").textContent=selected?"変更を保存":"登録";
-});
-
 $("gridColumns").addEventListener("change",e=>{
   const v=Number(e.target.value);
   if(!Number.isInteger(v)||v<1||v>12){e.target.value=String(columns);return}
   columns=v;saveSelection();updateGridColumns();
 });
 window.addEventListener("resize",updateGridColumns);
-$("addPreset").addEventListener("click",()=>{
-  const previous=$("presetManageSelect").value;
-  const name=$("presetName").value.trim(),ratios=$("presetRatio").value.trim();
-  if(mutate(d=>{
-    if(!previous){d.presets.push({name,ratios});return}
-    const preset=d.presets.find(p=>p.name===previous);
-    if(!preset)throw new Error("編集対象が見つかりません");
-    preset.name=name;preset.ratios=ratios;
-    for(const section of d.sections)for(const step of section.steps){
-      if(step.expr.toLocaleLowerCase()===previous.toLocaleLowerCase())step.expr=name;
-    }
-  })){
-    $("presetManageSelect").value="";$("presetName").value="";$("presetRatio").value="";
-    renderPresetManager();
-  }
-});
 function stopPlayback(){
   clearTimeout(tapTimer);tapVersion++;tapVoiceIds=[];
   runId++;playing=false;playingStepId=null;voiceCount=0;clearTimeout(timer);timer=null;
