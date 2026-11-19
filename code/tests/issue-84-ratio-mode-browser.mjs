@@ -42,6 +42,7 @@ try{
         effective:Number(track.dataset.columns),requested:Number(document.querySelector("#gridColumns").value),
         editorTop:editor.top,editorBottom:editor.bottom,timelineBottom:trackBox.bottom,
         toolbarHeight:document.querySelector(".progression-toolbar").getBoundingClientRect().height,
+        topbarHeight:document.querySelector(".topbar").getBoundingClientRect().height,
         presetBottom:document.querySelector("#presetChips").getBoundingClientRect().bottom,
         editorScrollHeight:document.querySelector(".progression-editor").scrollHeight,
         editorClientHeight:document.querySelector(".progression-editor").clientHeight,
@@ -66,7 +67,12 @@ try{
     assert.ok(layout.scrollWidth<=layout.clientWidth+2,"infinite horizontal track still present "+JSON.stringify(layout));
     assert.ok(layout.editorBottom<=layout.viewport+2,"editor overflows visible viewport "+JSON.stringify(layout));
     assert.ok(layout.editorTop>=layout.timelineBottom-2,"timeline obscured by editor "+JSON.stringify(layout));
-    if(width<=640)assert.ok(layout.toolbarHeight<=60,"mobile transport wastefully spans multiple rows "+JSON.stringify(layout));
+    if(width<=640){
+      assert.ok(layout.toolbarHeight<=60,"mobile transport wastefully spans multiple rows "+JSON.stringify(layout));
+      assert.ok(layout.topbarHeight<=65,"mobile topbar uses redundant rows "+JSON.stringify(layout));
+      assert.ok(layout.editorScrollHeight<=layout.editorClientHeight+2,"basic mobile editing still requires an extra nested scroll "+JSON.stringify(layout));
+      assert.ok(layout.presetBottom<=layout.editorBottom+2,"preset options are hidden below the editor "+JSON.stringify(layout));
+    }
     if(width>=1000)assert.ok(layout.timelineHeight<=285,"empty desktop timeline over-expands "+JSON.stringify(layout));
     if(width===390||width===430)
       assert.ok(layout.presetBottom<=layout.editorBottom+2,"normal phone preset choices hidden by editor scroller "+JSON.stringify(layout));
@@ -92,6 +98,12 @@ try{
     const manager=page.locator("#presetManager");
     assert.equal(await manager.getAttribute("open"),null,"destructive management controls should start collapsed");
     if(width<=950)await page.locator("#progMenuToggleBtn").click();
+    if(width<=640){
+      await page.locator("#masterVolumeMobile").evaluate(el=>{
+        el.value="0.45";el.dispatchEvent(new Event("input",{bubbles:true}));
+      });
+      assert.equal(await page.locator("#masterVolume").inputValue(),"0.45","mobile slider did not update AudioEngine master control");
+    }
     await page.locator("#gridColumns").fill("1");
     await page.locator("#gridColumns").dispatchEvent("change");
     assert.equal(await page.locator("#timeline").getAttribute("data-columns"),"1");
