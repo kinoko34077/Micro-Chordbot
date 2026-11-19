@@ -1279,3 +1279,11 @@ dialog::backdrop{background:#0009}
   .ratio-app .progression-toolbar-actions{max-width:min(340px,100%)}
   .ratio-app .ratio-column-setting{font-size:12px}
 }
+
+/* Browser 320×667 evidence: shrinkable editor sacrificed 105px despite the
+   timeline retaining unused height. Give the editing controls their
+   intrinsic space FIRST; only the timeline absorbs remaining height. */
+.ratio-app .progression-editor{flex:0 0 auto;max-height:none}
+@media(max-width:640px){
+  .ratio-app .progression-editor{flex:0 0 auto;max-height:none}
+}
