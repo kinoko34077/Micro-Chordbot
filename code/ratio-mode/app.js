@@ -1,7 +1,7 @@
 import {AudioEngine} from "../src/audio.js";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {HistoryManager, isNativeUndoTarget} from "../src/history.js";
-import {newProject,validateProject,parsePitch,parseRatio,flickPitch,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,importText,exportText} from "./model.mjs";
+import {newProject,validateProject,parsePitch,parseRatio,flickGridPitch,flickEnharmonicCells,beatMatrixValue,beatMatrixCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,importText,exportText} from "./model.mjs";
 
 const $=id=>document.getElementById(id);
 const copy=value=>JSON.parse(JSON.stringify(value));
@@ -156,71 +156,93 @@ function makeCard(section,step,index){
   }
   return shell;
 }
-// The 7x5 grid is *display only*: pointer capture stays on the source
-// value. A cell tap cannot select a pitch; one continuous slide or flick does.
+// Gesture sheets are visual references, NOT clickable keyboards. The value
+// itself holds pointer capture throughout a drag; native grid-cell taps
+// cannot select anything or unexpectedly scroll the composition.
 const flickPanel=$("pitchFlickPanel"),flickGrid=$("pitchFlickGrid");
+const beatsPanel=$("beatsFlickPanel"),beatsGrid=$("beatsFlickGrid");
 const accidentalSymbols=["♭","d","","‡","♯"];
-for(const note of FLICK_LETTERS){
-  for(let acc=0;acc<FLICK_ACCIDENTALS.length;acc++){
-    const cell=document.createElement("div");cell.className="pitch-flick-cell";
-    cell.dataset.note=note;cell.dataset.acc=String(acc);
-    cell.textContent=note+accidentalSymbols[acc];flickGrid.append(cell);
-  }
+for(const note of FLICK_LETTERS)for(let acc=0;acc<5;acc++){
+  const cell=document.createElement("div");
+  cell.className="pitch-flick-cell";
+  cell.dataset.note=note;cell.dataset.acc=String(acc);
+  cell.textContent=note+accidentalSymbols[acc];
+  flickGrid.append(cell);
 }
 function highlightFlickPitch(pitch){
-  const match=/^([A-G])([#b‡d]?)(-?\d{1,2})/.exec(pitch);
-  if(!match)return;
-  const accidental=FLICK_ACCIDENTALS.indexOf(match[2]);
-  for(const cell of flickGrid.children)
-    cell.classList.toggle("selected",cell.dataset.note===match[1]&&Number(cell.dataset.acc)===accidental);
-  $("pitchFlickValue").textContent=pitch;
+  const parsed=parsePitch(pitch).label;
+  const match=/^([A-G])([#b‡d]?)(-?\d{1,2})/.exec(parsed);
+  const equivalents=flickEnharmonicCells(parsed);
+  const acc=FLICK_ACCIDENTALS.indexOf(match[2]);
+  for(const cell of flickGrid.children){
+    const isEquivalent=equivalents.some(e=>e.letter===cell.dataset.note&&e.acc===Number(cell.dataset.acc));
+    cell.classList.toggle("selected",isEquivalent);
+    cell.classList.toggle("primary-selected",cell.dataset.note===match[1]&&Number(cell.dataset.acc)===acc);
+  }
+  $("pitchFlickValue").textContent=parsed;
 }
-function placeFlickPanel(source){
+function placeGesturePanel(source,panel,width,height){
   const r=source.getBoundingClientRect();
-  const width=Math.min(245,window.innerWidth-16),height=260;
-  flickPanel.style.width=width+"px";
-  flickPanel.style.left=Math.max(8,Math.min(window.innerWidth-width-8,r.left+r.width/2-width/2))+"px";
-  const desired=r.top-height-7;
-  flickPanel.style.top=Math.max(8,Math.min(window.innerHeight-height-8,
-    desired>=8?desired:r.bottom+7))+"px";
+  const visibleHeight=window.visualViewport?.height||window.innerHeight;
+  const w=Math.min(width,window.innerWidth-16);
+  const h=Math.min(height,visibleHeight-16);
+  panel.style.width=w+"px";panel.style.height=h+"px";
+  // Center the sheet in the available width instead of anchoring it to the
+  // pitch field at the far right of narrow layouts.
+  panel.style.left=Math.max(8,(window.innerWidth-w)/2)+"px";
+  const above=r.top-h-8;
+  const top=above>=8?above:r.bottom+8;
+  panel.style.top=Math.max(8,Math.min(visibleHeight-h-8,top))+"px";
 }
-let pitchGesture=null;
+function activatePreciseInput(field){
+  field.classList.add("exact-editing");
+  field.focus();field.select();
+}
+// In a 7x5 sheet the rows read C, D, E, F, G, A, B from TOP to BOTTOM.
+// Moving DOWN therefore increases the diatonic row; the old sign was wrong.
+let pitchGesture=null,beatGesture=null;
 function bindPitchFlick(field){
+  let lastTap=null;
+  field.addEventListener("blur",()=>field.classList.remove("exact-editing"));
+  field.addEventListener("dblclick",event=>{
+    event.preventDefault();lastTap=null;
+    activatePreciseInput(field);
+  });
   field.addEventListener("pointerdown",event=>{
     if(event.button!==0||!event.isPrimary||pitchGesture)return;
+    if(field.classList.contains("exact-editing"))return;
+    const now=performance.now();
+    const isDouble=event.detail>=2 || (lastTap&&now-lastTap.time<350&&
+      Math.hypot(event.clientX-lastTap.x,event.clientY-lastTap.y)<18);
+    // Decide on release: a fast second pointerdown might turn into a
+    // drag, which must remain a flick rather than opening the keyboard.
     const {section,step}=selectedLocation();
-    const parsed=/^([A-G])([#b‡d]?)(-?\d{1,2})/.exec(parsePitch(step.pitch).label);
-    if(!parsed)return;
+    const parsed=parsePitch(step.pitch).label;
+    const match=/^([A-G])([#b‡d]?)(-?\d{1,2})/.exec(parsed);
+    if(!match)return;
     event.preventDefault();
-    // Do not wake the text keyboard on a touch/flick. External keyboards can
-    // still focus and type an exact cent expression.
     resumeAudioContext({gesture:true});
     pitchGesture={pointerId:event.pointerId,sectionId:section.id,stepId:step.id,
-      original:step.pitch,candidate:step.pitch,acc:FLICK_ACCIDENTALS.indexOf(parsed[2]),
-      x:event.clientX,y:event.clientY,moved:false,audioAt:0,startedAt:performance.now()};
+      original:step.pitch,candidate:step.pitch,x:event.clientX,y:event.clientY,
+      moved:false,audioAt:0,doubleCandidate:isDouble};
     field.setPointerCapture(event.pointerId);
-    placeFlickPanel(field);
-    highlightFlickPitch(parsePitch(step.pitch).label);flickPanel.hidden=false;
+    placeGesturePanel(field,flickPanel,260,268);
+    highlightFlickPitch(parsed);flickPanel.hidden=false;
   });
   field.addEventListener("pointermove",event=>{
     const g=pitchGesture;if(!g||g.pointerId!==event.pointerId)return;
     const dx=event.clientX-g.x,dy=event.clientY-g.y;
     if(!g.moved&&Math.hypot(dx,dy)<7)return;
-    g.moved=true;
-    // Vertical movement changes diatonic steps. B4+1 -> C5 naturally;
-    // reversing direction crosses the same boundary without finger release.
-    const steps=Math.round(-dy/23);
-    const accidental=Math.min(4,Math.max(0,g.acc+Math.round(dx/30)));
-    const next=flickPitch(g.original,steps,accidental);
+    g.moved=true;lastTap=null;
+    const next=flickGridPitch(g.original,Math.round(dy/23),Math.round(dx/28));
     if(next===g.candidate)return;
     g.candidate=next;field.value=next;highlightFlickPitch(next);
     const now=performance.now();
-    // Audition throttled and independent from the progression transport.
     if(now-g.audioAt>=110){
       g.audioAt=now;
-      const previewStep={...selectedLocation().step,pitch:next};
-      try{calculate(previewStep);void auditionCard(previewStep)}
-      catch(error){/* a valid notation can lie outside the audible range */}
+      const audition={...selectedLocation().step,pitch:next};
+      try{calculate(audition);void auditionCard(audition)}
+      catch(error){/* notation can legitimately exceed audible Hz range */}
     }
   });
   function finish(event,accept){
@@ -228,16 +250,17 @@ function bindPitchFlick(field){
     pitchGesture=null;flickPanel.hidden=true;
     if(field.hasPointerCapture(event.pointerId))field.releasePointerCapture(event.pointerId);
     const current=selectedLocation();
-    if(accept&&g.moved&&g.candidate!==g.original&&current.section.id===g.sectionId&&current.step.id===g.stepId){
-      // Entire gesture is one state mutation and one Undo record.
-      if(!mutate(d=>{d.sections.find(x=>x.id===g.sectionId).steps.find(x=>x.id===g.stepId).pitch=g.candidate}))
+    if(accept&&g.moved&&g.candidate!==g.original&&
+       current.section.id===g.sectionId&&current.step.id===g.stepId){
+      // One gesture, one valid state mutation, one Undo entry.
+      if(!mutate(d=>{d.sections.find(s=>s.id===g.sectionId)
+          .steps.find(x=>x.id===g.stepId).pitch=g.candidate}))
         field.value=current.step.pitch;
     }else{
       field.value=current.step.pitch;
-      // Rare precision edits (+cent) remain accessible without reinstating
-      // any pitch-grid tap selection. Holding then releasing enters text mode.
-      if(accept&&!g.moved&&performance.now()-g.startedAt>=550){
-        field.focus();field.select();
+      if(accept&&!g.moved){
+        if(g.doubleCandidate){lastTap=null;activatePreciseInput(field)}
+        else lastTap={time:performance.now(),x:event.clientX,y:event.clientY};
       }
     }
   }
@@ -245,13 +268,84 @@ function bindPitchFlick(field){
   field.addEventListener("pointercancel",event=>finish(event,false));
   window.addEventListener("blur",()=>{
     if(!pitchGesture)return;
-    pitchGesture=null;flickPanel.hidden=true;
-    field.value=selectedLocation().step.pitch;
+    pitchGesture=null;flickPanel.hidden=true;field.value=selectedLocation().step.pitch;
   });
 }
-// Value displays remain regular text-inputs for precision, but a vertical
-// scrub previews its number without writing localStorage or History. Committing
-// once at pointerup guarantees one Undo for any distance.
+function highlightBeats(value){
+  const grid=beatMatrixCells(value);
+  if(beatsGrid.dataset.start!==String(grid.firstBeat)){
+    beatsGrid.dataset.start=String(grid.firstBeat);
+    const cells=document.createDocumentFragment();
+    grid.rows.forEach((row,i)=>row.forEach((n,j)=>{
+      const cell=document.createElement("div");
+      cell.className="beats-flick-cell";cell.dataset.beats=String(n);
+      cell.dataset.row=String(i);cell.dataset.col=String(j);
+      cell.textContent=String(n);
+      cells.append(cell);
+    }));
+    beatsGrid.replaceChildren(cells);
+  }
+  const snapped=beatMatrixValue(value,0,0);
+  for(const cell of beatsGrid.children)
+    cell.classList.toggle("selected",Number(cell.dataset.beats)===snapped);
+  $("beatsFlickValue").textContent=String(value)+"拍";
+}
+function bindBeatFlick(field){
+  let lastTap=null;
+  field.addEventListener("blur",()=>field.classList.remove("exact-editing"));
+  field.addEventListener("dblclick",e=>{e.preventDefault();lastTap=null;activatePreciseInput(field)});
+  field.addEventListener("pointerdown",event=>{
+    if(event.button!==0||!event.isPrimary||beatGesture)return;
+    if(field.classList.contains("exact-editing"))return;
+    const now=performance.now();
+    const isDouble=event.detail>=2 || (lastTap&&now-lastTap.time<350&&
+      Math.hypot(event.clientX-lastTap.x,event.clientY-lastTap.y)<18);
+    // Only a second *completed* tap enters precise text; a drag stays a drag.
+    event.preventDefault();
+    const {section,step}=selectedLocation();
+    beatGesture={pointerId:event.pointerId,sectionId:section.id,stepId:step.id,
+      original:step.beats,current:step.beats,x:event.clientX,y:event.clientY,
+      moved:false,doubleCandidate:isDouble};
+    field.setPointerCapture(event.pointerId);
+    placeGesturePanel(field,beatsPanel,270,225);
+    highlightBeats(step.beats);beatsPanel.hidden=false;
+  });
+  field.addEventListener("pointermove",event=>{
+    const g=beatGesture;if(!g||g.pointerId!==event.pointerId)return;
+    const dx=event.clientX-g.x,dy=event.clientY-g.y;
+    if(!g.moved&&Math.hypot(dx,dy)<7)return;
+    g.moved=true;lastTap=null;
+    const value=beatMatrixValue(g.original,Math.round(dy/29),Math.round(dx/33));
+    g.current=value;field.value=String(value);
+    highlightBeats(value);
+  });
+  function finish(event,accept){
+    const g=beatGesture;if(!g||g.pointerId!==event.pointerId)return;
+    beatGesture=null;beatsPanel.hidden=true;
+    if(field.hasPointerCapture(event.pointerId))field.releasePointerCapture(event.pointerId);
+    const current=selectedLocation();
+    if(accept&&g.moved&&g.current!==g.original&&
+       current.section.id===g.sectionId&&current.step.id===g.stepId){
+      if(!mutate(d=>{d.sections.find(s=>s.id===g.sectionId)
+          .steps.find(x=>x.id===g.stepId).beats=g.current}))
+        field.value=String(current.step.beats);
+    }else{
+      field.value=String(current.step.beats);
+      if(accept&&!g.moved){
+        if(g.doubleCandidate){lastTap=null;activatePreciseInput(field)}
+        else lastTap={time:performance.now(),x:event.clientX,y:event.clientY};
+      }
+    }
+  }
+  field.addEventListener("pointerup",event=>finish(event,true));
+  field.addEventListener("pointercancel",event=>finish(event,false));
+  window.addEventListener("blur",()=>{
+    if(!beatGesture)return;
+    beatGesture=null;beatsPanel.hidden=true;field.value=String(selectedLocation().step.beats);
+  });
+}
+// Repeat count has its own integral range; unlike beats it does not use a
+// fraction grid. One drag still contributes exactly one Undo action.
 function bindNumberScrub(field,{get,commit,min,max,step,fineStep=step}){
   let gesture=null;
   field.addEventListener("pointerdown",event=>{
@@ -469,7 +563,7 @@ function renderSelection(){
   $("selectionLabel").textContent=String(loc.index+1);
   if(document.activeElement!==$("editExpr"))$("editExpr").value=step.expr;
   if(!pitchGesture&&document.activeElement!==$("editPitch"))$("editPitch").value=step.pitch;
-  if(document.activeElement!==$("editBeats"))$("editBeats").value=step.beats;
+  if(!beatGesture&&document.activeElement!==$("editBeats"))$("editBeats").value=step.beats;
   renderSectionNav();
   for(const card of $("timeline").querySelectorAll(".progression-cell[data-cid]")){
     const active=card.dataset.sid===selection.sectionId&&card.dataset.cid===selection.stepId;
@@ -552,11 +646,7 @@ $("chunkJump").addEventListener("change",e=>{
   if(chunk)setSelection(chunk.sections[0].id,chunk.sections[0].steps[0].id);
 });
 
-bindNumberScrub($("editBeats"),{
-  get:()=>selectedLocation().step.beats,
-  commit:value=>mutate(d=>{selectedLocation(d).step.beats=value}),
-  min:.25,max:64,step:1,fineStep:.25
-});
+bindBeatFlick($("editBeats"));
 bindPitchFlick($("editPitch"));
 $("title").addEventListener("change",e=>mutate(d=>d.title=e.target.value));
 $("bpm").addEventListener("change",e=>mutate(d=>d.settings.bpm=Number(e.target.value)));

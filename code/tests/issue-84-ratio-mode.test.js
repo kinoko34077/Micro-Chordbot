@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFile} from "node:fs/promises";
-import {parsePitch,parseRatio,flickPitch,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
+import {parsePitch,parseRatio,flickPitch,flickGridPitch,flickEnharmonicCells,beatMatrixValue,beatMatrixCells,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {AudioEngine} from "../src/audio.js";
 const hz=(s)=>{const p=parsePitch(s);return frequencyFromPitch(440,p.octave,p.microStepInOctave)};
@@ -31,6 +31,51 @@ test("7x5 flick pitch mapping wraps B4/C5 in both directions without losing cent
   assert.equal(flickPitch("C-1",-5,2),"C-1");
   assert.throws(()=>flickPitch("C4",1,8));
   close(hz(flickPitch("B4",1,2)),hz("C5"));
+});
+
+test("corrected pitch drag follows top-to-bottom C–B rows with continuous octaves",()=>{
+  assert.equal(flickGridPitch("B4",1,0),"C5");
+  assert.equal(flickGridPitch("C5",-1,0),"B4");
+  assert.equal(flickGridPitch("B4",-1,0),"A4");
+  assert.equal(flickGridPitch("C4",1,0),"D4");
+  assert.equal(flickGridPitch("D#4",0,1),"Ed4","D# +50 cents must cross right to Ed");
+  assert.equal(flickGridPitch("Eb4",0,-1),"D‡4","Eb -50 cents must cross left to D‡");
+  assert.equal(flickGridPitch("C#4",0,1),"Dd4");
+  assert.equal(flickGridPitch("Cb4",0,-1),"Bd3");
+  assert.equal(flickGridPitch("D#4",0,2),"E4");
+  assert.equal(flickGridPitch("E#4",0,1),"F‡4");
+  assert.equal(flickGridPitch("B4",1,1),"C‡5");
+  assert.equal(flickGridPitch("A#5 +50￠",0,1),"Bd5 +50￠");
+  assert.equal(flickGridPitch("B9",100,100),"B#9");
+  assert.equal(flickGridPitch("C-1",-100,-100),"Cb-1");
+  close(hz(flickGridPitch("D#4",0,1)),hz("Ed4"));
+});
+test("enharmonic spellings share selection without treating distinct quartertones as equal",()=>{
+  const locations=p=>flickEnharmonicCells(p).map(x=>x.letter+FLICK_ACCIDENTALS[x.acc]+x.octave);
+  assert.deepEqual(locations("D#4").sort(),["D#4","Eb4"].sort());
+  assert.deepEqual(locations("Eb4").sort(),["D#4","Eb4"].sort());
+  assert.deepEqual(locations("C#5").sort(),["C#5","Db5"].sort());
+  assert.deepEqual(locations("D‡4"),[{letter:"D",acc:3,octave:4}].map(x=>x.letter+FLICK_ACCIDENTALS[x.acc]+x.octave));
+  assert.ok(!locations("D‡4").includes("Ed4"),"D‡ and Ed differ by a full semitone");
+  assert.ok(locations("C5").includes("B#4"),"enharmonic across octave boundary");
+});
+test("4x4 beat gesture uses quarter-beat columns and paged rows without .25 lock-in",()=>{
+  assert.deepEqual(beatMatrixCells(.25).rows[0],[.25,.5,.75,1]);
+  assert.deepEqual(beatMatrixCells(.25).rows[3],[3.25,3.5,3.75,4]);
+  assert.equal(beatMatrixCells(4).firstBeat,1);
+  assert.equal(beatMatrixCells(4.25).firstBeat,5);
+  assert.deepEqual(beatMatrixCells(5).rows[0],[4.25,4.5,4.75,5]);
+  assert.equal(beatMatrixCells(8.25).firstBeat,9);
+  assert.equal(beatMatrixValue(.25,0,1),.5);
+  assert.equal(beatMatrixValue(.25,0,3),1);
+  assert.equal(beatMatrixValue(.25,1,0),1.25);
+  assert.equal(beatMatrixValue(1,0,1),1.25);
+  assert.equal(beatMatrixValue(4,1,0),5);
+  assert.equal(beatMatrixValue(8,1,0),9);
+  assert.equal(beatMatrixValue(5,-1,0),4);
+  assert.equal(beatMatrixValue(.25,0,-10),.25);
+  assert.equal(beatMatrixValue(64,4,0),64);
+  assert.equal(beatMatrixValue(1.3,0,0),1.25,"non-quantized persisted values remain usable until edited");
 });
 
 test("base is always minimum numeric ratio and equivalent fraction expressions match",()=>{
