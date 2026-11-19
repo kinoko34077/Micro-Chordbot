@@ -23,7 +23,7 @@ export const FLICK_LETTERS=Object.freeze(["C","D","E","F","G","A","B"]);
 export const FLICK_ACCIDENTALS=Object.freeze(["b","d","","‡","#"]);
 export function flickPitch(value,diatonicDelta,accidentalIndex){
   const original=parsePitch(value);
-  const match=/^([A-G])([#b‡d]?)(-?\\d{1,2})(.*)$/.exec(original.label);
+  const match=/^([A-G])([#b‡d]?)(-?\d{1,2})(.*)$/.exec(original.label);
   if(!match)fail("音高の表記を読み取れません");
   if(!Number.isInteger(diatonicDelta)||!Number.isInteger(accidentalIndex)||accidentalIndex<0||accidentalIndex>=FLICK_ACCIDENTALS.length)
     fail("音高操作の値が不正です");
