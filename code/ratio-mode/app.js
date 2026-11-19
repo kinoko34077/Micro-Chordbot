@@ -77,7 +77,8 @@ function restore(snapshot){
   const wasPlaying=playing;
   stopPlayback();project=copy(snapshot);
   chooseFirst();saveSelection();save();render();if(saveAllowed)notice("");
-  if(wasPlaying)startPlayback(); else void preview();
+  // History restores data, not unsolicited sound.
+  if(wasPlaying)startPlayback();
 }
 function undo(){history.undo(restore);renderHistory()}
 function redo(){history.redo(restore);renderHistory()}
@@ -157,26 +158,36 @@ function renderTimeline(){
   if(!chunk)return;
   const wrap=document.createElement("section");wrap.className="progression-chunk";
   wrap.dataset.chunkId=chunk.id;
-  const heading=document.createElement("button");heading.type="button";
-  heading.className="progression-chunk-head";
-  heading.textContent=chunk.name;
-  heading.title="チャンク名を編集";
-  heading.setAttribute("aria-label",chunk.name+" を編集");
-  heading.addEventListener("click",()=>{
-    $("chunkDetails").showModal();$("editChunkName").focus();$("editChunkName").select();
-  });
-  wrap.append(heading);
+  // The chunk name exists only in its selector; no duplicate heading.
   for(const section of chunk.sections){
     const group=document.createElement("section");group.className="ratio-section-group";
     group.dataset.sectionId=section.id;
-    const header=document.createElement("button");header.type="button";header.className="progression-section-break";
-    header.textContent=section.name+" ×"+section.repeat;
-    header.title="セクション名と反復回数を編集";
-    header.setAttribute("aria-label",section.name+" の設定");
-    header.addEventListener("click",()=>{
-      setSelection(section.id,section.steps[0].id);
-      $("sectionDetails").showModal();$("editSectionName").focus();$("editSectionName").select();
+    const header=document.createElement("div");header.className="ratio-section-header";
+    const name=document.createElement("button");name.type="button";name.className="ratio-section-name";
+    name.textContent=section.name;name.title="この場でセクション名を編集";
+    name.setAttribute("aria-label",section.name+" の名前を編集");
+    name.addEventListener("click",()=>beginSectionRename(section.id));
+    const repeatLabel=document.createElement("label");repeatLabel.className="ratio-section-repeat";
+    repeatLabel.append("×");
+    const repeat=document.createElement("input");repeat.type="number";
+    repeat.min="1";repeat.max="16";repeat.step="1";repeat.value=String(section.repeat);
+    repeat.setAttribute("aria-label",section.name+" の反復回数");
+    repeat.addEventListener("change",()=>{
+      const value=Number(repeat.value);
+      if(!Number.isInteger(value)||value<1||value>16){
+        repeat.value=String(project.sections.find(s=>s.id===section.id).repeat);return;
+      }
+      mutate(d=>{d.sections.find(s=>s.id===section.id).repeat=value});
     });
+    repeatLabel.append(repeat);header.append(name,repeatLabel);
+    if(project.sections.length>1){
+      const remove=document.createElement("button");remove.type="button";
+      remove.className="ratio-section-remove";remove.textContent="×";
+      remove.setAttribute("aria-label",section.name+" を削除");
+      remove.title="セクションを削除（元に戻せます）";
+      remove.addEventListener("click",()=>removeSectionById(section.id));
+      header.append(remove);
+    }
     const grid=document.createElement("div");grid.className="progression-chunk-grid";
     section.steps.forEach((step,index)=>grid.append(makeCard(section,step,index)));
     const add=document.createElement("button");add.type="button";
@@ -184,7 +195,7 @@ function renderTimeline(){
     add.title=section.name+" にコードを追加";add.setAttribute("aria-label",section.name+" にコードを追加");
     add.addEventListener("click",()=>{
       const previous=section.steps.at(-1);
-      const next={id:id("c"),expr:previous?.expr||"4,5,6",pitch:previous?.pitch||"C4",beats:previous?.beats||4};
+      const next={id:id("c"),expr:"4,5,6",pitch:previous?.pitch||"C4",beats:4};
       if(mutate(d=>d.sections.find(s=>s.id===section.id).steps.push(next),{structural:true})){
         setSelection(section.id,next.id);
         requestAnimationFrame(()=>document.querySelector('.progression-cell[data-cid="'+next.id+'"]')?.scrollIntoView({inline:"nearest",block:"nearest"}));
@@ -245,23 +256,80 @@ function updateGridColumns(){
 }
 
 function renderSectionNav(){
-  const chunkSelect=$("chunkJump"),sectionSelect=$("sectionJump");
+  const select=$("chunkJump");
   const chunks=chunksOf(project),selected=selectedLocation().section;
   const chunk=chunks.find(c=>c.id===selected.chunkId)||chunks[0];
-  chunkSelect.replaceChildren(...chunks.map(c=>new Option(c.name,c.id)));
-  chunkSelect.value=chunk.id;
-  sectionSelect.replaceChildren(...chunk.sections.map(c=>new Option(c.name,c.id)));
-  sectionSelect.value=selected.id;
+  select.replaceChildren(...chunks.map(c=>new Option(c.name,c.id)));
+  select.value=chunk.id;
   $("removeChunk").disabled=chunks.length===1;
+}
+function beginSectionRename(sectionId){
+  const section=project.sections.find(s=>s.id===sectionId);
+  const group=[...$("timeline").querySelectorAll(".ratio-section-group")].find(el=>el.dataset.sectionId===sectionId);
+  const button=group?.querySelector(".ratio-section-name");
+  if(!section||!button)return;
+  const input=document.createElement("input");input.type="text";
+  input.className="ratio-section-name-input";input.maxLength=64;
+  input.value=section.name;input.setAttribute("aria-label","セクション名を直接編集");
+  button.replaceWith(input);
+  let finished=false,composing=false;
+  const finish=commit=>{
+    if(finished)return;finished=true;
+    const value=input.value.trim();
+    if(commit&&value&&value!==section.name)
+      mutate(d=>{d.sections.find(s=>s.id===sectionId).name=value});
+    if(input.isConnected)input.replaceWith(button);
+  };
+  input.addEventListener("compositionstart",()=>{composing=true});
+  input.addEventListener("compositionend",()=>{composing=false});
+  input.addEventListener("keydown",e=>{
+    if(e.isComposing||composing)return;
+    if(e.key==="Enter"){e.preventDefault();finish(true)}
+    if(e.key==="Escape"){e.preventDefault();finish(false)}
+  });
+  input.addEventListener("blur",()=>finish(!composing));
+  input.focus();input.select();
+}
+let chunkRenameActive=false;
+function beginChunkRename(){
+  const section=selectedLocation().section;
+  if(!section)return;
+  const field=$("chunkInlineName"),select=$("chunkJump");
+  field.value=section.chunkName;
+  select.hidden=true;field.hidden=false;
+  chunkRenameActive=true;$("renameChunk").classList.add("active");
+  field.focus();field.select();
+}
+function finishChunkRename(commit){
+  if(!chunkRenameActive)return;
+  chunkRenameActive=false;
+  const field=$("chunkInlineName"),select=$("chunkJump");
+  const value=field.value.trim();
+  field.hidden=true;select.hidden=false;
+  $("renameChunk").classList.remove("active");
+  const section=selectedLocation().section;
+  if(commit&&value&&value!==section.chunkName){
+    const target=section.chunkId;
+    mutate(d=>{for(const sec of d.sections)if(sec.chunkId===target)sec.chunkName=value});
+  }
+}
+function removeSectionById(sectionId){
+  if(project.sections.length<=1)return;
+  const index=project.sections.findIndex(s=>s.id===sectionId);
+  if(index<0)return;
+  const neighbor=project.sections[index+1]||project.sections[index-1];
+  const selected=selection.sectionId===sectionId;
+  if(mutate(d=>{d.sections=d.sections.filter(s=>s.id!==sectionId)},{structural:true})&&selected)
+    setSelection(neighbor.id,neighbor.steps[0].id);
 }
 function renderSelection(){
   const loc=selectedLocation();if(!loc.step)return;
   selection={sectionId:loc.section.id,stepId:loc.step.id};
   const step=loc.step;
-  $("selectionLabel").textContent=loc.section.chunkName+" / "+loc.section.name+" / "+(loc.index+1);
-  $("editExpr").value=step.expr;$("editPitch").value=step.pitch;$("editBeats").value=step.beats;
-  $("editSectionName").value=loc.section.name;$("editRepeat").value=loc.section.repeat;
-  $("editChunkName").value=loc.section.chunkName;
+  $("selectionLabel").textContent=String(loc.index+1);
+  if(document.activeElement!==$("editExpr"))$("editExpr").value=step.expr;
+  if(document.activeElement!==$("editPitch"))$("editPitch").value=step.pitch;
+  if(document.activeElement!==$("editBeats"))$("editBeats").value=step.beats;
   renderSectionNav();
   for(const card of $("timeline").querySelectorAll(".progression-cell[data-cid]")){
     const active=card.dataset.sid===selection.sectionId&&card.dataset.cid===selection.stepId;
@@ -277,7 +345,6 @@ function renderSelection(){
   for(const btn of document.querySelectorAll(".ratio-accidentals button"))
     btn.classList.toggle("active",btn.dataset.acc===(match?.[2]||""));
   $("moveLeft").disabled=loc.index===0;$("moveRight").disabled=loc.index===loc.section.steps.length-1;
-  $("removeSection").disabled=project.sections.length===1;
   try{
     const result=calculate(step);
     $("hzReadout").textContent="最下音 "+hz(result.baseHz)+"Hz · "+result.freqs.length+"音";
@@ -293,17 +360,10 @@ function commitField(which,value,field){
   if(which==="expr")success=mutate(d=>selectedLocation(d).step.expr=value.trim(),{audition:true});
   if(which==="pitch")success=mutate(d=>selectedLocation(d).step.pitch=value.trim(),{audition:true});
   if(which==="beats")success=mutate(d=>selectedLocation(d).step.beats=Number(value));
-  if(which==="chunkName"){
-    const chunkId=selectedLocation().section.chunkId;
-    success=mutate(d=>{for(const section of d.sections)
-      if(section.chunkId===chunkId)section.chunkName=value.trim();
-    });
-  }
-  if(which==="sectionName")success=mutate(d=>selectedLocation(d).section.name=value.trim());
-  if(which==="repeat")success=mutate(d=>selectedLocation(d).section.repeat=Number(value));
+
   field.setAttribute("aria-invalid",success?"false":"true");
 }
-[["editExpr","expr"],["editPitch","pitch"],["editBeats","beats"],["editChunkName","chunkName"],["editSectionName","sectionName"],["editRepeat","repeat"]].forEach(([key,kind])=>{
+[["editExpr","expr"],["editPitch","pitch"],["editBeats","beats"]].forEach(([key,kind])=>{
   $(key).addEventListener("change",e=>commitField(kind,e.target.value,e.target));
   $(key).addEventListener("input",e=>e.target.removeAttribute("aria-invalid"));
 });
@@ -314,7 +374,7 @@ for(const [key,which] of [["editExpr","expr"],["editPitch","pitch"]]){
     clearTimeout(typingTimers.get(key));
     const value=e.target.value,field=e.target,origin={...selection};
     const timer=setTimeout(()=>{
-      if(field.value!==value||selection.stepId!==origin.stepId||selection.sectionId!==origin.sectionId)return;
+      if(field.value!==value||field.dataset.composing==="true"||selection.stepId!==origin.stepId||selection.sectionId!==origin.sectionId)return;
       const draft=copy(project);
       if(which==="expr")selectedLocation(draft).step.expr=value.trim();
       else selectedLocation(draft).step.pitch=value.trim();
@@ -323,12 +383,24 @@ for(const [key,which] of [["editExpr","expr"],["editPitch","pitch"]]){
     },260);
     typingTimers.set(key,timer);
   });
+  $(key).addEventListener("compositionstart",e=>{
+    e.target.dataset.composing="true";clearTimeout(typingTimers.get(key));
+  });
+  $(key).addEventListener("compositionend",e=>{
+    e.target.dataset.composing="false";
+    e.target.dispatchEvent(new Event("input",{bubbles:true}));
+  });
 }
 $("presetSearch").addEventListener("input",()=>{$("presetChips").scrollTop=0;renderPresets()});
 $("openPresetManager").addEventListener("click",()=>{$("presetManager").showModal();$("presetName").focus()});
 $("closePresetManager").addEventListener("click",()=>$("presetManager").close());
-$("closeSectionEditor").addEventListener("click",()=>$("sectionDetails").close());
-$("closeChunkEditor").addEventListener("click",()=>$("chunkDetails").close());
+$("renameChunk").addEventListener("click",()=>chunkRenameActive?finishChunkRename(true):beginChunkRename());
+$("chunkInlineName").addEventListener("blur",()=>finishChunkRename(true));
+$("chunkInlineName").addEventListener("keydown",e=>{
+  if(e.isComposing)return;
+  if(e.key==="Enter"){e.preventDefault();finishChunkRename(true)}
+  if(e.key==="Escape"){e.preventDefault();finishChunkRename(false)}
+});
 $("masterVolume").addEventListener("input",e=>{
   $("masterVolumeMobile").value=e.target.value;
   engine.setMasterVolume(Number(e.target.value));
@@ -346,10 +418,7 @@ $("chunkJump").addEventListener("change",e=>{
   const chunk=chunksOf(project).find(c=>c.id===e.target.value);
   if(chunk)setSelection(chunk.sections[0].id,chunk.sections[0].steps[0].id);
 });
-$("sectionJump").addEventListener("change",e=>{
-  const section=project.sections.find(s=>s.id===e.target.value);
-  if(section)setSelection(section.id,section.steps[0].id);
-});
+
 $("progRootLetterButtons").addEventListener("click",e=>{
   const letter=e.target.closest("[data-note]")?.dataset.note;
   if(!letter)return;
@@ -378,7 +447,9 @@ $("newSection").addEventListener("click",()=>{
   if(mutate(d=>{
     const index=d.sections.findIndex(s=>s.id===current.id);
     d.sections.splice(index+1,0,sec);
-  },{structural:true}))setSelection(sec.id,sec.steps[0].id);
+  },{structural:true})){
+    setSelection(sec.id,sec.steps[0].id);beginSectionRename(sec.id);
+  }
 });
 $("newChunk").addEventListener("click",()=>{
   const chunks=chunksOf(project),current=selectedLocation().section;
@@ -387,7 +458,9 @@ $("newChunk").addEventListener("click",()=>{
   if(mutate(d=>{
     const last=d.sections.findLastIndex(s=>s.chunkId===current.chunkId);
     d.sections.splice(last+1,0,sec);
-  },{structural:true}))setSelection(sec.id,sec.steps[0].id);
+  },{structural:true})){
+    setSelection(sec.id,sec.steps[0].id);beginChunkRename();
+  }
 });
 $("removeChunk").addEventListener("click",()=>{
   const current=selectedLocation().section;
@@ -395,26 +468,18 @@ $("removeChunk").addEventListener("click",()=>{
   if(allChunks.length<=1)return;
   const neighbor=allChunks[index+1]||allChunks[index-1];
   if(mutate(d=>{d.sections=d.sections.filter(s=>s.chunkId!==current.chunkId)},{structural:true})){
-    $("chunkDetails").close();
     setSelection(neighbor.sections[0].id,neighbor.sections[0].steps[0].id);
   }
 });
-$("addStep").addEventListener("click",()=>{
+function insertChord(duplicate){
   const {section,step,index}=selectedLocation();
-  const next={...copy(step),id:id("c")};
-  if(mutate(d=>d.sections.find(s=>s.id===section.id).steps.splice(index+1,0,next),{structural:true}))setSelection(section.id,next.id);
-});
-$("duplicate").addEventListener("click",()=>$("addStep").click());
-$("removeSection").addEventListener("click",()=>{
-  const {section}=selectedLocation();
-  if(project.sections.length<=1)return;
-  const index=project.sections.findIndex(s=>s.id===section.id);
-  const neighbor=project.sections[index+1]||project.sections[index-1];
-  if(mutate(d=>d.sections=d.sections.filter(s=>s.id!==section.id),{structural:true})){
-    $("sectionDetails").close();
-    setSelection(neighbor.id,neighbor.steps[0].id);
-  }
-});
+  const next=duplicate?{...copy(step),id:id("c")}:
+    {id:id("c"),expr:"4,5,6",pitch:step.pitch,beats:4};
+  if(mutate(d=>d.sections.find(s=>s.id===section.id).steps.splice(index+1,0,next),{structural:true}))
+    setSelection(section.id,next.id);
+}
+$("addStep").addEventListener("click",()=>insertChord(false));
+$("duplicate").addEventListener("click",()=>insertChord(true));
 function swap(delta){
   const {section,index}=selectedLocation();const target=index+delta;
   if(target<0||target>=section.steps.length)return;
@@ -454,7 +519,7 @@ $("addPreset").addEventListener("click",()=>{
 function stopPlayback(){
   clearTimeout(tapTimer);tapVersion++;tapVoiceIds=[];
   runId++;playing=false;playingStepId=null;voiceCount=0;clearTimeout(timer);timer=null;
-  engine.stopAll();$("play").textContent="▶ 選択から再生";
+  engine.stopAll();$("play").textContent="▶ 再生";$("play").classList.remove("playing");
   document.querySelectorAll(".progression-cell.playing").forEach(el=>el.classList.remove("playing"));
 }
 async function startVoices(step,token){
@@ -491,7 +556,7 @@ function startPlayback(sectionId=null,chunkId=null){
   const token=runId;
   const selectedIndex=steps.findIndex(s=>s.stepId===selection.stepId);
   let index=selectedIndex>=0?selectedIndex:0;
-  playing=true;$("play").textContent="❚❚ 再生中";
+  playing=true;$("play").textContent="▶ 再生";$("play").classList.add("playing");
   const advance=async()=>{
     if(token!==runId||!playing)return;
     if(index>=steps.length){if(project.settings.loop)index=0;else{stopPlayback();return}}
@@ -551,7 +616,7 @@ async function preview(){
     timer=setTimeout(()=>{if(token===runId)stopPlayback()},Math.min(1800,step.beats*60000/project.settings.bpm));
   }catch(error){stopPlayback();notice(error.message||"試聴できません",true)}
 }
-$("play").addEventListener("click",()=>playing?stopPlayback():startPlayback());
+$("play").addEventListener("click",()=>startPlayback());
 $("playSection").addEventListener("click",()=>startPlayback(selection.sectionId));
 $("playChunk").addEventListener("click",()=>startPlayback(null,selectedLocation().section.chunkId));
 $("stop").addEventListener("click",stopPlayback);
