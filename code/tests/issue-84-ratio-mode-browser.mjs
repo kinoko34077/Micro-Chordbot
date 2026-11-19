@@ -89,6 +89,9 @@ try{
       "ratio / pitch / beat fields are not on one row "+JSON.stringify(layout.inputRow));
     for(const rect of layout.inputRow)assert.ok(rect.width>20&&rect.right<=width+2,"input clipped "+JSON.stringify(rect));
     if(width>=1000)assert.ok(layout.inputRow[0].width<width*.4,"desktop ratio field too wide");
+    const positions=layout.inputRow.map(r=>r.x+r.width/2);
+    assert.ok(Math.abs((positions[1]-positions[0])-(positions[2]-positions[1]))<15,
+      "ratio, lowest note, beat controls must sit at even intervals "+JSON.stringify(positions));
     assert.equal(await page.locator("#columnActual").count(),0,"redundant detached '4列' label remains");
     assert.equal(await page.locator("#chunkJump option").count(),1,"legacy progressions should start with one chunk");
     assert.equal(await page.locator(".ratio-section-header").count(),2);
@@ -171,25 +174,25 @@ try{
     await cells.first().click();
     await page.waitForFunction(()=>window.__ratioStarted.length>=3&&window.__ratioAudioContexts[0].state==="running");
     await page.locator("#stop").click();
-    // A slide, not a tap, selects a grid pitch. Moving upward from B4
-    // crosses to C5, returning downward crosses back, all before pointerup.
+    // A slide, not a tap, selects a grid pitch. The table reads C..B
+    // top to bottom, so moving DOWN from B4 crosses to C5, and UP returns.
     await page.locator("#editPitch").fill("B4");
     await page.locator("#editPitch").dispatchEvent("change");
     const beforeFlick=await page.locator("#editPitch").boundingBox();
     const fx=beforeFlick.x+beforeFlick.width*.5,fy=beforeFlick.y+beforeFlick.height*.5;
     await page.mouse.move(fx,fy);await page.mouse.down();
     assert.ok(await page.locator("#pitchFlickPanel").isVisible(),"panel not shown by initial gesture");
-    assert.equal(await page.locator("#pitchFlickGrid .selected").count(),1);
+    assert.equal(await page.locator("#pitchFlickGrid .selected").count(),2,"B4 and Cb5 are enharmonic");
     if(width===320||width===390)
       await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-flick-open-"+width+".png"});
     await page.mouse.up();
     assert.equal(await page.locator("#editPitch").inputValue(),"B4","tap selected pitch despite flick-only requirement");
     await page.mouse.move(fx,fy);await page.mouse.down();
-    await page.mouse.move(fx,fy-27,{steps:3});
-    assert.equal(await page.locator("#editPitch").inputValue(),"C5","B4 upward did not wrap to C5");
+    await page.mouse.move(fx,fy+27,{steps:3});
+    assert.equal(await page.locator("#editPitch").inputValue(),"C5","B4 DOWN did not wrap to C5");
     await page.mouse.move(fx,fy,{steps:3});
-    assert.equal(await page.locator("#editPitch").inputValue(),"B4","C5 downward did not wrap back to B4");
-    await page.mouse.move(fx+30,fy-27,{steps:3});
+    assert.equal(await page.locator("#editPitch").inputValue(),"B4","C5 UP did not wrap back to B4");
+    await page.mouse.move(fx+30,fy+27,{steps:3});
     assert.equal(await page.locator("#editPitch").inputValue(),"C‡5","horizontal half sharp selection failed");
     assert.equal(await page.locator("#pitchFlickGrid .selected").count(),1);
     await page.mouse.up();
@@ -203,27 +206,84 @@ try{
     const beatsBox=await page.locator("#editBeats").boundingBox();
     const bx=beatsBox.x+beatsBox.width/2,by=beatsBox.y+beatsBox.height/2;
     await page.mouse.move(bx,by);await page.mouse.down();
-    await page.mouse.move(bx,by-39,{steps:4});await page.mouse.up();
-    assert.equal(await page.locator("#editBeats").inputValue(),"6","two steps up should make 6 beats");
+    assert.equal(await page.locator("#beatsFlickGrid .beats-flick-cell").count(),16,
+      "beats picker must have four columns and four rows");
+    await page.mouse.move(bx,by+58,{steps:4});
+    assert.equal(await page.locator("#editBeats").inputValue(),"6","two rows DOWN should make 6 beats");
+    assert.equal(await page.locator("#beatsFlickGrid").getAttribute("data-start"),"5",
+      "beats picker must page to 5–8");
+    await page.mouse.up();
     await page.locator("#undo").click();
     assert.equal(await page.locator("#editBeats").inputValue(),"4","one Undo must revert numeric scrub");
     await page.locator("#redo").click();
     assert.equal(await page.locator("#editBeats").inputValue(),"6","one Redo must replay numeric scrub");
+    // Enharmonics are a sounding-pitch relationship: both D# and Eb
+    // light up. Crossing beyond #/b must add/subtract 50 cents and
+    // transition to the neighboring note's accidental, not clamp.
+    await page.locator("#editPitch").fill("D#4");
+    await page.locator("#editPitch").dispatchEvent("change");
+    const ebox=await page.locator("#editPitch").boundingBox();
+    const ex=ebox.x+ebox.width/2,ey=ebox.y+ebox.height/2;
+    await page.mouse.move(ex,ey);await page.mouse.down();
+    const highlighted=await page.locator("#pitchFlickGrid .selected").evaluateAll(els=>
+      els.map(el=>el.dataset.note+":"+el.dataset.acc).sort());
+    assert.deepEqual(highlighted,["D:4","E:0"],"D# and Eb must both light up");
+    await page.mouse.move(ex+29,ey,{steps:3});
+    assert.equal(await page.locator("#editPitch").inputValue(),"Ed4","right of D# should reach Ed");
+    await page.mouse.up();
+    await page.locator("#undo").click();
+    assert.equal(await page.locator("#editPitch").inputValue(),"D#4","chromatic flick should be a single undo");
+    await page.locator("#editPitch").fill("Eb4");
+    await page.locator("#editPitch").dispatchEvent("change");
+    await page.mouse.move(ex,ey);await page.mouse.down();
+    assert.equal(await page.locator("#pitchFlickGrid .selected").count(),2);
+    await page.mouse.move(ex-29,ey,{steps:3});
+    assert.equal(await page.locator("#editPitch").inputValue(),"D‡4","left of Eb should reach D‡");
+    await page.mouse.up();
+    // Quarterbeat 4x4 grid: from the floor .25, horizontal changes .25,
+    // no forced .25 fractional remainder after moving to whole beats.
+    await page.locator("#editBeats").fill("0.25");
+    await page.locator("#editBeats").dispatchEvent("change");
+    const bfloor=await page.locator("#editBeats").boundingBox();
+    const qx=bfloor.x+bfloor.width/2,qy=bfloor.y+bfloor.height/2;
+    await page.mouse.move(qx,qy);await page.mouse.down();
+    const firstRow=await page.locator("#beatsFlickGrid .beats-flick-cell").evaluateAll(els=>
+      els.slice(0,4).map(el=>el.dataset.beats));
+    assert.deepEqual(firstRow,["0.25","0.5","0.75","1"],"top beat row 0.25–1 wrong");
+    if(width===390)await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-beats-open-390.png"});
+    await page.mouse.move(qx+99,qy,{steps:3});
+    assert.equal(await page.locator("#editBeats").inputValue(),"1","three quarter columns must reach exactly 1 beat");
+    await page.mouse.move(qx+99,qy+29,{steps:3});
+    assert.equal(await page.locator("#editBeats").inputValue(),"2","down one beat row should reach exactly 2");
+    await page.mouse.move(qx+99,qy,{steps:3});await page.mouse.up();
+    assert.equal(await page.locator("#editBeats").inputValue(),"1");
+    await page.locator("#undo").click();
+    assert.equal(await page.locator("#editBeats").inputValue(),"0.25","one undo reverts entire quarterbeat gesture");
+    await page.locator("#redo").click();
+    assert.equal(await page.locator("#editBeats").inputValue(),"1");
+    await page.locator("#editBeats").fill("4");
+    await page.locator("#editBeats").dispatchEvent("change");
+    await page.mouse.move(qx,qy);await page.mouse.down();
+    await page.mouse.move(qx,qy+29,{steps:3});
+    assert.equal(await page.locator("#editBeats").inputValue(),"5");
+    assert.equal(await page.locator("#beatsFlickGrid").getAttribute("data-start"),"5");
+    await page.mouse.move(qx,qy+145,{steps:6});
+    assert.equal(await page.locator("#editBeats").inputValue(),"9");
+    assert.equal(await page.locator("#beatsFlickGrid").getAttribute("data-start"),"9");
+    await page.mouse.up();
+    await page.locator("#undo").click();
+    assert.equal(await page.locator("#editBeats").inputValue(),"4");
     if(width===390){
-      // Precision cents are still editable after a deliberate hold, without
-      // turning a bare tap into an alternative pitch-grid selection.
-      const precise=await page.locator("#editPitch").boundingBox();
-      const px=precise.x+precise.width/2,py=precise.y+precise.height/2;
-      await page.mouse.move(px,py);await page.mouse.down();
-      await page.waitForTimeout(580);await page.mouse.up();
-      assert.ok(await page.locator("#editPitch").evaluate(el=>el===document.activeElement),
-        "long-hold did not expose precise keyboard pitch input");
+      // Double click, not hold, enters exact pitch input. No grid cell is
+      // ever a clickable selector.
+      await page.locator("#editPitch").dblclick();
+      assert.equal(await page.locator("#editPitch").evaluate(el=>el===document.activeElement&&el.classList.contains("exact-editing")),true);
+      assert.equal(await page.locator("#pitchFlickPanel").isVisible(),false);
       await page.locator("#editPitch").fill("A#5 +50￠");
       await page.locator("#editPitch").dispatchEvent("change");
       assert.equal(await page.locator("#editPitch").inputValue(),"A#5 +50￠");
-      await page.locator("#editPitch").fill("C‡5");
-      await page.locator("#editPitch").dispatchEvent("change");
-      await page.locator("#stop").click();
+      await page.locator("#stop").click(); // blur closes exact editor
+      assert.equal(await page.locator("#editPitch").evaluate(el=>el.classList.contains("exact-editing")),false);
     }
     await page.locator("#editPitch").fill("D‡5");
     await page.locator("#editPitch").dispatchEvent("change");
@@ -423,9 +483,9 @@ try{
     await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
     assert.equal(await touchPage.locator("#editPitch").inputValue(),"B4","touch tap should not select");
     await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:point(x,y)});
-    await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:point(x,y-26)});
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:point(x,y+26)});
     await touchPage.waitForFunction(()=>document.querySelector("#editPitch").value==="C5",null,{timeout:2000});
-    await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:point(x,y+3)});
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:point(x,y-3)});
     try{await touchPage.waitForFunction(()=>document.querySelector("#editPitch").value==="B4",null,{timeout:2000})}
     catch(error){
       const trace=await touchPage.evaluate(()=>window.__flickTrace);
