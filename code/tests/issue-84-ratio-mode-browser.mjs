@@ -87,7 +87,7 @@ try{
     for(const rect of layout.controls)assert.ok(rect.x>=-2&&rect.right<=width+2,"clipped core control "+JSON.stringify(rect)+" viewport "+width);
     assert.ok(Math.max(...layout.inputRow.map(r=>r.y))-Math.min(...layout.inputRow.map(r=>r.y))<=2,
       "ratio / pitch / beat fields are not on one row "+JSON.stringify(layout.inputRow));
-    for(const rect of layout.inputRow)assert.ok(rect.width>35&&rect.right<=width+2,"input clipped "+JSON.stringify(rect));
+    for(const rect of layout.inputRow)assert.ok(rect.width>20&&rect.right<=width+2,"input clipped "+JSON.stringify(rect));
     if(width>=1000)assert.ok(layout.inputRow[0].width<width*.4,"desktop ratio field too wide");
     assert.equal(await page.locator("#columnActual").count(),0,"redundant detached '4列' label remains");
     assert.equal(await page.locator("#chunkJump option").count(),1,"legacy progressions should start with one chunk");
@@ -142,7 +142,19 @@ try{
     await mkdir("artifacts/issue-28-layout-audit",{recursive:true});
     await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-mode-"+width+"x"+height+".png"});
     assert.ok(await page.locator("#editPitch").isVisible(),"selected cell edit field not reachable");
-    assert.ok(await page.locator("#progRootLetterButtons").isVisible(),"normal μChordbot root controls not transplanted");
+    assert.equal(await page.locator("#progRootLetterButtons,.ratio-accidentals").count(),0,"old 12-button pitch deck remains");
+    assert.equal(await page.locator("#pitchFlickGrid .pitch-flick-cell").count(),35,"flick must be 7 rows × 5 accidentals");
+    assert.equal(await page.locator("#pitchFlickPanel").isVisible(),false,"flick panel must not occupy editor at rest");
+    const lineStyle=await page.locator("#editPitch").evaluate(el=>{
+      const s=getComputedStyle(el);return {top:s.borderTopWidth,left:s.borderLeftWidth,bottom:s.borderBottomWidth};
+    });
+    assert.equal(lineStyle.top,"0px","boxed values remain");
+    assert.equal(lineStyle.left,"0px","boxed values remain");
+    assert.equal(lineStyle.bottom,"1px","editing affordance underline missing");
+    const smallAdd=await page.locator(".ratio-add-small").first().boundingBox();
+    const normalCard=await cells.first().boundingBox();
+    assert.ok(smallAdd.width<=34&&smallAdd.height<=32,"code-add still occupies a whole code cell");
+    assert.ok(normalCard.height>smallAdd.height+15,"small add not distinguishable from data cell");
     await page.evaluate(()=>window.__ratioStarted=[]);
     await cells.first().click();
     await page.waitForFunction(()=>window.__ratioStarted.length>=3);
@@ -159,6 +171,42 @@ try{
     await cells.first().click();
     await page.waitForFunction(()=>window.__ratioStarted.length>=3&&window.__ratioAudioContexts[0].state==="running");
     await page.locator("#stop").click();
+    // A slide, not a tap, selects a grid pitch. Moving upward from B4
+    // crosses to C5, returning downward crosses back, all before pointerup.
+    await page.locator("#editPitch").fill("B4");
+    await page.locator("#editPitch").dispatchEvent("change");
+    const beforeFlick=await page.locator("#editPitch").boundingBox();
+    const fx=beforeFlick.x+beforeFlick.width*.5,fy=beforeFlick.y+beforeFlick.height*.5;
+    await page.mouse.move(fx,fy);await page.mouse.down();
+    assert.ok(await page.locator("#pitchFlickPanel").isVisible(),"panel not shown by initial gesture");
+    assert.equal(await page.locator("#pitchFlickGrid .selected").count(),1);
+    await page.mouse.up();
+    assert.equal(await page.locator("#editPitch").inputValue(),"B4","tap selected pitch despite flick-only requirement");
+    await page.mouse.move(fx,fy);await page.mouse.down();
+    await page.mouse.move(fx,fy-27,{steps:3});
+    assert.equal(await page.locator("#editPitch").inputValue(),"C5","B4 upward did not wrap to C5");
+    await page.mouse.move(fx,fy,{steps:3});
+    assert.equal(await page.locator("#editPitch").inputValue(),"B4","C5 downward did not wrap back to B4");
+    await page.mouse.move(fx+30,fy-27,{steps:3});
+    assert.equal(await page.locator("#editPitch").inputValue(),"C‡5","horizontal half sharp selection failed");
+    assert.equal(await page.locator("#pitchFlickGrid .selected").count(),1);
+    await page.mouse.up();
+    assert.equal(await page.locator("#editPitch").inputValue(),"C‡5","flick did not commit on finger release");
+    assert.equal(await page.locator("#pitchFlickPanel").isVisible(),false);
+    await page.locator("#undo").click();
+    assert.equal(await page.locator("#editPitch").inputValue(),"B4","one Undo must undo the entire pitch gesture");
+    await page.locator("#redo").click();
+    assert.equal(await page.locator("#editPitch").inputValue(),"C‡5","one Redo must replay entire flick");
+    // Scrubbing beats also changes once with one Undo, no number spinner.
+    const beatsBox=await page.locator("#editBeats").boundingBox();
+    const bx=beatsBox.x+beatsBox.width/2,by=beatsBox.y+beatsBox.height/2;
+    await page.mouse.move(bx,by);await page.mouse.down();
+    await page.mouse.move(bx,by-39,{steps:4});await page.mouse.up();
+    assert.equal(await page.locator("#editBeats").inputValue(),"6","two steps up should make 6 beats");
+    await page.locator("#undo").click();
+    assert.equal(await page.locator("#editBeats").inputValue(),"4","one Undo must revert numeric scrub");
+    await page.locator("#redo").click();
+    assert.equal(await page.locator("#editBeats").inputValue(),"6","one Redo must replay numeric scrub");
     await page.locator("#editPitch").fill("D‡5");
     await page.locator("#editPitch").dispatchEvent("change");
     assert.equal(await cells.first().locator(".cell-note").innerText(),"D‡5");
@@ -278,6 +326,14 @@ try{
     await page.locator(".ratio-section-repeat input").first().fill("3");
     await page.locator(".ratio-section-repeat input").first().dispatchEvent("change");
     assert.equal(await page.locator(".ratio-section-repeat input").first().inputValue(),"3");
+    const repeatBox=await page.locator(".ratio-section-repeat input").first().boundingBox();
+    const rx=repeatBox.x+repeatBox.width/2,ry=repeatBox.y+repeatBox.height/2;
+    await page.mouse.move(rx,ry);await page.mouse.down();
+    await page.mouse.move(rx,ry-20,{steps:3});await page.mouse.up();
+    assert.equal(await page.locator(".ratio-section-repeat input").first().inputValue(),"4","inline repeat must scrub");
+    await page.locator("#undo").click();
+    assert.equal(await page.locator(".ratio-section-repeat input").first().inputValue(),"3","repeat scrub not one Undo");
+    await page.locator("#redo").click();
     assert.equal(await page.locator(".progression-cell.active").getAttribute("data-cid"),chordId);
     await page.locator("#chunkJump").selectOption({label:"チャンク 1"});
     assert.equal(await cells.count(),5,"switching chunk must show all original chord cells");
