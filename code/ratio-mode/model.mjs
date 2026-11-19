@@ -16,6 +16,25 @@ export function parsePitch(value) {
   if (octave < -1 || octave > 9 || !finite(offset) || Math.abs(offset)>1200) fail("オクターブ -1〜9、追加セント ±1200 以内で指定してください");
   return { label, octave, microStepInOctave:SEMITONES[match[1]]*10000+ACCIDENTAL[match[2]]+Math.round(offset*100),centOffset:offset };
 }
+// One gesture moves diatonic notes across octave boundaries while the
+// five accidental columns are chosen independently. This preserves optional
+// explicit cent text already present in the project (e.g. "A#5 +50￠").
+export const FLICK_LETTERS=Object.freeze(["C","D","E","F","G","A","B"]);
+export const FLICK_ACCIDENTALS=Object.freeze(["b","d","","‡","#"]);
+export function flickPitch(value,diatonicDelta,accidentalIndex){
+  const original=parsePitch(value);
+  const match=/^([A-G])([#b‡d]?)(-?\\d{1,2})(.*)$/.exec(original.label);
+  if(!match)fail("音高の表記を読み取れません");
+  if(!Number.isInteger(diatonicDelta)||!Number.isInteger(accidentalIndex)||accidentalIndex<0||accidentalIndex>=FLICK_ACCIDENTALS.length)
+    fail("音高操作の値が不正です");
+  const abs=Number(match[3])*7+FLICK_LETTERS.indexOf(match[1]);
+  const next=Math.max(-7,Math.min(9*7+6,abs+diatonicDelta));
+  const octave=Math.floor(next/7),letter=FLICK_LETTERS[next-octave*7];
+  const pitch=letter+FLICK_ACCIDENTALS[accidentalIndex]+octave+match[4];
+  parsePitch(pitch);
+  return pitch;
+}
+
 export function numberFromFraction(value) {
   const s=text(value);
   if (!/^(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:\s*\/\s*(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)?$/i.test(s)) fail("比率「"+s+"」は正の整数・小数・分数で入力してください");
