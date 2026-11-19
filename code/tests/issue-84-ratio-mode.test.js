@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFile} from "node:fs/promises";
-import {parsePitch,parseRatio,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
+import {parsePitch,parseRatio,flickPitch,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {AudioEngine} from "../src/audio.js";
 const hz=(s)=>{const p=parsePitch(s);return frequencyFromPitch(440,p.octave,p.microStepInOctave)};
@@ -17,6 +17,22 @@ test("24EDO half sharp and half flat are exactly ±50 cents",()=>{
   close(hz("A#5 +50￠"),hz("Bd5"));
   close(hz("C4"),440*Math.pow(2,-9/12));
 });
+test("7x5 flick pitch mapping wraps B4/C5 in both directions without losing cents",()=>{
+  assert.deepEqual(FLICK_LETTERS,["C","D","E","F","G","A","B"]);
+  assert.deepEqual(FLICK_ACCIDENTALS,["b","d","","‡","#"]);
+  assert.equal(flickPitch("B4",1,2),"C5");
+  assert.equal(flickPitch("C5",-1,2),"B4");
+  assert.equal(flickPitch("B4",8,2),"C6");
+  assert.equal(flickPitch("C5",-8,2),"B3");
+  assert.equal(flickPitch("B4",1,3),"C‡5");
+  assert.equal(flickPitch("C5",-1,1),"Bd4");
+  assert.equal(flickPitch("A#5 +50￠",2,0),"Cb6 +50￠");
+  assert.equal(flickPitch("B9",10,2),"B9");
+  assert.equal(flickPitch("C-1",-5,2),"C-1");
+  assert.throws(()=>flickPitch("C4",1,8));
+  close(hz(flickPitch("B4",1,2)),hz("C5"));
+});
+
 test("base is always minimum numeric ratio and equivalent fraction expressions match",()=>{
   assert.deepEqual(parseRatio("8:11:12").ratios,parseRatio("4:11/2:6").ratios);
   assert.deepEqual(parseRatio("6,4,5").ratios,[1,1.25,1.5]);
