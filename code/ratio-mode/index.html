@@ -29,12 +29,13 @@
       <section id="view-progression" class="view active" aria-label="周波数比コード進行">
         <div class="progression-toolbar">
           <div class="progression-section-nav">
-            <label class="progression-columns ratio-chunk-jump"><span>チャンク</span><select id="chunkJump" aria-label="チャンクを選択"></select></label>
-            <label class="progression-columns ratio-section-jump"><span>セクション</span><select id="sectionJump" aria-label="セクションを選択"></select></label>
+            <label class="progression-columns ratio-chunk-jump"><span>チャンク</span><select id="chunkJump" aria-label="チャンクを選択"></select><input id="chunkInlineName" type="text" maxlength="64" hidden aria-label="チャンク名をその場で編集" autocomplete="off"></label>
+            <button id="renameChunk" type="button" class="ratio-inline-action" title="チャンク名を編集" aria-label="選択チャンクの名前を編集">✎</button>
+            <button id="removeChunk" type="button" class="ratio-inline-action danger" title="チャンクを削除（元に戻せます）" aria-label="選択チャンクを削除">×</button>
           </div>
           <div class="progression-transport">
-            <button id="play" type="button" class="primary">▶ 再生</button>
-            <button id="stop" type="button" aria-label="再生を停止">■</button>
+            <button id="play" type="button" class="primary" aria-label="選択コードから再生、再度押すと再スタート">▶ 再生</button>
+            <button id="stop" type="button" aria-label="再生を停止" title="停止">■</button>
             <button id="progMenuToggleBtn" class="progression-menu-toggle" type="button" aria-label="その他の操作・設定を開く" aria-expanded="false" aria-controls="progToolbarActions">設定</button>
           </div>
           <div id="progToolbarActions" class="progression-toolbar-actions">
@@ -58,7 +59,7 @@
           <div class="progression-editor-header">
             <div class="progression-editor-heading">
               <h3>コード</h3>
-              <p id="selectionLabel" class="panel-note">チャンク 1 / A / 1</p>
+              <p id="selectionLabel" class="panel-note">コード 1</p>
               <p id="hzReadout" class="readout" aria-live="polite"></p>
             </div>
             <div class="progression-editor-header-actions">
@@ -66,8 +67,8 @@
               <div class="progression-actions">
                 <button id="moveLeft" type="button" title="コードを左へ移動" aria-label="コードを左へ移動">←</button>
                 <button id="moveRight" type="button" title="コードを右へ移動" aria-label="コードを右へ移動">→</button>
-                <button id="duplicate" type="button">複製</button>
-                <button id="addStep" type="button" aria-label="コードを追加">＋ コード</button>
+                <button id="duplicate" type="button" aria-label="選択コードを複製">複製</button>
+                <button id="addStep" type="button" aria-label="新しいコードを追加">＋ コード</button>
               </div>
             </div>
           </div>
@@ -115,21 +116,6 @@
                 <label>名前 <input id="presetName" type="text" placeholder="名前" maxlength="64"></label>
                 <label>比率 <input id="presetRatio" type="text" placeholder="4:11/2:6" title="8:11:12と等価" spellcheck="false"></label>
                 <button id="addPreset" type="button" class="primary">登録</button>
-              </div>
-            </dialog>
-            <dialog id="chunkDetails" class="ratio-context-dialog" aria-label="チャンクを編集">
-              <div class="ratio-dialog-header"><strong>チャンク編集</strong><button type="button" id="closeChunkEditor" aria-label="閉じる">×</button></div>
-              <div class="ratio-manager-row">
-                <label>名前 <input id="editChunkName" type="text" maxlength="64"></label>
-                <button id="removeChunk" type="button" class="danger">このチャンクを削除</button>
-              </div>
-            </dialog>
-            <dialog id="sectionDetails" class="ratio-context-dialog" aria-label="セクションを編集">
-              <div class="ratio-dialog-header"><strong>セクション編集</strong><button type="button" id="closeSectionEditor" aria-label="閉じる">×</button></div>
-              <div class="ratio-manager-row">
-                <label>名前 <input id="editSectionName" type="text" maxlength="64"></label>
-                <label>反復 <input id="editRepeat" type="number" min="1" max="16" step="1"></label>
-                <button id="removeSection" type="button" class="danger">セクション削除</button>
               </div>
             </dialog>
             <p id="status" class="status-text" role="status" aria-live="polite"></p>
