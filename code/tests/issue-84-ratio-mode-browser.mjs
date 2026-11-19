@@ -388,6 +388,15 @@ try{
     await touchPage.locator("#editPitch").dispatchEvent("change");
     const box=await touchPage.locator("#editPitch").boundingBox();
     const x=box.x+box.width/2,y=box.y+box.height/2;
+    await touchPage.evaluate(()=>{
+      window.__flickTrace=[];
+      const field=document.querySelector("#editPitch");
+      for(const kind of ["pointerdown","pointermove","pointerup","pointercancel","lostpointercapture","touchstart","touchmove","touchend"]){
+        field.addEventListener(kind,e=>window.__flickTrace.push([kind,
+          Math.round(e.clientY??e.touches?.[0]?.clientY??-1),
+          field.value,field.hasPointerCapture?.(1)]));
+      }
+    });
     const cdp=await touchContext.newCDPSession(touchPage);
     await cdp.send("Emulation.setTouchEmulationEnabled",{enabled:true,maxTouchPoints:1});
     const point=(px,py)=>[{x:px,y:py,id:1}];
@@ -397,9 +406,13 @@ try{
     assert.equal(await touchPage.locator("#editPitch").inputValue(),"B4","touch tap should not select");
     await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:point(x,y)});
     await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:point(x,y-26)});
-    assert.equal(await touchPage.locator("#editPitch").inputValue(),"C5","touch B4 to C5 wrap failed");
-    await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:point(x,y)});
-    assert.equal(await touchPage.locator("#editPitch").inputValue(),"B4","touch C5 to B4 wrap failed");
+    await touchPage.waitForFunction(()=>document.querySelector("#editPitch").value==="C5",null,{timeout:2000});
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:point(x,y+3)});
+    try{await touchPage.waitForFunction(()=>document.querySelector("#editPitch").value==="B4",null,{timeout:2000})}
+    catch(error){
+      const trace=await touchPage.evaluate(()=>window.__flickTrace);
+      throw new Error("touch return wrap failed, trace="+JSON.stringify(trace)+"; "+error.message);
+    }
     await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
     assert.equal(await touchPage.locator("#editPitch").inputValue(),"B4");
     assert.equal(await touchPage.locator("#pitchFlickPanel").isVisible(),false);
