@@ -11,7 +11,7 @@ const history=new HistoryManager(100);
 const engine=new AudioEngine();
 let project,saveAllowed=true,selection={sectionId:null,stepId:null},columns=4;
 let timer=null,runId=0,playing=false,playingStepId=null,voiceCount=0;
-let tapVersion=0,tapTimer=null,tapVoiceCount=0;
+let tapVersion=0,tapTimer=null,tapVoiceIds=[];
 const id=prefix=>prefix+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 
 function notice(value="",error=false) {
@@ -109,7 +109,7 @@ function makeCard(section,step,index){
   if(step.id===playingStepId)card.classList.add("playing");
   card.draggable=true;
   // Grid width is owned by the standard progression columns setting.
-  card.setAttribute("aria-label",section.name+" のコード "+(index+1)+" "+step.expr+" "+step.pitch+" "+step.beats+"拍");
+  card.setAttribute("aria-label",section.name+" のコード "+(index+1)+" "+step.expr+" "+step.pitch+" "+step.beats+"拍、押すと試聴");
   const name=document.createElement("span");name.className="cell-title";name.textContent=step.expr;
   const note=document.createElement("span");note.className="cell-note";note.textContent=step.pitch;
   const meta=document.createElement("span");meta.className="cell-meta";meta.textContent=(index+1)+" · "+step.beats+"拍";
@@ -387,7 +387,7 @@ $("addPreset").addEventListener("click",()=>{
   }
 });
 function stopPlayback(){
-  clearTimeout(tapTimer);tapVersion++;tapVoiceCount=0;
+  clearTimeout(tapTimer);tapVersion++;tapVoiceIds=[];
   runId++;playing=false;playingStepId=null;voiceCount=0;clearTimeout(timer);timer=null;
   engine.stopAll();$("play").textContent="▶ 選択から再生";
   document.querySelectorAll(".progression-cell.playing").forEach(el=>el.classList.remove("playing"));
@@ -446,26 +446,35 @@ function startPlayback(sectionId=null){
 async function auditionCard(step){
   const version=++tapVersion;
   clearTimeout(tapTimer);
-  for(let i=0;i<tapVoiceCount;i++)engine.stopVoice("tap-"+i);
-  tapVoiceCount=0;
+  for(const id of tapVoiceIds)engine.stopVoice(id);
+  tapVoiceIds=[];
+  const ownIds=[];
   try{
     const {freqs}=calculate(step);
     await engine.ensure();
     if(version!==tapVersion)return;
     engine.setMasterVolume(Number($("masterVolume").value));
     const gain=Math.min(.13,.22/Math.sqrt(freqs.length));
-    await Promise.all(freqs.map((freq,i)=>engine.startVoice("tap-"+i,freq,project.settings.wave,gain)));
+    const voices=freqs.map((freq,i)=>{
+      const id="tap-"+version+"-"+i;
+      ownIds.push(id);
+      return engine.startVoice(id,freq,project.settings.wave,gain);
+    });
+    await Promise.all(voices);
     if(version!==tapVersion){
-      for(let i=0;i<freqs.length;i++)engine.stopVoice("tap-"+i);
+      for(const id of ownIds)engine.stopVoice(id);
       return;
     }
-    tapVoiceCount=freqs.length;
+    tapVoiceIds=ownIds;
     tapTimer=setTimeout(()=>{
       if(version!==tapVersion)return;
-      for(let i=0;i<tapVoiceCount;i++)engine.stopVoice("tap-"+i);
-      tapVoiceCount=0;
+      for(const id of ownIds)engine.stopVoice(id);
+      tapVoiceIds=[];
     },Math.max(320,Math.min(850,step.beats*60000/project.settings.bpm)));
-  }catch(error){notice("コードの試聴に失敗しました: "+error.message,true)}
+  }catch(error){
+    for(const id of ownIds)engine.stopVoice(id);
+    notice("コードの試聴に失敗しました: "+error.message,true);
+  }
 }
 async function preview(){
   const step=selectedLocation().step;
