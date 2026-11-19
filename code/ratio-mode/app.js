@@ -643,6 +643,10 @@ function commitField(which,value,field){
   });
 
   field.setAttribute("aria-invalid",success?"false":"true");
+  // Once [name]ratios is committed, the actual chord expression is its
+  // registered name. Present that authoritative value immediately in place.
+  if(success&&which==="expr"&&value.trim().startsWith("["))
+    field.value=selectedLocation().step.expr;
 }
 [["editExpr","expr"],["editPitch","pitch"],["editBeats","beats"]].forEach(([key,kind])=>{
   $(key).addEventListener("change",e=>commitField(kind,e.target.value,e.target));
