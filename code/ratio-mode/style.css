@@ -1562,3 +1562,56 @@ dialog::backdrop{background:#0009}
   box-shadow:none!important;
   background:transparent!important;
 }
+
+/* #84 user correction: three evenly spaced *positions*, not three
+   oversized form boxes. Controls are centered within each equal column. */
+.ratio-app .progression-root-row{
+  width:min(100%,34rem)!important;max-width:100%!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:4px!important
+}
+.ratio-app .progression-root-row>.ratio-field,
+.ratio-app .progression-root-row>.pitch-field,
+.ratio-app .progression-root-row>.beats-field{
+  grid-column:auto!important;grid-row:auto!important;
+  width:100%!important;min-width:0!important;align-items:center!important
+}
+.ratio-app .progression-root-row #editExpr{
+  width:min(100%,17ch)!important;text-align:center
+}
+.ratio-app .progression-root-row #editPitch{
+  width:min(100%,12ch)!important;text-align:center;cursor:crosshair
+}
+.ratio-app .progression-root-row #editBeats{
+  width:min(100%,6ch)!important;text-align:center;cursor:crosshair
+}
+.ratio-app .progression-root-row .exact-editing{
+  cursor:text!important;
+  -webkit-user-select:text!important;user-select:text!important;
+  touch-action:auto!important;
+  border-bottom-color:var(--accent)!important
+}
+/* The 4x4 beat sheet scrolls its *value window*, never the document.
+   Four fractional columns, four consecutive whole-beat rows. */
+.ratio-app .beats-flick-panel{max-width:calc(100vw - 16px)}
+.ratio-app .beats-flick-grid{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  grid-template-rows:repeat(4,minmax(0,1fr));
+  flex:1;min-height:0;gap:2px;pointer-events:none;
+}
+.ratio-app .beats-flick-cell{
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;min-width:0;min-height:0;
+  background:rgba(255,255,255,.035);color:var(--ink);
+  border:1px solid transparent;border-radius:3px
+}
+.ratio-app .beats-flick-cell.selected{
+  color:#fff;background:#236f82;border-color:#82d0dd;font-weight:700
+}
+.ratio-app .pitch-flick-cell.primary-selected{
+  outline:1px solid #c9f6ff;outline-offset:-2px
+}
+@media(max-width:640px){
+  .ratio-app .progression-root-row{width:100%!important}
+  .ratio-app .beats-flick-cell{font-size:13px}
+}
