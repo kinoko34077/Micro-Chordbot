@@ -1426,3 +1426,139 @@ dialog::backdrop{background:#0009}
   .ratio-app .ratio-play-scope{flex:0 1 auto;min-width:0}
   .ratio-app .ratio-play-scope #playScope{width:7rem;max-width:100%}
 }
+
+/* #84: Value itself is the control. No permanent boxed inputs, spinners or
+   7+5 key-button deck. Invisible hit-area and visible text width are distinct. */
+.ratio-app #editExpr,
+.ratio-app #editPitch,
+.ratio-app #editBeats,
+.ratio-app .ratio-section-repeat input,
+.ratio-app .ratio-section-name,
+.ratio-app .ratio-section-name-input,
+.ratio-app #title{
+  border:0!important;
+  border-radius:0!important;
+  border-bottom:1px solid var(--muted, #7892a3)!important;
+  box-shadow:none!important;
+  background:transparent!important;
+  padding:2px 1px!important;
+  outline-offset:1px;
+}
+.ratio-app #editPitch,
+.ratio-app #editBeats,
+.ratio-app .ratio-section-repeat input{
+  user-select:none;-webkit-user-select:none;
+  touch-action:none;
+  cursor:ns-resize;
+}
+.ratio-app #editExpr,.ratio-app #editPitch,.ratio-app #editBeats{
+  height:31px!important;min-height:31px!important;
+}
+.ratio-app #editBeats{text-align:center}
+.ratio-app .progression-root-row{
+  grid-template-columns:minmax(0,1fr) minmax(7.5ch,11ch) minmax(3.5ch,4.5ch)!important;
+  gap:6px!important
+}
+.ratio-app .ratio-section-repeat{gap:2px}
+.ratio-app .ratio-section-repeat input{
+  display:inline-block;
+  width:3ch!important;min-width:3ch!important;
+  height:28px!important;min-height:28px!important;
+  padding:2px 0!important;text-align:center;
+  font-size:14px!important
+}
+.ratio-app .ratio-section-name,
+.ratio-app .ratio-section-name-input{
+  min-height:28px!important;height:28px!important;
+  color:var(--ink)!important
+}
+.ratio-app .ratio-section-name{width:fit-content!important}
+.ratio-app input[type=number]::-webkit-inner-spin-button,
+.ratio-app input[type=number]::-webkit-outer-spin-button{
+  -webkit-appearance:none;margin:0
+}
+.ratio-app .ratio-add-small{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  box-sizing:border-box!important;
+  width:30px!important;min-width:30px!important;
+  height:28px!important;min-height:28px!important;
+  max-width:30px!important;
+  padding:1px!important;
+  margin:3px 0 0 auto!important;
+  font-size:21px!important;
+  line-height:1!important;
+  background:transparent!important;
+  border:0!important;
+  border-bottom:1px solid var(--muted, #7892a3)!important;
+  border-radius:0!important;
+  color:var(--ink)!important;
+  cursor:pointer
+}
+.ratio-app .ratio-add-small:focus-visible{outline:2px solid var(--accent)}
+.ratio-app .ratio-section-group .progression-chunk-grid{
+  margin-bottom:0!important;
+}
+/* This overlay does not scroll the page and never accepts cell taps. Pointer
+   events are captured by the initiating pitch value until release/cancel. */
+.ratio-app .pitch-flick-panel{
+  position:fixed;z-index:1000;
+  padding:5px 6px 6px;
+  border:1px solid #4d7889;border-radius:9px;
+  background:var(--panel,#102b35);
+  box-shadow:0 6px 22px #0008;
+  box-sizing:border-box;
+  pointer-events:none;touch-action:none;
+  display:flex;flex-direction:column;gap:4px;
+  max-height:calc(100dvh - 16px);
+}
+.ratio-app .pitch-flick-panel[hidden]{display:none!important}
+.ratio-app .pitch-flick-value{
+  min-height:23px;text-align:center;
+  color:var(--ink);font-size:15px;font-weight:700;
+}
+.ratio-app .pitch-flick-grid{
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+  grid-template-rows:repeat(7,minmax(0,1fr));
+  flex:1;min-height:0;
+  gap:1px;pointer-events:none
+}
+.ratio-app .pitch-flick-cell{
+  min-width:0;min-height:0;
+  display:flex;align-items:center;justify-content:center;
+  border:1px solid transparent;border-radius:3px;
+  color:var(--ink);font-size:13px;
+  background:rgba(255,255,255,.035)
+}
+.ratio-app .pitch-flick-cell.selected{
+  color:#fff;background:#236f82;border-color:#82d0dd;
+  font-weight:700;
+}
+.ratio-app .pitch-flick-caption{
+  flex:none;text-align:center;font-size:10px;color:var(--muted);
+  white-space:nowrap;
+}
+@media(max-width:640px){
+  .ratio-app .progression-root-row{
+    grid-template-columns:minmax(0,1fr) minmax(7ch,10ch) minmax(3ch,4ch)!important;
+    gap:4px!important;
+  }
+  .ratio-app .pitch-flick-panel{padding:4px 5px}
+  .ratio-app .pitch-flick-cell{font-size:12px}
+}
+
+/* The selected chunk and ordinary settings values are values, not buttons:
+   use the same understated underline as the pitch/beat/section editors. */
+.ratio-app #chunkJump,
+.ratio-app #playScope,
+.ratio-app #gridColumns,
+.ratio-app #bpm,
+.ratio-app #wave,
+.ratio-app #presetSearch{
+  border:0!important;
+  border-bottom:1px solid var(--muted,#7892a3)!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  background:transparent!important;
+}

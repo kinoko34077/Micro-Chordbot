@@ -87,7 +87,7 @@ try{
     for(const rect of layout.controls)assert.ok(rect.x>=-2&&rect.right<=width+2,"clipped core control "+JSON.stringify(rect)+" viewport "+width);
     assert.ok(Math.max(...layout.inputRow.map(r=>r.y))-Math.min(...layout.inputRow.map(r=>r.y))<=2,
       "ratio / pitch / beat fields are not on one row "+JSON.stringify(layout.inputRow));
-    for(const rect of layout.inputRow)assert.ok(rect.width>35&&rect.right<=width+2,"input clipped "+JSON.stringify(rect));
+    for(const rect of layout.inputRow)assert.ok(rect.width>20&&rect.right<=width+2,"input clipped "+JSON.stringify(rect));
     if(width>=1000)assert.ok(layout.inputRow[0].width<width*.4,"desktop ratio field too wide");
     assert.equal(await page.locator("#columnActual").count(),0,"redundant detached '4列' label remains");
     assert.equal(await page.locator("#chunkJump option").count(),1,"legacy progressions should start with one chunk");
@@ -142,7 +142,19 @@ try{
     await mkdir("artifacts/issue-28-layout-audit",{recursive:true});
     await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-mode-"+width+"x"+height+".png"});
     assert.ok(await page.locator("#editPitch").isVisible(),"selected cell edit field not reachable");
-    assert.ok(await page.locator("#progRootLetterButtons").isVisible(),"normal μChordbot root controls not transplanted");
+    assert.equal(await page.locator("#progRootLetterButtons,.ratio-accidentals").count(),0,"old 12-button pitch deck remains");
+    assert.equal(await page.locator("#pitchFlickGrid .pitch-flick-cell").count(),35,"flick must be 7 rows × 5 accidentals");
+    assert.equal(await page.locator("#pitchFlickPanel").isVisible(),false,"flick panel must not occupy editor at rest");
+    const lineStyle=await page.locator("#editPitch").evaluate(el=>{
+      const s=getComputedStyle(el);return {top:s.borderTopWidth,left:s.borderLeftWidth,bottom:s.borderBottomWidth};
+    });
+    assert.equal(lineStyle.top,"0px","boxed values remain");
+    assert.equal(lineStyle.left,"0px","boxed values remain");
+    assert.equal(lineStyle.bottom,"1px","editing affordance underline missing");
+    const smallAdd=await page.locator(".ratio-add-small").first().boundingBox();
+    const normalCard=await cells.first().boundingBox();
+    assert.ok(smallAdd.width<=34&&smallAdd.height<=32,"code-add still occupies a whole code cell");
+    assert.ok(normalCard.height>smallAdd.height+15,"small add not distinguishable from data cell");
     await page.evaluate(()=>window.__ratioStarted=[]);
     await cells.first().click();
     await page.waitForFunction(()=>window.__ratioStarted.length>=3);
@@ -159,6 +171,60 @@ try{
     await cells.first().click();
     await page.waitForFunction(()=>window.__ratioStarted.length>=3&&window.__ratioAudioContexts[0].state==="running");
     await page.locator("#stop").click();
+    // A slide, not a tap, selects a grid pitch. Moving upward from B4
+    // crosses to C5, returning downward crosses back, all before pointerup.
+    await page.locator("#editPitch").fill("B4");
+    await page.locator("#editPitch").dispatchEvent("change");
+    const beforeFlick=await page.locator("#editPitch").boundingBox();
+    const fx=beforeFlick.x+beforeFlick.width*.5,fy=beforeFlick.y+beforeFlick.height*.5;
+    await page.mouse.move(fx,fy);await page.mouse.down();
+    assert.ok(await page.locator("#pitchFlickPanel").isVisible(),"panel not shown by initial gesture");
+    assert.equal(await page.locator("#pitchFlickGrid .selected").count(),1);
+    if(width===320||width===390)
+      await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-flick-open-"+width+".png"});
+    await page.mouse.up();
+    assert.equal(await page.locator("#editPitch").inputValue(),"B4","tap selected pitch despite flick-only requirement");
+    await page.mouse.move(fx,fy);await page.mouse.down();
+    await page.mouse.move(fx,fy-27,{steps:3});
+    assert.equal(await page.locator("#editPitch").inputValue(),"C5","B4 upward did not wrap to C5");
+    await page.mouse.move(fx,fy,{steps:3});
+    assert.equal(await page.locator("#editPitch").inputValue(),"B4","C5 downward did not wrap back to B4");
+    await page.mouse.move(fx+30,fy-27,{steps:3});
+    assert.equal(await page.locator("#editPitch").inputValue(),"C‡5","horizontal half sharp selection failed");
+    assert.equal(await page.locator("#pitchFlickGrid .selected").count(),1);
+    await page.mouse.up();
+    assert.equal(await page.locator("#editPitch").inputValue(),"C‡5","flick did not commit on finger release");
+    assert.equal(await page.locator("#pitchFlickPanel").isVisible(),false);
+    await page.locator("#undo").click();
+    assert.equal(await page.locator("#editPitch").inputValue(),"B4","one Undo must undo the entire pitch gesture");
+    await page.locator("#redo").click();
+    assert.equal(await page.locator("#editPitch").inputValue(),"C‡5","one Redo must replay entire flick");
+    // Scrubbing beats also changes once with one Undo, no number spinner.
+    const beatsBox=await page.locator("#editBeats").boundingBox();
+    const bx=beatsBox.x+beatsBox.width/2,by=beatsBox.y+beatsBox.height/2;
+    await page.mouse.move(bx,by);await page.mouse.down();
+    await page.mouse.move(bx,by-39,{steps:4});await page.mouse.up();
+    assert.equal(await page.locator("#editBeats").inputValue(),"6","two steps up should make 6 beats");
+    await page.locator("#undo").click();
+    assert.equal(await page.locator("#editBeats").inputValue(),"4","one Undo must revert numeric scrub");
+    await page.locator("#redo").click();
+    assert.equal(await page.locator("#editBeats").inputValue(),"6","one Redo must replay numeric scrub");
+    if(width===390){
+      // Precision cents are still editable after a deliberate hold, without
+      // turning a bare tap into an alternative pitch-grid selection.
+      const precise=await page.locator("#editPitch").boundingBox();
+      const px=precise.x+precise.width/2,py=precise.y+precise.height/2;
+      await page.mouse.move(px,py);await page.mouse.down();
+      await page.waitForTimeout(580);await page.mouse.up();
+      assert.ok(await page.locator("#editPitch").evaluate(el=>el===document.activeElement),
+        "long-hold did not expose precise keyboard pitch input");
+      await page.locator("#editPitch").fill("A#5 +50￠");
+      await page.locator("#editPitch").dispatchEvent("change");
+      assert.equal(await page.locator("#editPitch").inputValue(),"A#5 +50￠");
+      await page.locator("#editPitch").fill("C‡5");
+      await page.locator("#editPitch").dispatchEvent("change");
+      await page.locator("#stop").click();
+    }
     await page.locator("#editPitch").fill("D‡5");
     await page.locator("#editPitch").dispatchEvent("change");
     assert.equal(await cells.first().locator(".cell-note").innerText(),"D‡5");
@@ -210,9 +276,12 @@ try{
     await page.locator("#presetSearch").fill("11th");
     assert.equal(await page.locator(".ratio-preset").count(),1,"preset search must filter candidates");
     await page.locator("#presetSearch").fill("");
-    await page.locator("#progRootLetterButtons [data-note=G]").click();
-    await page.locator('.ratio-accidentals [data-acc="‡"]').click();
-    assert.match(await page.locator("#editPitch").inputValue(),/^G‡/,"transplanted root and quartertone controls not applied");
+    // Existing G4 is changed to G‡4 by a horizontal flick, not 12 fixed buttons.
+    const rootBox=await page.locator("#editPitch").boundingBox();
+    const rootX=rootBox.x+rootBox.width/2,rootY=rootBox.y+rootBox.height/2;
+    await page.mouse.move(rootX,rootY);await page.mouse.down();
+    await page.mouse.move(rootX+33,rootY,{steps:3});await page.mouse.up();
+    assert.match(await page.locator("#editPitch").inputValue(),/^G‡/,"half sharp flick not applied");
     await page.locator("#stop").click();
     await page.reload();
     assert.equal(await page.locator("#gridColumns").inputValue(),"4","column preference was not persisted");
@@ -278,6 +347,14 @@ try{
     await page.locator(".ratio-section-repeat input").first().fill("3");
     await page.locator(".ratio-section-repeat input").first().dispatchEvent("change");
     assert.equal(await page.locator(".ratio-section-repeat input").first().inputValue(),"3");
+    const repeatBox=await page.locator(".ratio-section-repeat input").first().boundingBox();
+    const rx=repeatBox.x+repeatBox.width/2,ry=repeatBox.y+repeatBox.height/2;
+    await page.mouse.move(rx,ry);await page.mouse.down();
+    await page.mouse.move(rx,ry-20,{steps:3});await page.mouse.up();
+    assert.equal(await page.locator(".ratio-section-repeat input").first().inputValue(),"4","inline repeat must scrub");
+    await page.locator("#undo").click();
+    assert.equal(await page.locator(".ratio-section-repeat input").first().inputValue(),"3","repeat scrub not one Undo");
+    await page.locator("#redo").click();
     assert.equal(await page.locator(".progression-cell.active").getAttribute("data-cid"),chordId);
     await page.locator("#chunkJump").selectOption({label:"チャンク 1"});
     assert.equal(await cells.count(),5,"switching chunk must show all original chord cells");
@@ -319,4 +396,44 @@ try{
     console.log(JSON.stringify({width,height,layout,started,errors}));
     await page.close();
   }
+  // Actual Chromium touch pointer path, not only mouse emulation: a finger
+  // starts on the pitch value and stays down across an octave boundary.
+  const touchContext=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
+  const touchPage=await touchContext.newPage();
+  try{
+    await touchPage.goto("http://127.0.0.1:4173/ratio-mode/",{waitUntil:"domcontentloaded"});
+    await touchPage.locator("#editPitch").fill("B4");
+    await touchPage.locator("#editPitch").dispatchEvent("change");
+    const box=await touchPage.locator("#editPitch").boundingBox();
+    const x=box.x+box.width/2,y=box.y+box.height/2;
+    await touchPage.evaluate(()=>{
+      window.__flickTrace=[];
+      const field=document.querySelector("#editPitch");
+      for(const kind of ["pointerdown","pointermove","pointerup","pointercancel","lostpointercapture","touchstart","touchmove","touchend"]){
+        field.addEventListener(kind,e=>window.__flickTrace.push([kind,
+          Math.round(e.clientY??e.touches?.[0]?.clientY??-1),
+          field.value,field.hasPointerCapture?.(1)]));
+      }
+    });
+    const cdp=await touchContext.newCDPSession(touchPage);
+    await cdp.send("Emulation.setTouchEmulationEnabled",{enabled:true,maxTouchPoints:1});
+    const point=(px,py)=>[{x:px,y:py,id:1}];
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:point(x,y)});
+    assert.ok(await touchPage.locator("#pitchFlickPanel").isVisible(),"touchstart did not open grid");
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
+    assert.equal(await touchPage.locator("#editPitch").inputValue(),"B4","touch tap should not select");
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:point(x,y)});
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:point(x,y-26)});
+    await touchPage.waitForFunction(()=>document.querySelector("#editPitch").value==="C5",null,{timeout:2000});
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:point(x,y+3)});
+    try{await touchPage.waitForFunction(()=>document.querySelector("#editPitch").value==="B4",null,{timeout:2000})}
+    catch(error){
+      const trace=await touchPage.evaluate(()=>window.__flickTrace);
+      throw new Error("touch return wrap failed, trace="+JSON.stringify(trace)+"; "+error.message);
+    }
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
+    assert.equal(await touchPage.locator("#editPitch").inputValue(),"B4");
+    assert.equal(await touchPage.locator("#pitchFlickPanel").isVisible(),false);
+    console.log("touch pointer flick B4→C5→B4 PASS");
+  }finally{await touchContext.close()}
 }finally{await browser.close()}
