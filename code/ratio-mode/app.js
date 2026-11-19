@@ -675,6 +675,8 @@ for(const [key,which] of [["editExpr","expr"],["editPitch","pitch"]]){
 }
 $("presetSearch").addEventListener("input",()=>{$("presetChips").scrollTop=0;renderPresets()});
 $("openPresetManager").addEventListener("click",()=>beginPresetEdit());
+// Pressing Cancel must win over the field's on-blur auto-commit.
+$("presetInlineCancel").addEventListener("pointerdown",e=>{e.preventDefault();finishPresetEdit(false)});
 $("presetInlineCancel").addEventListener("click",()=>finishPresetEdit(false));
 $("presetInlineInput").addEventListener("keydown",e=>{
   if(e.isComposing)return;
