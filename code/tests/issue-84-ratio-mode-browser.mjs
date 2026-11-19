@@ -258,9 +258,12 @@ try{
     await page.locator("#presetSearch").fill("11th");
     assert.equal(await page.locator(".ratio-preset").count(),1,"preset search must filter candidates");
     await page.locator("#presetSearch").fill("");
-    await page.locator("#progRootLetterButtons [data-note=G]").click();
-    await page.locator('.ratio-accidentals [data-acc="‡"]').click();
-    assert.match(await page.locator("#editPitch").inputValue(),/^G‡/,"transplanted root and quartertone controls not applied");
+    // Existing G4 is changed to G‡4 by a horizontal flick, not 12 fixed buttons.
+    const rootBox=await page.locator("#editPitch").boundingBox();
+    const rootX=rootBox.x+rootBox.width/2,rootY=rootBox.y+rootBox.height/2;
+    await page.mouse.move(rootX,rootY);await page.mouse.down();
+    await page.mouse.move(rootX+33,rootY,{steps:3});await page.mouse.up();
+    assert.match(await page.locator("#editPitch").inputValue(),/^G‡/,"half sharp flick not applied");
     await page.locator("#stop").click();
     await page.reload();
     assert.equal(await page.locator("#gridColumns").inputValue(),"4","column preference was not persisted");
