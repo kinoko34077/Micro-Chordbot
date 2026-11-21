@@ -191,6 +191,25 @@ try{
     await cells.first().click();
     await page.waitForFunction(()=>window.__ratioStarted.length>=3&&window.__ratioAudioContexts[0].state==="running");
     await page.locator("#stop").click();
+    if(width===390){
+      const storage=()=>page.evaluate(()=>localStorage.getItem("muChordbot.ratioMode.v1"));
+      const before=await storage();
+      const f=page.locator("#editExpr");
+      await f.fill("4:5:7");await page.waitForTimeout(320);
+      assert.equal(await storage(),before,"typing saved uncommitted draft");
+      await f.fill("4:5:8");await page.waitForTimeout(320);
+      assert.equal(await storage(),before,"second typing pause changed history/storage");
+      await f.press("Enter");
+      assert.notEqual(await storage(),before);
+      await page.locator("#undo").click();
+      assert.equal(await storage(),before,"one Undo must restore all of the typing session");
+      await f.fill("4:5:9");await page.waitForTimeout(320);
+      await page.locator("#undo").click();
+      assert.equal(await storage(),before,"global Undo committed a pending draft");
+      await f.fill("4:5:10");await cells.nth(1).click();
+      assert.equal(await cells.nth(1).getAttribute("aria-pressed"),"true","committing blur swallowed next card selection");
+      await cells.first().click();await page.locator("#stop").click();
+    }
     // A slide selects pitch. The table reads B..C TOP to BOTTOM; moving UP raises pitch.
     await setPitch("B4");
     const beforeFlick=await page.locator("#editPitch").boundingBox();

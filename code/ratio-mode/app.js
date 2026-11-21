@@ -53,14 +53,16 @@ function chooseFirst(){
   const loc=selectedLocation();
   selection={sectionId:loc.section?.id??null,stepId:loc.step?.id??null};
 }
-function mutate(change,{structural=false,audition=false}={}){
+function mutate(change,{structural=false,audition=false,preserveTargets=false}={}){
   try{
     const before=copy(project),draft=copy(project);change(draft);
     const next=validateProject(draft);
     if(JSON.stringify(before)===JSON.stringify(next))return true;
     if(structural)stopPlayback();
     project=next;history.push({type:"ratio_edit",before,after:copy(next)});
-    chooseFirst();saveSelection();save();if(saveAllowed)notice("");render();
+    chooseFirst();saveSelection();save();if(saveAllowed)notice("");
+    if(preserveTargets){refreshCardValues();renderPresets();renderSelection();renderHistory()}
+    else render();
     if(playing&&playingStepId)void refreshPlayingVoices();
     if(audition)void preview();
     return true;
@@ -126,7 +128,7 @@ function makeCard(section,step,index){
   const note=document.createElement("span");note.className="cell-note";note.textContent=step.pitch;
   const meta=document.createElement("span");meta.className="cell-meta";meta.textContent=beatLabel(step);
   card.append(name,note,meta);
-  card.addEventListener("click",()=>{setSelection(section.id,step.id);void auditionCard(step)});
+  card.addEventListener("click",()=>{setSelection(section.id,step.id);void auditionCard(selectedLocation().step)});
   card.addEventListener("dragstart",e=>{
     e.dataTransfer.setData("text/plain",section.id+":"+step.id);
     e.dataTransfer.effectAllowed="move";card.classList.add("reorder-source");
@@ -239,7 +241,7 @@ function bindValueGesture(field,kind){
       mutate(d=>{
         const step=d.sections.find(s=>s.id===old.sectionId).steps.find(s=>s.id===old.stepId);
         if(pitch)step.pitch=old.value;else Object.assign(step,old.value);
-      });
+      },{preserveTargets:true});
       if(pitch&&old.lastAudition!==old.value)void auditionCard({...selectedLocation().step});
     }else{
       if(old.moved&&pitch&&!accept)stopAudition();
@@ -284,7 +286,7 @@ function bindValueGesture(field,kind){
   field.addEventListener("lostpointercapture",e=>finish(e,false));
   field.addEventListener("dblclick",e=>e.preventDefault()); // pointer classifier is sole owner
   field.addEventListener("keydown",e=>{
-    if(!field.classList.contains("exact-editing")&&["F2","Enter"].includes(e.key)){e.preventDefault();activatePreciseInput(field)}
+    if(!e.defaultPrevented&&!field.classList.contains("exact-editing")&&["F2","Enter"].includes(e.key)){e.preventDefault();activatePreciseInput(field)}
     if(e.key==="Escape"&&g){e.preventDefault();finish(null,false)}
   });
   document.addEventListener("pointerdown",e=>{if(e.target!==field){lastTap=null;if(g)finish(null,false)}},{capture:true});
@@ -327,6 +329,17 @@ function bindNumberScrub(field,{get,commit,min,max,step,fineStep=step}){
   field.addEventListener("pointercancel",event=>finish(event,false));
 }
 
+function refreshCardValues(){
+  for(const card of $("timeline").querySelectorAll(".progression-cell[data-cid]")){
+    const section=project.sections.find(s=>s.id===card.dataset.sid),step=section?.steps.find(s=>s.id===card.dataset.cid);
+    if(!step)continue;
+    const name=parseRatio(step.expr,project.presets).name||step.expr;
+    card.querySelector(".cell-title").textContent=name;
+    card.querySelector(".cell-note").textContent=step.pitch;
+    card.querySelector(".cell-meta").textContent=beatLabel(step);
+    card.setAttribute("aria-label",section.name+" のコード "+name+" "+step.pitch+" "+beatLabel(step)+"、押すと試聴");
+  }
+}
 function renderTimeline(){
   const timeline=$("timeline"),top=timeline.scrollTop,fragment=document.createDocumentFragment();
   const selected=selectedLocation().section;
@@ -409,6 +422,9 @@ function beginPresetEdit(name=null){
   editingPresetName=source?.name||null;
   const row=$("presetInlineRow"),field=$("presetInlineInput");
   field.value=source?"["+source.name+"]"+source.ratios:"";
+  const count=source?project.sections.flatMap(s=>s.steps).filter(s=>s.expr.toLocaleLowerCase()===source.name.toLocaleLowerCase()).length:0;
+  field.title=source?count+"個の参照コードに反映":"名前付き比率を新規登録";
+  $("presetInlineCancel").title=source?count+"個の参照コードに反映する編集を取り消す":"登録を取り消す";
   row.hidden=false;$("presetSearch").closest("label").hidden=true;
   $("openPresetManager").hidden=true;presetEditorActive=true;
   field.focus();field.select();
@@ -443,10 +459,13 @@ function finishPresetEdit(commit){
 }
 function renderPresets(){
   const chips=$("presetChips"),scroll=chips.scrollTop,filter=$("presetSearch").value.trim().toLocaleLowerCase();
-  const fragment=document.createDocumentFragment();
+  const existing=new Map([...chips.children].map(el=>[el.dataset.presetKey,el]));
+  const nodes=[];
   for(const preset of project.presets){
     if(filter&&!((preset.name+" "+preset.ratios).toLocaleLowerCase().includes(filter)))continue;
-    const item=document.createElement("div");item.className="preset-item";
+    const key=JSON.stringify([preset.name,preset.ratios]);
+    if(existing.has(key)){nodes.push(existing.get(key));continue}
+    const item=document.createElement("div");item.className="preset-item";item.dataset.presetKey=key;
     const chip=document.createElement("button");chip.type="button";chip.className="ratio-preset";
     const name=document.createElement("strong");name.textContent=preset.name;
     const ratio=document.createElement("small");ratio.textContent=preset.ratios;
@@ -461,9 +480,12 @@ function renderPresets(){
     del.textContent="×";del.title=preset.name+" を解除";
     del.setAttribute("aria-label",preset.name+" を登録解除");
     del.addEventListener("click",e=>{e.stopPropagation();removePreset(preset.name)});
-    item.append(chip,edit,del);fragment.append(item);
+    item.append(chip,edit,del);nodes.push(item);
   }
-  chips.replaceChildren(fragment);chips.scrollTop=scroll;
+  const keep=new Set(nodes);
+  for(const child of [...chips.children])if(!keep.has(child))child.remove();
+  nodes.forEach((el,i)=>{if(chips.children[i]!==el)chips.insertBefore(el,chips.children[i]||null)});
+  chips.scrollTop=scroll;
 }
 function setRatioExpression(d,value){setChordExpression(d,selectedLocation(d).step,value)}
 function updateGridColumns(){
@@ -553,6 +575,10 @@ function renderSelection(){
   if(!activeText||activeText.field!==$("editExpr")||activeText.stepId!==step.id)$("editExpr").value=chordExpression(step,project.presets);
   if(!pitchGesture&&(!activeText||activeText.field!==$("editPitch")||activeText.stepId!==step.id))$("editPitch").value=step.pitch;
   if(!beatGesture&&(!activeText||activeText.field!==$("editBeats")||activeText.stepId!==step.id))$("editBeats").value=step.beats+"/"+(step.beatUnit||4);
+  for(const key of ["editExpr","editPitch","editBeats"]){
+    const field=$(key);if(activeText?.field===field)continue;
+    if(invalidDrafts.has(step.id+":"+key))field.setAttribute("aria-invalid","true");else field.removeAttribute("aria-invalid");
+  }
   renderSectionNav();
   for(const card of $("timeline").querySelectorAll(".progression-cell[data-cid]")){
     const active=card.dataset.sid===selection.sectionId&&card.dataset.cid===selection.stepId;
@@ -606,8 +632,11 @@ function finishActiveText(commit=true){
     field.value=fieldValue(t.key,current);stopAudition();renderHistory();return false;
   }
   let ok=true;
-  if(value!==t.original)ok=mutate(d=>applyText(d,t,value));
-  if(ok){invalidDrafts.delete(t.draftKey);field.removeAttribute("aria-invalid");field.value=fieldValue(t.key,selectedLocation().step)}
+  if(value!==t.original)ok=mutate(d=>applyText(d,t,value),{preserveTargets:true});
+  if(ok){
+    invalidDrafts.delete(t.draftKey);field.removeAttribute("aria-invalid");field.value=fieldValue(t.key,selectedLocation().step);
+    if(value!==t.original&&t.key!=="editBeats"&&t.lastAudition!==value)void auditionCard(selectedLocation().step);
+  }
   else{invalidDrafts.set(t.draftKey,value);field.setAttribute("aria-invalid","true");field.value=value}
   renderHistory();return ok;
 }
@@ -631,7 +660,7 @@ for(const [key,kind] of Object.entries(editorKinds)){
       try{
         const draft=copy(project),step=applyText(draft,t,value);
         validateProject(draft);
-        void auditionCard(step,draft.presets);
+        t.lastAudition=value;void auditionCard(step,draft.presets);
       }catch(error){/* incomplete text is a draft, not a project mutation */}
     },260);
   });
@@ -696,8 +725,18 @@ $("title").addEventListener("change",e=>mutate(d=>d.title=e.target.value));
 $("bpm").addEventListener("change",e=>mutate(d=>d.settings.bpm=Number(e.target.value)));
 $("loop").addEventListener("change",e=>mutate(d=>d.settings.loop=e.target.checked));
 $("wave").addEventListener("change",e=>mutate(d=>d.settings.wave=e.target.value));
-$("undo").addEventListener("click",undo);
-$("redo").addEventListener("click",redo);
+// Pointer activation of the history buttons must cancel a draft BEFORE native blur commits it.
+for(const [key,run] of [["undo",undo],["redo",redo]]){
+  const button=$(key);let cancelled=false;
+  button.addEventListener("pointerdown",e=>{
+    cancelled=false;
+    if(activeText&&activeText.field.value!==activeText.original||cancelValueGesture){
+      e.preventDefault();cancelled=cancelActiveDraft();
+    }
+  });
+  button.addEventListener("click",()=>{if(cancelled){cancelled=false;return}run()});
+  button.addEventListener("pointercancel",()=>{cancelled=false});
+}
 const makeSection=(chunkId,chunkName,n)=>({
   id:id("s"),chunkId,chunkName,name:"Section "+n,repeat:1,
   steps:[{id:id("c"),expr:"4,5,6",pitch:"C4",beats:4,beatUnit:4}]
