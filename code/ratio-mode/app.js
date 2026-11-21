@@ -1,7 +1,7 @@
 import {AudioEngine} from "../src/audio.js";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {HistoryManager, isNativeUndoTarget} from "../src/history.js";
-import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,importText,exportText} from "./model.mjs";
+import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,importText,exportText} from "./model.mjs";
 
 const $=id=>document.getElementById(id);
 const copy=value=>JSON.parse(JSON.stringify(value));
@@ -11,7 +11,7 @@ const history=new HistoryManager(100);
 const engine=new AudioEngine();
 let project,saveAllowed=true,selection={sectionId:null,stepId:null},columns=4,playScope="all";
 let timer=null,runId=0,playing=false,playingStepId=null,voiceCount=0;
-let tapVersion=0,tapTimer=null,tapVoiceIds=[];
+let tapVersion=0,tapTimer=null,tapVoiceIds=[],transportVoiceIds=[],voiceGeneration=0;
 const id=prefix=>prefix+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 
 function notice(value="",error=false) {
@@ -62,11 +62,13 @@ function mutate(change,{structural=false,audition=false}={}){
     project=next;history.push({type:"ratio_edit",before,after:copy(next)});
     chooseFirst();saveSelection();save();if(saveAllowed)notice("");render();
     if(playing&&playingStepId)void refreshPlayingVoices();
-    else if(audition)void preview();
+    if(audition)void preview();
     return true;
   }catch(error){notice(error.message||String(error),true);return false}
 }
 function setSelection(sid,cid){
+  finishActiveText(true);
+  cancelValueGesture?.();
   const old=project.sections.find(s=>s.id===selection.sectionId)?.chunkId;
   const next=project.sections.find(s=>s.id===sid)?.chunkId;
   selection={sectionId:sid,stepId:cid};
@@ -80,19 +82,19 @@ function restore(snapshot){
   chooseFirst();saveSelection();save();render();if(saveAllowed)notice("");
   // Undo/redo is authoritative even if a text field retains native focus.
   const current=selectedLocation().step;
-  $("editExpr").value=current.expr;$("editPitch").value=current.pitch;
+  $("editExpr").value=chordExpression(current,project.presets);$("editPitch").value=current.pitch;
   $("editBeats").value=current.beats+"/"+(current.beatUnit||4);
   // History restores data, not unsolicited sound.
   if(wasPlaying)startPlayback();
 }
-function undo(){history.undo(restore);renderHistory()}
-function redo(){history.redo(restore);renderHistory()}
+function undo(){if(cancelActiveDraft())return;history.undo(restore);renderHistory()}
+function redo(){if(cancelActiveDraft())return;history.redo(restore);renderHistory()}
 function renderHistory(){
-  $("undo").disabled=!history.canUndo();
+  $("undo").disabled=!history.canUndo()&&!activeText&&!cancelValueGesture;
   $("redo").disabled=!history.canRedo();
 }
-function calculate(step){
-  const parsed=parseRatio(step.expr,project.presets);
+function calculate(step,presets=project.presets){
+  const parsed=parseRatio(step.expr,presets);
   const bass=parsePitch(step.pitch);
   const baseHz=frequencyFromPitch(440,bass.octave,bass.microStepInOctave);
   const freqs=parsed.ratios.map(r=>baseHz*r);
@@ -120,7 +122,7 @@ function makeCard(section,step,index){
   card.draggable=true;
   // Grid width is owned by the standard progression columns setting.
   card.setAttribute("aria-label",section.name+" のコード "+step.expr+" "+step.pitch+" "+beatLabel(step)+"、押すと試聴");
-  const name=document.createElement("span");name.className="cell-title";name.textContent=step.expr;
+  const name=document.createElement("span");name.className="cell-title";name.textContent=parseRatio(step.expr,project.presets).name||step.expr;
   const note=document.createElement("span");note.className="cell-note";note.textContent=step.pitch;
   const meta=document.createElement("span");meta.className="cell-meta";meta.textContent=beatLabel(step);
   card.append(name,note,meta);
@@ -195,85 +197,13 @@ function placeGesturePanel(source,panel,width,height){
   panel.style.top=Math.max(8,Math.min(visibleHeight-h-8,top))+"px";
 }
 function activatePreciseInput(field){
+  if(field.classList.contains("exact-editing"))return;
   field.classList.add("exact-editing");
-  field.readOnly=false;field.focus();field.select();
+  field.readOnly=false;field.focus();startText(field);field.select();
 }
-// In a 7x5 sheet the rows read B, A, G, F, E, D, C from TOP to BOTTOM.
-// Moving UP raises pitch, following the bottom-C, top-B orientation.
-let pitchGesture=null,beatGesture=null;
-function bindPitchFlick(field){
-  let lastTap=null;
-  field.readOnly=true;
-  field.addEventListener("blur",()=>{field.classList.remove("exact-editing");field.readOnly=true});
-  field.addEventListener("dblclick",event=>{
-    event.preventDefault();lastTap=null;
-    activatePreciseInput(field);
-  });
-  field.addEventListener("pointerdown",event=>{
-    if(event.button!==0||!event.isPrimary||pitchGesture)return;
-    if(field.classList.contains("exact-editing"))return;
-    const now=performance.now();
-    const isDouble=event.detail>=2 || (lastTap&&now-lastTap.time<350&&
-      Math.hypot(event.clientX-lastTap.x,event.clientY-lastTap.y)<18);
-    // Decide on release: a fast second pointerdown might turn into a
-    // drag, which must remain a flick rather than opening the keyboard.
-    const {section,step}=selectedLocation();
-    const parsed=parsePitch(step.pitch).label;
-    const match=/^([A-G])([#b‡d]?)(-?\d{1,2})/.exec(parsed);
-    if(!match)return;
-    event.preventDefault();
-    resumeAudioContext({gesture:true});
-    pitchGesture={pointerId:event.pointerId,sectionId:section.id,stepId:step.id,
-      original:step.pitch,candidate:step.pitch,x:event.clientX,y:event.clientY,
-      moved:false,audioAt:0,doubleCandidate:isDouble};
-    field.setPointerCapture(event.pointerId);
-    placeGesturePanel(field,flickPanel,260,268);
-    highlightFlickPitch(parsed);flickPanel.hidden=false;
-  });
-  field.addEventListener("pointermove",event=>{
-    const g=pitchGesture;if(!g||g.pointerId!==event.pointerId)return;
-    const dx=event.clientX-g.x,dy=event.clientY-g.y;
-    if(!g.moved&&Math.hypot(dx,dy)<7)return;
-    g.moved=true;lastTap=null;
-    const next=flickGridPitch(g.original,Math.round(-dy/23),Math.round(dx/28));
-    if(next===g.candidate)return;
-    g.candidate=next;field.value=next;highlightFlickPitch(next);
-    const now=performance.now();
-    if(now-g.audioAt>=110){
-      g.audioAt=now;
-      const audition={...selectedLocation().step,pitch:next};
-      try{calculate(audition);void auditionCard(audition)}
-      catch(error){/* notation can legitimately exceed audible Hz range */}
-    }
-  });
-  function finish(event,accept){
-    const g=pitchGesture;if(!g||g.pointerId!==event.pointerId)return;
-    pitchGesture=null;flickPanel.hidden=true;
-    if(field.hasPointerCapture(event.pointerId))field.releasePointerCapture(event.pointerId);
-    const current=selectedLocation();
-    if(accept&&g.moved&&g.candidate!==g.original&&
-       current.section.id===g.sectionId&&current.step.id===g.stepId){
-      // One gesture, one valid state mutation, one Undo entry.
-      if(!mutate(d=>{d.sections.find(s=>s.id===g.sectionId)
-          .steps.find(x=>x.id===g.stepId).pitch=g.candidate}))
-        field.value=current.step.pitch;
-    }else{
-      field.value=current.step.pitch;
-      if(accept&&!g.moved){
-        if(g.doubleCandidate){lastTap=null;activatePreciseInput(field)}
-        else lastTap={time:performance.now(),x:event.clientX,y:event.clientY};
-      }
-    }
-  }
-  field.addEventListener("pointerup",event=>finish(event,true));
-  field.addEventListener("pointercancel",event=>finish(event,false));
-  window.addEventListener("blur",()=>{
-    if(!pitchGesture)return;
-    pitchGesture=null;flickPanel.hidden=true;field.value=selectedLocation().step.pitch;
-  });
-}
-function highlightBeats(value){
-  const grid=beatFractionGridCells(value);
+let pitchGesture=null,beatGesture=null,cancelValueGesture=null;
+function highlightBeats(value,window){
+  const grid=beatFractionGridCells(value,window);
   const key=grid.firstNumerator+":"+grid.firstDenominator;
   if(beatsGrid.dataset.window!==key){
     beatsGrid.dataset.window=key;
@@ -287,70 +217,83 @@ function highlightBeats(value){
     }));
     beatsGrid.replaceChildren(fragment);
   }
-  for(const cell of beatsGrid.children)
-    cell.classList.toggle("selected",
-      Number(cell.dataset.num)===Number(value.beats)&&
-      Number(cell.dataset.den)===Number(value.beatUnit));
-  $("beatsFlickValue").textContent=beatLabel(value);
+  for(const cell of beatsGrid.children)cell.classList.toggle("selected",Number(cell.dataset.num)===value.beats&&Number(cell.dataset.den)===value.beatUnit);
+  $("beatsFlickValue").textContent=beatLabel(value);return grid;
 }
-function bindBeatFlick(field){
-  let lastTap=null;
-  field.addEventListener("blur",()=>field.classList.remove("exact-editing"));
-  field.addEventListener("dblclick",e=>{e.preventDefault();lastTap=null;activatePreciseInput(field)});
+// One pointer classifier for both values; down alone cannot open the sheet or keyboard.
+function bindValueGesture(field,kind){
+  const pitch=kind==="pitch",panel=pitch?flickPanel:beatsPanel;
+  let g=null,lastTap=null;
+  field.readOnly=true;
+  const label=v=>pitch?v:v.beats+"/"+v.beatUnit;
+  const same=(a,b)=>label(a)===label(b);
+  const mark=()=>{if(pitch)pitchGesture=g;else beatGesture=g};
+  const highlight=v=>{if(pitch)highlightFlickPitch(v);else g.window=highlightBeats(v,g.window)};
+  function finish(event,accept){
+    if(!g||event&&g.pointerId!==event.pointerId)return;
+    const old=g;g=null;mark();cancelValueGesture=null;panel.hidden=true;
+    if(field.hasPointerCapture(old.pointerId))field.releasePointerCapture(old.pointerId);
+    const current=selectedLocation();
+    const matches=current.step.id===old.stepId&&current.section.id===old.sectionId;
+    if(accept&&matches&&old.moved&&!same(old.original,old.value)){
+      mutate(d=>{
+        const step=d.sections.find(s=>s.id===old.sectionId).steps.find(s=>s.id===old.stepId);
+        if(pitch)step.pitch=old.value;else Object.assign(step,old.value);
+      });
+      if(pitch&&old.lastAudition!==old.value)void auditionCard({...selectedLocation().step});
+    }else{
+      if(old.moved&&pitch&&!accept)stopAudition();
+      if(accept&&matches&&!old.moved&&performance.now()-old.started<350){
+        if(old.doubleCandidate){lastTap=null;activatePreciseInput(field)}
+        else lastTap={time:performance.now(),x:old.x,y:old.y,stepId:old.stepId,type:old.type};
+      }else lastTap=null;
+    }
+    if(!field.classList.contains("exact-editing"))field.value=pitch?selectedLocation().step.pitch:label(selectedLocation().step);
+    renderHistory();
+  }
   field.addEventListener("pointerdown",event=>{
-    if(event.button!==0||!event.isPrimary||beatGesture)return;
-    if(field.classList.contains("exact-editing"))return;
-    const now=performance.now();
-    const isDouble=event.detail>=2||(lastTap&&now-lastTap.time<350&&
-      Math.hypot(event.clientX-lastTap.x,event.clientY-lastTap.y)<18);
+    if(event.button!==0||!event.isPrimary||g||field.classList.contains("exact-editing"))return;
     event.preventDefault();
-    const {section,step}=selectedLocation();
-    const original={beats:step.beats,beatUnit:step.beatUnit||4};
-    beatGesture={pointerId:event.pointerId,sectionId:section.id,stepId:step.id,
-      original,current:original,x:event.clientX,y:event.clientY,moved:false,doubleCandidate:isDouble};
-    field.setPointerCapture(event.pointerId);
-    placeGesturePanel(field,beatsPanel,270,225);
-    highlightBeats(original);beatsPanel.hidden=false;
+    if(activeText)finishActiveText(true);
+    const {section,step}=selectedLocation(),now=performance.now();
+    const isDouble=lastTap&&lastTap.stepId===step.id&&lastTap.type===event.pointerType&&now-lastTap.time<350&&Math.hypot(event.clientX-lastTap.x,event.clientY-lastTap.y)<18;
+    const original=pitch?step.pitch:{beats:step.beats,beatUnit:step.beatUnit||4};
+    g={pointerId:event.pointerId,sectionId:section.id,stepId:step.id,original,value:original,x:event.clientX,y:event.clientY,type:event.pointerType,started:now,moved:false,doubleCandidate:isDouble,audioAt:0};
+    mark();cancelValueGesture=()=>finish(null,false);
+    field.setPointerCapture(event.pointerId);renderHistory();
   });
   field.addEventListener("pointermove",event=>{
-    const g=beatGesture;if(!g||g.pointerId!==event.pointerId)return;
+    if(!g||g.pointerId!==event.pointerId)return;
     const dx=event.clientX-g.x,dy=event.clientY-g.y;
-    if(!g.moved&&Math.hypot(dx,dy)<7)return;
-    g.moved=true;lastTap=null;
-    const value=beatFractionGridValue(Math.round(g.original.beats),g.original.beatUnit,
-      Math.round(dy/29),Math.round(dx/33));
-    g.current=value;field.value=value.beats+"/"+value.beatUnit;
-    highlightBeats(value);
-  });
-  function finish(event,accept){
-    const g=beatGesture;if(!g||g.pointerId!==event.pointerId)return;
-    beatGesture=null;beatsPanel.hidden=true;
-    if(field.hasPointerCapture(event.pointerId))field.releasePointerCapture(event.pointerId);
-    const current=selectedLocation();
-    if(accept&&g.moved&&
-       (g.current.beats!==g.original.beats||g.current.beatUnit!==g.original.beatUnit)&&
-       current.section.id===g.sectionId&&current.step.id===g.stepId){
-      if(!mutate(d=>{
-        const st=d.sections.find(s=>s.id===g.sectionId).steps.find(x=>x.id===g.stepId);
-        st.beats=g.current.beats;st.beatUnit=g.current.beatUnit;
-      }))field.value=current.step.beats+"/"+(current.step.beatUnit||4);
-    }else{
-      field.value=current.step.beats+"/"+(current.step.beatUnit||4);
-      if(accept&&!g.moved){
-        if(g.doubleCandidate){lastTap=null;activatePreciseInput(field)}
-        else lastTap={time:performance.now(),x:event.clientX,y:event.clientY};
-      }
+    if(!g.moved){
+      if(Math.hypot(dx,dy)<7)return;
+      g.moved=true;lastTap=null;
+      placeGesturePanel(field,panel,pitch?260:270,pitch?268:225);highlight(g.original);panel.hidden=false;
+      if(pitch)resumeAudioContext({gesture:true});
     }
-  }
+    const next=pitch?flickGridPitch(g.original,Math.round(-dy/23),Math.round(dx/28)):
+      beatFractionGridValue(g.original.beats,g.original.beatUnit,Math.round(-dy/29),Math.round(dx/33));
+    if(same(next,g.value))return;
+    g.value=next;field.value=label(next);highlight(next);
+    if(pitch&&performance.now()-g.audioAt>=110){
+      g.audioAt=performance.now();g.lastAudition=next;void auditionCard({...selectedLocation().step,pitch:next});
+    }
+  });
   field.addEventListener("pointerup",e=>finish(e,true));
   field.addEventListener("pointercancel",e=>finish(e,false));
-  window.addEventListener("blur",()=>{
-    if(!beatGesture)return;
-    beatGesture=null;beatsPanel.hidden=true;
-    const current=selectedLocation().step;
-    field.value=current.beats+"/"+(current.beatUnit||4);
+  field.addEventListener("lostpointercapture",e=>finish(e,false));
+  field.addEventListener("dblclick",e=>e.preventDefault()); // pointer classifier is sole owner
+  field.addEventListener("keydown",e=>{
+    if(!field.classList.contains("exact-editing")&&["F2","Enter"].includes(e.key)){e.preventDefault();activatePreciseInput(field)}
+    if(e.key==="Escape"&&g){e.preventDefault();finish(null,false)}
   });
+  document.addEventListener("pointerdown",e=>{if(e.target!==field){lastTap=null;if(g)finish(null,false)}},{capture:true});
+  window.addEventListener("blur",()=>{lastTap=null;if(g)finish(null,false)});
+  document.addEventListener("visibilitychange",()=>{if(document.hidden&&g)finish(null,false)});
 }
+function bindPitchFlick(field){bindValueGesture(field,"pitch")}
+function bindBeatFlick(field){bindValueGesture(field,"beats")}
+
 // Repeat count has its own integral range; unlike beats it does not use a
 // fraction grid. One drag still contributes exactly one Undo action.
 function bindNumberScrub(field,{get,commit,min,max,step,fineStep=step}){
@@ -509,7 +452,7 @@ function renderPresets(){
     const ratio=document.createElement("small");ratio.textContent=preset.ratios;
     chip.append(name,ratio);chip.title="選択コードへ "+preset.name+" を設定";
     chip.addEventListener("click",()=>mutate(d=>{selectedLocation(d).step.expr=preset.name},{audition:true}));
-    chip.addEventListener("dblclick",e=>{e.preventDefault();beginPresetEdit(preset.name)});
+    // Preset apply and definition editing are separate targets; no double-click action.
     const edit=document.createElement("button");edit.type="button";edit.className="preset-edit";
     edit.textContent="✎";edit.title=preset.name+" を直接編集";
     edit.setAttribute("aria-label",preset.name+" をその場で編集");
@@ -522,16 +465,7 @@ function renderPresets(){
   }
   chips.replaceChildren(fragment);chips.scrollTop=scroll;
 }
-function setRatioExpression(d,value){
-  const expression=value.trim();
-  if(expression.startsWith("[")){
-    const entry=parseNamedRatio(expression);
-    const existing=d.presets.find(p=>p.name.toLocaleLowerCase()===entry.name.toLocaleLowerCase());
-    if(existing){existing.name=entry.name;existing.ratios=entry.ratios}
-    else d.presets.push(entry);
-    selectedLocation(d).step.expr=entry.name;
-  }else selectedLocation(d).step.expr=expression;
-}
+function setRatioExpression(d,value){setChordExpression(d,selectedLocation(d).step,value)}
 function updateGridColumns(){
   const track=$("timeline"),width=track.clientWidth||window.innerWidth;
   const min=window.innerWidth<=640?116:window.innerWidth<=950?104:88;
@@ -616,9 +550,9 @@ function renderSelection(){
   const loc=selectedLocation();if(!loc.step)return;
   selection={sectionId:loc.section.id,stepId:loc.step.id};
   const step=loc.step;
-  if(document.activeElement!==$("editExpr"))$("editExpr").value=step.expr;
-  if(!pitchGesture&&document.activeElement!==$("editPitch"))$("editPitch").value=step.pitch;
-  if(!beatGesture&&document.activeElement!==$("editBeats"))$("editBeats").value=step.beats+"/"+(step.beatUnit||4);
+  if(!activeText||activeText.field!==$("editExpr")||activeText.stepId!==step.id)$("editExpr").value=chordExpression(step,project.presets);
+  if(!pitchGesture&&(!activeText||activeText.field!==$("editPitch")||activeText.stepId!==step.id))$("editPitch").value=step.pitch;
+  if(!beatGesture&&(!activeText||activeText.field!==$("editBeats")||activeText.stepId!==step.id))$("editBeats").value=step.beats+"/"+(step.beatUnit||4);
   renderSectionNav();
   for(const card of $("timeline").querySelectorAll(".progression-cell[data-cid]")){
     const active=card.dataset.sid===selection.sectionId&&card.dataset.cid===selection.stepId;
@@ -637,51 +571,81 @@ function render(){
   $("loop").checked=project.settings.loop;$("wave").value=project.settings.wave;
   renderTimeline();renderPresets();renderSelection();renderHistory();
 }
-function commitField(which,value,field){
-  let success=false;
-  if(which==="expr")success=mutate(d=>setRatioExpression(d,value),{audition:true});
-  if(which==="pitch")success=mutate(d=>selectedLocation(d).step.pitch=value.trim(),{audition:true});
-  if(which==="beats"&&field.dataset.dragging!=="true")success=mutate(d=>{
-    const fraction=parseBeatNotation(value);
-    selectedLocation(d).step.beats=fraction.beats;
-    selectedLocation(d).step.beatUnit=fraction.beatUnit;
-  });
-
-  field.setAttribute("aria-invalid",success?"false":"true");
-  // Once [name]ratios is committed, the actual chord expression is its
-  // registered name. Present that authoritative value immediately in place.
-  if(success&&which==="expr"&&value.trim().startsWith("["))
-    field.value=selectedLocation().step.expr;
+// Text editing is a single transaction, with a transient audition draft.
+let activeText=null;
+const invalidDrafts=new Map();
+const editorKinds={editExpr:"expr",editPitch:"pitch",editBeats:"beats"};
+function fieldValue(key,step){return key==="editExpr"?chordExpression(step,project.presets):key==="editPitch"?step.pitch:step.beats+"/"+(step.beatUnit||4)}
+function startText(field){
+  if(activeText?.field===field)return activeText;
+  if(activeText)finishActiveText(true);
+  const {section,step}=selectedLocation();
+  const key=field.id,original=fieldValue(key,step),draftKey=step.id+":"+key;
+  const saved=invalidDrafts.get(draftKey);
+  activeText={field,key,sectionId:section.id,stepId:step.id,original,draftKey,composing:false,timer:null};
+  if(saved!==undefined){field.value=saved;field.setAttribute("aria-invalid","true")}
+  renderHistory();return activeText;
 }
-[["editExpr","expr"],["editPitch","pitch"],["editBeats","beats"]].forEach(([key,kind])=>{
-  $(key).addEventListener("change",e=>commitField(kind,e.target.value,e.target));
-  $(key).addEventListener("input",e=>e.target.removeAttribute("aria-invalid"));
-});
-// Type-and-audition without waiting for a field blur; incomplete pitches stay editable.
-const typingTimers=new Map();
-for(const [key,which] of [["editExpr","expr"],["editPitch","pitch"]]){
-  $(key).addEventListener("input",e=>{
-    clearTimeout(typingTimers.get(key));
-    const value=e.target.value,field=e.target,origin={...selection};
-    const timer=setTimeout(()=>{
-      if(field.value!==value||field.dataset.composing==="true"||selection.stepId!==origin.stepId||selection.sectionId!==origin.sectionId)return;
-      if(which==="expr"&&value.trim().startsWith("["))return; // named registration is atomic on Enter/blur
-      const draft=copy(project);
-      if(which==="expr")setRatioExpression(draft,value);
-      else selectedLocation(draft).step.pitch=value.trim();
-      try{validateProject(draft)}catch(error){return}
-      mutate(d=>which==="expr"?setRatioExpression(d,value):selectedLocation(d).step.pitch=value.trim(),{audition:true});
+function applyText(d,t,value){
+  const step=d.sections.find(s=>s.id===t.sectionId)?.steps.find(s=>s.id===t.stepId);
+  if(!step)throw new Error("編集対象がありません");
+  if(t.key==="editExpr")setChordExpression(d,step,value);
+  else if(t.key==="editPitch")step.pitch=value.trim();
+  else Object.assign(step,parseBeatNotation(value));
+  return step;
+}
+function finishActiveText(commit=true){
+  const t=activeText;if(!t)return true;
+  clearTimeout(t.timer);activeText=null;
+  const field=t.field,value=field.value;
+  field.classList.remove("exact-editing");
+  if(t.key!=="editExpr")field.readOnly=true;
+  const current=selectedLocation().step;
+  if(!commit||t.composing){
+    invalidDrafts.delete(t.draftKey);field.removeAttribute("aria-invalid");
+    field.value=fieldValue(t.key,current);stopAudition();renderHistory();return false;
+  }
+  let ok=true;
+  if(value!==t.original)ok=mutate(d=>applyText(d,t,value));
+  if(ok){invalidDrafts.delete(t.draftKey);field.removeAttribute("aria-invalid");field.value=fieldValue(t.key,selectedLocation().step)}
+  else{invalidDrafts.set(t.draftKey,value);field.setAttribute("aria-invalid","true");field.value=value}
+  renderHistory();return ok;
+}
+function cancelActiveDraft(){
+  if(cancelValueGesture){cancelValueGesture();return true}
+  if(activeText&&activeText.field.value!==activeText.original){finishActiveText(false);return true}
+  if(activeText)finishActiveText(false);
+  return false;
+}
+for(const [key,kind] of Object.entries(editorKinds)){
+  const field=$(key);
+  field.addEventListener("focus",()=>{if(key==="editExpr"||field.classList.contains("exact-editing"))startText(field)});
+  field.addEventListener("input",()=>{
+    if(field.readOnly)return;
+    const t=activeText?.field===field?activeText:startText(field);
+    field.removeAttribute("aria-invalid");clearTimeout(t.timer);renderHistory();
+    if(kind==="beats"||t.composing)return;
+    const value=field.value;
+    t.timer=setTimeout(()=>{
+      if(activeText!==t||t.composing||field.value!==value)return;
+      try{
+        const draft=copy(project),step=applyText(draft,t,value);
+        validateProject(draft);
+        void auditionCard(step,draft.presets);
+      }catch(error){/* incomplete text is a draft, not a project mutation */}
     },260);
-    typingTimers.set(key,timer);
   });
-  $(key).addEventListener("compositionstart",e=>{
-    e.target.dataset.composing="true";clearTimeout(typingTimers.get(key));
-  });
-  $(key).addEventListener("compositionend",e=>{
-    e.target.dataset.composing="false";
-    e.target.dispatchEvent(new Event("input",{bubbles:true}));
+  field.addEventListener("change",()=>{if(activeText?.field===field)finishActiveText(true)});
+  field.addEventListener("blur",()=>{if(activeText?.field===field)finishActiveText(true)});
+  field.addEventListener("compositionstart",()=>{if(activeText?.field===field){activeText.composing=true;clearTimeout(activeText.timer)}});
+  field.addEventListener("compositionend",()=>{if(activeText?.field===field){activeText.composing=false;field.dispatchEvent(new Event("input",{bubbles:true}))}});
+  field.addEventListener("keydown",e=>{
+    if(e.isComposing||activeText?.composing)return;
+    if(activeText?.field===field&&e.key==="Escape"){e.preventDefault();finishActiveText(false);field.blur()}
+    else if(activeText?.field===field&&e.key==="Enter"){e.preventDefault();finishActiveText(true);field.blur()}
   });
 }
+
 $("presetSearch").addEventListener("input",()=>{$("presetChips").scrollTop=0;renderPresets()});
 $("openPresetManager").addEventListener("click",()=>beginPresetEdit());
 // Pressing Cancel must win over the field's on-blur auto-commit.
@@ -693,9 +657,7 @@ $("presetInlineInput").addEventListener("keydown",e=>{
   if(e.key==="Escape"){e.preventDefault();finishPresetEdit(false)}
 });
 $("presetInlineInput").addEventListener("blur",()=>{if(presetEditorActive)finishPresetEdit(true)});
-$("editExpr").addEventListener("keydown",e=>{
-  if(e.key==="Enter"&&!e.isComposing){e.preventDefault();e.target.blur()}
-});
+
 $("renameChunk").addEventListener("click",()=>chunkRenameActive?finishChunkRename(true):beginChunkRename());
 $("chunkInlineName").addEventListener("blur",()=>finishChunkRename(true));
 $("chunkInlineName").addEventListener("keydown",e=>{
@@ -711,10 +673,17 @@ $("masterVolumeMobile").addEventListener("input",e=>{
   $("masterVolume").value=e.target.value;
   engine.setMasterVolume(Number(e.target.value));
 });
-$("progMenuToggleBtn").addEventListener("click",()=>{
-  const btn=$("progMenuToggleBtn"),open=btn.getAttribute("aria-expanded")!=="true";
-  btn.setAttribute("aria-expanded",String(open));
-  $("progToolbarActions").classList.toggle("open",open);
+function setSettingsOpen(open,focus=false){
+  const btn=$("progMenuToggleBtn");
+  btn.setAttribute("aria-expanded",String(open));$("progToolbarActions").classList.toggle("open",open);
+  if(focus)btn.focus();
+}
+$("progMenuToggleBtn").addEventListener("click",()=>setSettingsOpen($("progMenuToggleBtn").getAttribute("aria-expanded")!=="true"));
+document.addEventListener("pointerdown",e=>{
+  if(!e.target.closest("#progToolbarActions,#progMenuToggleBtn"))setSettingsOpen(false);
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&$("progMenuToggleBtn").getAttribute("aria-expanded")==="true"){e.preventDefault();setSettingsOpen(false,true)}
 });
 $("chunkJump").addEventListener("change",e=>{
   const chunk=chunksOf(project).find(c=>c.id===e.target.value);
@@ -785,8 +754,12 @@ $("gridColumns").addEventListener("change",e=>{
   columns=v;saveSelection();updateGridColumns();
 });
 window.addEventListener("resize",updateGridColumns);
+function stopAudition(){
+  clearTimeout(tapTimer);tapVersion++;
+  for(const id of tapVoiceIds)engine.stopVoice(id);tapVoiceIds=[];
+}
 function stopPlayback(){
-  clearTimeout(tapTimer);tapVersion++;tapVoiceIds=[];
+  stopAudition();transportVoiceIds=[];
   runId++;playing=false;playingStepId=null;voiceCount=0;clearTimeout(timer);timer=null;
   engine.stopAll();$("play").textContent="▶ 再生";$("play").classList.remove("playing");
   document.querySelectorAll(".progression-cell.playing").forEach(el=>el.classList.remove("playing"));
@@ -796,21 +769,27 @@ async function startVoices(step,token){
   await engine.ensure();
   engine.setMasterVolume(Number($("masterVolume").value));
   if(token!==runId)return false;
-  engine.stopAll();voiceCount=freqs.length;playingStepId=step.id;
-  const amplitude=Math.max(.045,.26/Math.sqrt(freqs.length));
-  await Promise.all(freqs.map((freq,index)=>engine.startVoice("ratio-"+index,freq,project.settings.wave,amplitude)));
-  if(token!==runId){engine.stopAll();return false}
+  for(const id of transportVoiceIds)engine.stopVoice(id);
+  const generation=++voiceGeneration;
+  const ids=freqs.map((_,i)=>"ratio-"+generation+"-"+i);
+  transportVoiceIds=ids;voiceCount=freqs.length;playingStepId=step.id;
+  const amplitude=Math.min(.26,.45/freqs.length);
+  await Promise.all(freqs.map((freq,index)=>engine.startVoice(ids[index],freq,project.settings.wave,amplitude)));
+  if(token!==runId||generation!==voiceGeneration){for(const id of ids)engine.stopVoice(id);return false}
   return true;
 }
 async function refreshPlayingVoices(){
   const step=project.sections.flatMap(s=>s.steps).find(s=>s.id===playingStepId);
   if(!step||!engine.ctx)return;
-  const token=runId;
+  const token=runId,generation=voiceGeneration;
   try{
-    const {freqs}=calculate(step),amplitude=Math.max(.045,.26/Math.sqrt(freqs.length));
-    for(let i=freqs.length;i<voiceCount;i++)engine.stopVoice("ratio-"+i);
-    await Promise.all(freqs.map((freq,i)=>engine.startVoice("ratio-"+i,freq,project.settings.wave,amplitude)));
-    if(token===runId)voiceCount=freqs.length;
+    const {freqs}=calculate(step),amplitude=Math.min(.26,.45/freqs.length);
+    const ids=freqs.map((_,i)=>"ratio-"+generation+"-"+i);
+    for(const id of transportVoiceIds.slice(freqs.length))engine.stopVoice(id);
+    transportVoiceIds=ids;
+    await Promise.all(freqs.map((freq,i)=>engine.startVoice(ids[i],freq,project.settings.wave,amplitude)));
+    if(token===runId&&generation===voiceGeneration)voiceCount=freqs.length;
+    else for(const id of ids)engine.stopVoice(id);
   }catch(error){notice(error.message||"音声更新失敗",true)}
 }
 
@@ -842,18 +821,18 @@ function startPlayback(sectionId=null,chunkId=null){
 }
 // Independent tap-preview voices allow repeated audition without stopping
 // an already running progression. Previous tap voices are faded on each tap.
-async function auditionCard(step){
+async function auditionCard(step,presets=project.presets){
   const version=++tapVersion;
   clearTimeout(tapTimer);
   for(const id of tapVoiceIds)engine.stopVoice(id);
   tapVoiceIds=[];
   const ownIds=[];
   try{
-    const {freqs}=calculate(step);
+    const {freqs}=calculate(step,presets);
     await engine.ensure();
     if(version!==tapVersion)return;
     engine.setMasterVolume(Number($("masterVolume").value));
-    const gain=Math.min(.13,.22/Math.sqrt(freqs.length));
+    const gain=Math.min(.13,.35/freqs.length);
     const voices=freqs.map((freq,i)=>{
       const id="tap-"+version+"-"+i;
       ownIds.push(id);
@@ -875,16 +854,7 @@ async function auditionCard(step){
     notice("コードの試聴に失敗しました: "+error.message,true);
   }
 }
-async function preview(){
-  const step=selectedLocation().step;
-  stopPlayback();
-  const token=runId;
-  try{
-    const ok=await startVoices(step,token);if(!ok)return;
-    highlightStep(step);
-    timer=setTimeout(()=>{if(token===runId)stopPlayback()},Math.min(1800,quarterBeats(step)*60000/project.settings.bpm));
-  }catch(error){stopPlayback();notice(error.message||"試聴できません",true)}
-}
+function preview(){return auditionCard(selectedLocation().step)}
 function playSelectedScope(){
   if(playScope==="section")startPlayback(selection.sectionId);
   else if(playScope==="chunk")startPlayback(null,selectedLocation().section.chunkId);
@@ -903,7 +873,7 @@ document.addEventListener("keydown",e=>{
   }else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="y"){
     e.preventDefault();redo();
   }else if(e.code==="Space"&&!e.repeat){
-    e.preventDefault();playing?stopPlayback():startPlayback();
+    e.preventDefault();playing?stopPlayback():playSelectedScope();
   }
 });
 function ioContent(){

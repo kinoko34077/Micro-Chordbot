@@ -1673,3 +1673,6 @@ dialog::backdrop{background:#0009}
 }
 .ratio-app .progression-choice-tools>.ratio-preset-inline input{min-height:35px;height:35px}
 .ratio-app .progression-choice-tools>[hidden]{display:none!important}
+
+/* Shared button alignment, including the responsive settings trigger. */
+.ratio-app .progression-menu-toggle{align-items:center;justify-content:center;text-align:center;}

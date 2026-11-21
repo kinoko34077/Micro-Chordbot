@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFile} from "node:fs/promises";
-import {parsePitch,parseRatio,flickPitch,flickGridPitch,flickEnharmonicCells,parseNamedRatio,parseBeatNotation,beatLabel,quarterBeats,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
+import {parsePitch,parseRatio,flickPitch,flickGridPitch,flickEnharmonicCells,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {AudioEngine} from "../src/audio.js";
 const hz=(s)=>{const p=parsePitch(s);return frequencyFromPitch(440,p.octave,p.microStepInOctave)};
@@ -67,10 +67,12 @@ test("numerator/denominator gesture has independent row and column moves",()=>{
   assert.deepEqual(beatFractionGridValue(1,1,-12,-12),{beats:1,beatUnit:1});
   const grid=beatFractionGridCells({beats:4,beatUnit:4});
   assert.equal(grid.rows.length,4);assert.equal(grid.rows[0].length,4);
-  assert.deepEqual(grid.rows[0][0],{beats:1,beatUnit:1});
-  assert.deepEqual(grid.rows[3][3],{beats:4,beatUnit:4});
-  assert.equal(beatFractionGridCells({beats:5,beatUnit:5}).firstNumerator,5);
-  assert.equal(beatFractionGridCells({beats:5,beatUnit:5}).firstDenominator,5);
+  assert.deepEqual(grid.rows[0][0],{beats:6,beatUnit:3});
+  assert.deepEqual(grid.rows[3][3],{beats:3,beatUnit:6});
+  const next=beatFractionGridCells({beats:7,beatUnit:7},grid);
+  assert.equal(next.firstNumerator,4);assert.equal(next.firstDenominator,4);
+  assert.deepEqual(beatFractionGridValue(1.3,4,0,1),{beats:1.3,beatUnit:5});
+  assert.deepEqual(beatFractionGridValue(1.3,4,1,0),{beats:2.3,beatUnit:4});
   assert.deepEqual(parseBeatNotation("3/8"),{beats:3,beatUnit:8});
   assert.deepEqual(parseBeatNotation("4/4拍"),{beats:4,beatUnit:4});
   assert.equal(beatLabel({beats:3,beatUnit:8}),"3/8拍");
@@ -195,4 +197,15 @@ test("shared audio engine recovers WebKit interrupted or suspended contexts",asy
     if(original===undefined)delete globalThis.AudioContext;
     else globalThis.AudioContext=original;
   }
+});
+
+test("named chord local override never mutates shared preset, and survives text and JSON",()=>{
+  const p=validateProject(newProject()),st=p.sections[0].steps[0];
+  setChordExpression(p,st,"[Major]4:5:7");
+  assert.equal(st.expr,"[Major]4:5:7");
+  assert.equal(p.presets[0].ratios,"4,5,6");
+  assert.equal(chordExpression(st,p.presets),"[Major]4:5:7");
+  assert.equal(importText(exportText(p)).sections[0].steps[0].expr,st.expr);
+  assert.equal(validateProject(JSON.parse(JSON.stringify(p))).sections[0].steps[0].expr,st.expr);
+  setChordExpression(p,st,"[Major]8:10:12");assert.equal(st.expr,"Major");
 });

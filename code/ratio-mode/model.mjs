@@ -127,20 +127,36 @@ export function parseBeatNotation(value){
 }
 export function beatLabel(step){return String(step.beats)+"/"+String(step.beatUnit||4)+"拍"}
 export function beatFractionGridValue(numerator,denominator,rowDelta,columnDelta){
-  if(![numerator,denominator,rowDelta,columnDelta].every(Number.isInteger))
+  if(!Number.isFinite(numerator)||numerator<=0||numerator>64||
+     ![denominator,rowDelta,columnDelta].every(Number.isInteger))
     fail("分子・分母のスライド値が不正です");
-  return {beats:Math.max(1,Math.min(64,numerator+rowDelta)),
+  const min=numerator%1||1, max=Math.floor(64-min)+min;
+  return {beats:Math.max(min,Math.min(max,Number((numerator+rowDelta).toPrecision(15)))),
     beatUnit:Math.max(1,Math.min(32,denominator+columnDelta))};
 }
-export function beatFractionGridCells(step){
-  const num=Math.max(1,Math.min(64,Math.ceil(step.beats)));
-  const den=Math.max(1,Math.min(32,Number(step.beatUnit||4)));
-  const firstNumerator=Math.floor((num-1)/4)*4+1;
-  const firstDenominator=Math.floor((den-1)/4)*4+1;
+export function beatFractionGridCells(step,previous){
+  const num=Number(step.beats),den=Number(step.beatUnit||4),min=num%1||1;
+  const max=Math.floor(64-min)+min;
+  const origin=Number.isFinite(previous?.firstNumerator)&&Math.abs((previous.firstNumerator-min)-Math.round(previous.firstNumerator-min))<1e-9?previous.firstNumerator:num-1;
+  const firstNumerator=Number(Math.max(min,Math.min(max-3,Math.max(num-3,Math.min(num,origin)))).toPrecision(15));
+  const firstDenominator=Math.max(1,Math.min(29,Math.max(den-3,Math.min(den,previous?.firstDenominator??den-1))));
   return {firstNumerator,firstDenominator,rows:Array.from({length:4},(_,r)=>
     Array.from({length:4},(_,c)=>({
-      beats:Math.min(64,firstNumerator+r),beatUnit:Math.min(32,firstDenominator+c)
+      beats:Number((firstNumerator+3-r).toPrecision(15)),beatUnit:firstDenominator+c
     })))};
+}
+export function chordExpression(step,presets){
+  const p=parseRatio(step.expr,presets);
+  return p.name?"["+p.name+"]"+p.source:step.expr;
+}
+export function setChordExpression(project,step,value){
+  const expression=text(value);
+  if(!expression.startsWith("[")){parseRatio(expression,project.presets);step.expr=expression;return}
+  const entry=parseNamedRatio(expression);
+  const existing=project.presets.find(p=>p.name.toLocaleLowerCase()===entry.name.toLocaleLowerCase());
+  if(!existing){project.presets.push(entry);step.expr=entry.name;return}
+  const x=parseRatio(existing.ratios).ratios,y=parseRatio(entry.ratios).ratios;
+  step.expr=x.length===y.length&&x.every((n,i)=>n===y[i])?existing.name:"["+entry.name+"]"+entry.ratios;
 }
 export function parseNamedRatio(value){
   const m=/^\s*\[([^\]\[\r\n]+)\]\s*(.+)\s*$/.exec(String(value));
@@ -165,6 +181,7 @@ export function parseRatio(value,presets=[]) {
   const inline=/^\s*\[([^\[\]\r\n]+)\]\s*(.+)$/.exec(input);
   const preset=presets.find(p=>text(p.name).toLocaleLowerCase()===input.toLocaleLowerCase());
   const source=inline?text(inline[2]):preset?text(preset.ratios):input;
+  if(inline&&(!text(inline[1])||text(inline[1]).length>64||/[,，:：|=@\[\]\r\n]/.test(text(inline[1]))))fail("比率名の形式が不正です");
   const parts=source.split(/[,，:：]/).map(x=>x.trim());
   if(!source||parts.some(x=>!x)||parts.length>16) fail("コード比率は1〜16音をカンマまたはコロンで区切ってください");
   const values=parts.map(numberFromFraction);
@@ -307,9 +324,9 @@ export function importText(raw){
       chunkId="chunk-"+(++chunkCount);
       chunkName=name;current=null;return;
     }
-    if(s.startsWith("[")){
-      const m=/^\[(.+?)\s+x(\d+)\]$/.exec(s);
-      if(!m)fail((index+1)+"行目は [A x2] の形式にしてください");
+    const header=/^\[([^\[\]|]+?)\s+x(\d+)\]$/.exec(s);
+    if(header){
+      const m=header;
       current={name:m[1],chunkId,chunkName,repeat:Number(m[2]),steps:[]};project.sections.push(current);return;
     }
     if(!current){current={name:"A",chunkId,chunkName,repeat:1,steps:[]};project.sections.push(current)}
