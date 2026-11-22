@@ -321,6 +321,7 @@ function bindNumberScrub(field,{get,commit,min,max,step=1,fineStep=step}){
     field.removeAttribute("aria-invalid");
     if(value!==get())commit(value);
     field.value=String(get());
+    if(field===document.activeElement)field.blur();
   }
   function precise(){
     if(exact)return;

@@ -176,6 +176,9 @@ try{
     await typeNumeric("#gridColumns",4);
     await typeNumeric("#bpm",120);
     assert.equal(await page.locator("#bpm").inputValue(),"120");
+    assert.equal(await page.locator("#bpm").evaluate(el=>document.activeElement===el),false,"numeric exact commit retained focus outline");
+    const bpmWidth=await page.locator("#bpm").evaluate(el=>el.getBoundingClientRect().width);
+    assert.ok(bpmWidth<=85,"three-digit BPM value rendered as oversized field "+bpmWidth);
     await page.locator("#undo").click();
     assert.equal(await page.locator("#bpm").inputValue(),"110","BPM edit should be a single Undo");
     await page.locator("#redo").click();

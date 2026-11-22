@@ -1730,3 +1730,14 @@ dialog::backdrop{background:#0009}
     width:clamp(4.6rem,23vw,7rem);min-width:0
   }
 }
+
+/* Numeric values should occupy their content width, not an old generic
+   form-input width: 3 digits for BPM and 1–2 for columns. */
+.ratio-app .progression-toolbar-actions #bpm{
+  box-sizing:content-box;flex:0 0 5ch;width:5ch;min-width:5ch;
+  max-width:5ch;padding:3px 0;text-align:center
+}
+.ratio-app .progression-toolbar-actions #gridColumns{
+  flex:0 0 3ch;width:3ch;min-width:3ch;max-width:3ch;
+  padding:3px 0;text-align:center
+}
