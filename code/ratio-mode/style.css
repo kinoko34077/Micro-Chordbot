@@ -1741,3 +1741,21 @@ dialog::backdrop{background:#0009}
   flex:0 0 3ch;width:3ch;min-width:3ch;max-width:3ch;
   padding:3px 0;text-align:center
 }
+
+/* #84 structural movement: insertion line is the only extra ornament.
+   A long hold initiates touch movement; normal short vertical swipes scroll. */
+.ratio-app .progression-cell[data-cid]{
+  touch-action:pan-y;-webkit-user-select:none;user-select:none;
+}
+.ratio-app .progression-cell.reorder-source{
+  opacity:.58;outline:2px dashed var(--accent);
+}
+.ratio-app .progression-cell.drop-before{
+  box-shadow:inset 4px 0 0 var(--accent);
+}
+.ratio-app .progression-cell.drop-after{
+  box-shadow:inset -4px 0 0 var(--accent);
+}
+.ratio-app .ratio-add-small.ratio-drop-target{
+  outline:2px solid var(--accent);background:rgba(32,184,158,.13);
+}

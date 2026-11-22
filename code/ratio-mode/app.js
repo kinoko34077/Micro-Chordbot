@@ -165,7 +165,7 @@ function dropPosition(x,y){
     const vertical=Number($("timeline").dataset.columns)===1;
     const after=vertical?y>rect.top+rect.height/2:x>rect.left+rect.width/2;
     return {sectionId:card.dataset.sid,beforeId:after?
-      card.nextElementSibling?.querySelector(".progression-cell[data-cid]")?.dataset.cid||null:card.dataset.cid,
+      card.closest(".progression-cell-shell")?.nextElementSibling?.querySelector(".progression-cell[data-cid]")?.dataset.cid||null:card.dataset.cid,
       node:card,cue:after?"drop-after":"drop-before"};
   }
   const group=el.closest(".ratio-section-group");
@@ -248,7 +248,8 @@ function makeCard(section,step,index){
   if(step.id===playingStepId)card.classList.add("playing");
   card.draggable=true;
   // Grid width is owned by the standard progression columns setting.
-  card.setAttribute("aria-label",section.name+" のコード "+step.expr+" "+step.pitch+" "+beatLabel(step)+"、押すと試聴");
+  card.setAttribute("aria-label",section.name+" のコード "+step.expr+" "+step.pitch+" "+beatLabel(step)+"。タップで試聴、長押しして移動");
+  card.title="タップで試聴・長押しで順序変更";
   const name=document.createElement("span");name.className="cell-title";name.textContent=parseRatio(step.expr,project.presets).name||step.expr;
   const note=document.createElement("span");note.className="cell-note";note.textContent=step.pitch;
   const meta=document.createElement("span");meta.className="cell-meta";meta.textContent=beatLabel(step);
