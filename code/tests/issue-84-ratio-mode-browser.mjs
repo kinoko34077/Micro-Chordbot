@@ -668,7 +668,19 @@ try{
       assert.equal(await page.locator("#offscreenPlayback").isVisible(),false);
       await page.locator("#playScope").selectOption("all");
       await page.locator("#play").click();
-      await page.locator("#offscreenPlayback").waitFor({state:"visible",timeout:5000});
+      try{await page.locator("#offscreenPlayback").waitFor({state:"visible",timeout:3000})}
+      catch(error){
+        const diag=await page.evaluate(()=>({
+          play:document.querySelector("#play").className,
+          playback:document.querySelector("#offscreenPlayback").outerHTML,
+          status:document.querySelector("#status").textContent,
+          chunk:document.querySelector("#chunkJump").value,
+          data:JSON.parse(localStorage.getItem("muChordbot.ratioMode.v1"))?.sections.map(s=>[s.id,s.chunkId,s.steps.map(x=>x.id)]),
+          timeline:[...document.querySelectorAll(".progression-cell[data-cid]")].map(x=>[x.dataset.cid,x.className]),
+          started:window.__ratioStarted.length
+        }));
+        throw new Error("offscreen playback indicator did not appear; "+JSON.stringify(diag)+"; "+error.message);
+      }
       assert.match(await page.locator("#offscreenPlayback").innerText(),/間奏/);
       assert.match(await page.locator("#offscreenPlayback").getAttribute("aria-label"),/Minor G4/,
         "offscreen location must identify the sounding chord, not just its section");
