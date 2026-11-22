@@ -666,5 +666,26 @@ try{
     assert.deepEqual(await touchPage.locator(".progression-cell[data-cid]").evaluateAll(
       els=>els.slice(0,3).map(el=>el.dataset.cid)),["a1","a2","a3"],"one Undo failed to restore touch move");
     console.log("touch long-hold reorder + single Undo PASS");
+    // Section headers stay editable; only the grip owns the mobile move.
+    await touchPage.locator("#timeline").evaluate(el=>el.scrollTop=0);
+    const sourceGrip=touchPage.locator('.ratio-section-group[data-section-id="sB"] .ratio-section-grip');
+    const targetHeader=touchPage.locator('.ratio-section-group[data-section-id="sA"] .ratio-section-header');
+    const sourceRect=await sourceGrip.boundingBox(),targetRect=await targetHeader.boundingBox();
+    assert.ok(sourceRect&&targetRect&&sourceRect.y>0&&sourceRect.y<844&&targetRect.y>0,
+      "section handles cannot both be reached in a short phone viewport");
+    const gx=sourceRect.x+sourceRect.width/2,gy=sourceRect.y+sourceRect.height/2;
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:point(gx,gy)});
+    await touchPage.waitForTimeout(370);
+    assert.equal(await sourceGrip.evaluate(el=>el.classList.contains("reorder-source")),true,
+      "section grip long-hold failed");
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:point(
+      targetRect.x+targetRect.width*.15,targetRect.y+targetRect.height*.25)});
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
+    assert.deepEqual(await touchPage.locator(".ratio-section-group").evaluateAll(
+      xs=>xs.map(el=>el.dataset.sectionId)),["sB","sA"],"section grip touch move order incorrect");
+    await touchPage.locator("#undo").click();
+    assert.deepEqual(await touchPage.locator(".ratio-section-group").evaluateAll(
+      xs=>xs.map(el=>el.dataset.sectionId)),["sA","sB"],"touch section move must be one Undo");
+    console.log("touch section long-hold reorder + Undo PASS");
   }finally{await touchContext.close()}
 }finally{await browser.close()}
