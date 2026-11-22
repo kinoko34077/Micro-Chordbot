@@ -294,6 +294,23 @@ export function moveSection(project,sectionId,targetSectionId,after=false){
   return true;
 }
 
+// Move a whole chunk as one contiguous unit; no IDs/names are rewritten.
+export function moveChunk(project,fromChunkId,beforeChunkId=null){
+  if(fromChunkId===beforeChunkId)return false;
+  const sections=project.sections;
+  if(!sections.some(s=>s.chunkId===fromChunkId)||
+     beforeChunkId!==null&&!sections.some(s=>s.chunkId===beforeChunkId))
+    fail("移動対象チャンクが見つかりません");
+  const before=sections.map(s=>s.id);
+  const moved=sections.filter(s=>s.chunkId===fromChunkId);
+  const others=sections.filter(s=>s.chunkId!==fromChunkId);
+  const at=beforeChunkId===null?others.length:others.findIndex(s=>s.chunkId===beforeChunkId);
+  others.splice(at,0,...moved);
+  if(before.length===others.length&&before.every((id,i)=>id===others[i].id))return false;
+  project.sections=others;
+  return true;
+}
+
 export function chunksOf(project) {
   const chunks=[];
   for(const section of project.sections){

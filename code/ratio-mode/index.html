@@ -29,7 +29,8 @@
       <section id="view-progression" class="view active" aria-label="周波数比コード進行">
         <div class="progression-toolbar">
           <div class="progression-section-nav">
-            <label class="progression-columns ratio-chunk-jump"><span>チャンク</span><select id="chunkJump" aria-label="チャンクを選択"></select><input id="chunkInlineName" type="text" maxlength="64" hidden aria-label="チャンク名をその場で編集" autocomplete="off"></label>
+            <div class="progression-columns ratio-chunk-jump"><span>チャンク</span><div class="ratio-chunk-field"><select id="chunkJump" aria-label="チャンクを選択"></select><input id="chunkInlineName" type="text" maxlength="64" hidden aria-label="チャンク名をその場で編集" autocomplete="off"><button id="chunkReorderToggle" type="button" aria-label="チャンクを並べ替え" title="チャンクを掴んで移動" aria-controls="chunkOrderPanel" aria-expanded="false" hidden>⠿</button></div></div>
+            <div id="chunkOrderPanel" class="ratio-chunk-order-panel" role="group" aria-label="チャンクの順番を変更" hidden></div>
             <button id="renameChunk" type="button" class="ratio-inline-action" title="チャンク名を編集" aria-label="選択チャンクの名前を編集">✎</button>
             <button id="removeChunk" type="button" class="ratio-inline-action danger" title="チャンクを削除（元に戻せます）" aria-label="選択チャンクを削除">×</button>
           </div>

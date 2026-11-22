@@ -1,7 +1,7 @@
 import {AudioEngine} from "../src/audio.js";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {HistoryManager, isNativeUndoTarget} from "../src/history.js";
-import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,moveChord,moveSection,importText,exportText} from "./model.mjs";
+import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,moveChord,moveSection,moveChunk,importText,exportText} from "./model.mjs";
 
 const $=id=>document.getElementById(id);
 const copy=value=>JSON.parse(JSON.stringify(value));
@@ -807,6 +807,133 @@ function updateGridColumns(){
     :columns+"列";
 }
 
+
+let chunkOrderOpen=false,chunkOrderCue=null,chunkTouchSuppressUntil=0;
+function closeChunkOrder(focus=false){
+  chunkOrderOpen=false;
+  $("chunkOrderPanel").hidden=true;
+  $("chunkReorderToggle").setAttribute("aria-expanded","false");
+  clearChunkOrderCue();
+  if(focus)$("chunkReorderToggle").focus();
+}
+function chunkTargetAt(x,y){
+  const item=document.elementFromPoint(x,y)?.closest(".ratio-chunk-order-item");
+  if(!item||!$("chunkOrderPanel").contains(item))return null;
+  const b=item.getBoundingClientRect();
+  return {id:item.dataset.chunkId,after:y>b.top+b.height/2,item};
+}
+function clearChunkOrderCue(){
+  if(chunkOrderCue)chunkOrderCue.item.classList.remove("chunk-drop-before","chunk-drop-after");
+  chunkOrderCue=null;
+}
+function showChunkOrderCue(target){
+  clearChunkOrderCue();if(!target)return;
+  chunkOrderCue=target;
+  target.item.classList.add(target.after?"chunk-drop-after":"chunk-drop-before");
+}
+function applyChunkOrder(sourceId,target){
+  if(!sourceId||!target)return false;
+  const chunks=chunksOf(project);
+  const index=chunks.findIndex(c=>c.id===target.id);
+  if(index<0)return false;
+  const before=target.after?chunks[index+1]?.id??null:target.id;
+  if(before===sourceId)return false;
+  const ok=mutate(d=>moveChunk(d,sourceId,before),{structural:true});
+  if(ok&&chunkOrderOpen)requestAnimationFrame(()=>
+    [...$("chunkOrderPanel").querySelectorAll(".ratio-chunk-order-grip")]
+      .find(x=>x.dataset.chunkId===sourceId)?.focus({preventScroll:true}));
+  return ok;
+}
+function bindChunkTouch(grip,chunkId){
+  let g=null;
+  function cancel(){
+    if(!g)return;clearTimeout(g.timer);
+    if(g.active)chunkTouchSuppressUntil=performance.now()+450;
+    grip.classList.remove("reorder-source");g=null;clearChunkOrderCue();
+  }
+  grip.addEventListener("touchstart",e=>{
+    if(g||e.touches.length!==1)return;
+    const t=e.touches[0],hold={x:t.clientX,y:t.clientY,active:false,timer:null};
+    g=hold;hold.timer=setTimeout(()=>{
+      if(g!==hold)return;
+      hold.active=true;grip.classList.add("reorder-source");chunkTouchSuppressUntil=performance.now()+450;
+    },300);
+  },{passive:true});
+  grip.addEventListener("touchmove",e=>{
+    if(!g)return;
+    if(e.touches.length!==1){cancel();return}
+    const t=e.touches[0];
+    if(!g.active){if(Math.hypot(t.clientX-g.x,t.clientY-g.y)>8)cancel();return}
+    e.preventDefault();
+    const panel=$("chunkOrderPanel"),r=panel.getBoundingClientRect();
+    if(t.clientY<r.top+22)panel.scrollTop-=14;
+    if(t.clientY>r.bottom-22)panel.scrollTop+=14;
+    showChunkOrderCue(chunkTargetAt(t.clientX,t.clientY));
+  },{passive:false});
+  grip.addEventListener("touchend",e=>{
+    if(!g)return;
+    if(!g.active){cancel();return}
+    e.preventDefault();
+    const t=e.changedTouches[0],target=t?chunkTargetAt(t.clientX,t.clientY):chunkOrderCue;
+    cancel();applyChunkOrder(chunkId,target);
+  },{passive:false});
+  grip.addEventListener("touchcancel",cancel,{passive:true});
+}
+function renderChunkOrder(){
+  if(!chunkOrderOpen)return;
+  const panel=$("chunkOrderPanel"),chunks=chunksOf(project),fragment=document.createDocumentFragment();
+  for(const chunk of chunks){
+    const row=document.createElement("div");row.className="ratio-chunk-order-item";
+    row.dataset.chunkId=chunk.id;
+    if(chunk.id===selectedLocation().section.chunkId)row.classList.add("selected");
+    const pick=document.createElement("button");pick.type="button";pick.className="ratio-chunk-order-select";
+    pick.textContent=chunk.name;pick.title=chunk.name;pick.setAttribute("aria-label",chunk.name+" を選択");
+    pick.addEventListener("click",()=>{
+      $("chunkJump").value=chunk.id;
+      $("chunkJump").dispatchEvent(new Event("change",{bubbles:true}));
+      closeChunkOrder(true);
+    });
+    const grip=document.createElement("button");grip.type="button";grip.className="ratio-chunk-order-grip";
+    grip.textContent="⠿";grip.dataset.chunkId=chunk.id;grip.draggable=true;
+    grip.title="並べ替え：長押し移動、または Alt + ↑/↓";
+    grip.setAttribute("aria-label",chunk.name+" の並べ替え：Alt+上下キー");
+    grip.addEventListener("click",e=>{if(performance.now()<chunkTouchSuppressUntil)e.preventDefault()});
+    grip.addEventListener("keydown",e=>{
+      if(!e.altKey||!["ArrowUp","ArrowDown"].includes(e.key))return;
+      e.preventDefault();
+      const i=chunks.findIndex(c=>c.id===chunk.id),other=chunks[i+(e.key==="ArrowUp"?-1:1)];
+      if(other)applyChunkOrder(chunk.id,{id:other.id,after:e.key==="ArrowDown"});
+    });
+    grip.addEventListener("dragstart",e=>{
+      e.stopPropagation();if(!e.dataTransfer)return;
+      e.dataTransfer.setData("text/x-ratio-chunk",chunk.id);e.dataTransfer.effectAllowed="move";
+      grip.classList.add("reorder-source");
+    });
+    grip.addEventListener("dragend",()=>{grip.classList.remove("reorder-source");clearChunkOrderCue()});
+    bindChunkTouch(grip,chunk.id);
+    row.append(pick,grip);
+    row.addEventListener("dragover",e=>{
+      if(!e.dataTransfer?.types.includes("text/x-ratio-chunk"))return;
+      e.preventDefault();e.dataTransfer.dropEffect="move";
+      showChunkOrderCue(chunkTargetAt(e.clientX,e.clientY));
+    });
+    row.addEventListener("drop",e=>{
+      if(!e.dataTransfer?.types.includes("text/x-ratio-chunk"))return;
+      e.preventDefault();const source=e.dataTransfer.getData("text/x-ratio-chunk"),target=chunkTargetAt(e.clientX,e.clientY);
+      clearChunkOrderCue();applyChunkOrder(source,target);
+    });
+    fragment.append(row);
+  }
+  panel.replaceChildren(fragment);
+}
+function toggleChunkOrder(){
+  if(chunkOrderOpen){closeChunkOrder();return}
+  if(chunkRenameActive)finishChunkRename(true);
+  chunkOrderOpen=true;$("chunkOrderPanel").hidden=false;
+  $("chunkReorderToggle").setAttribute("aria-expanded","true");
+  setSettingsOpen(false);renderChunkOrder();
+}
+
 function renderSectionNav(){
   const select=$("chunkJump");
   const chunks=chunksOf(project),selected=selectedLocation().section;
@@ -814,6 +941,11 @@ function renderSectionNav(){
   select.replaceChildren(...chunks.map(c=>new Option(c.name,c.id)));
   select.value=chunk.id;
   $("removeChunk").disabled=chunks.length===1;
+  const canReorder=chunks.length>1&&!chunkRenameActive;
+  $("chunkReorderToggle").hidden=!canReorder;
+  $("chunkReorderToggle").closest(".ratio-chunk-field").classList.toggle("can-reorder",canReorder);
+  if(!canReorder&&chunkOrderOpen)closeChunkOrder();
+  else renderChunkOrder();
 }
 function beginSectionRename(sectionId){
   const section=project.sections.find(s=>s.id===sectionId);
@@ -848,7 +980,9 @@ function beginChunkRename(){
   if(!section)return;
   const field=$("chunkInlineName"),select=$("chunkJump");
   field.value=section.chunkName;
+  closeChunkOrder();
   select.hidden=true;field.hidden=false;
+  $("chunkReorderToggle").hidden=true;
   chunkRenameActive=true;$("renameChunk").classList.add("active");
   field.focus();field.select();
 }
@@ -859,6 +993,7 @@ function finishChunkRename(commit){
   const value=field.value.trim();
   field.hidden=true;select.hidden=false;
   $("renameChunk").classList.remove("active");
+  $("chunkReorderToggle").hidden=chunksOf(project).length<2;
   const section=selectedLocation().section;
   if(commit&&value&&value!==section.chunkName){
     const target=section.chunkId;
@@ -1023,9 +1158,17 @@ document.addEventListener("pointerdown",e=>{
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"&&$("progMenuToggleBtn").getAttribute("aria-expanded")==="true"){e.preventDefault();setSettingsOpen(false,true)}
 });
+$("chunkReorderToggle").addEventListener("click",toggleChunkOrder);
+document.addEventListener("pointerdown",e=>{
+  if(chunkOrderOpen&&!e.target.closest("#chunkOrderPanel,#chunkReorderToggle"))closeChunkOrder();
+});
+document.addEventListener("keydown",e=>{
+  if(chunkOrderOpen&&e.key==="Escape"){e.preventDefault();closeChunkOrder(true)}
+});
 $("chunkJump").addEventListener("change",e=>{
   const chunk=chunksOf(project).find(c=>c.id===e.target.value);
   if(!chunk)return;
+  if(chunkOrderOpen)closeChunkOrder();
   const previous=chunkViews.get(chunk.id);
   const remembered=chunk.sections.find(s=>s.id===previous?.sectionId);
   const target=remembered?.steps.find(s=>s.id===previous?.stepId);
