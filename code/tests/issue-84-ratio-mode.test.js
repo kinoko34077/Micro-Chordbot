@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFile} from "node:fs/promises";
-import {parsePitch,parseRatio,flickPitch,flickGridPitch,flickEnharmonicCells,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,moveChord,moveSection,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
+import {parsePitch,parseRatio,flickPitch,flickGridPitch,flickEnharmonicCells,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,moveChord,moveSection,moveChunk,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {AudioEngine} from "../src/audio.js";
 const hz=(s)=>{const p=parsePitch(s);return frequencyFromPitch(440,p.octave,p.microStepInOctave)};
@@ -248,4 +248,28 @@ test("stable section move respects chunk grouping and protects last section",()=
   p.sections.push(singleton);
   assert.throws(()=>moveSection(p,singleton.id,newChunk.id),/セクションを1つ以上残して/);
   assert.ok(validateProject(p));
+});
+
+test("stable chunk reorder keeps entire chunk sections contiguous and roundtrips text/JSON",()=>{
+  const p=validateProject(newProject());
+  const second={...structuredClone(p.sections[0]),id:"s-third",name:"Third",chunkId:"chunk-2",
+    chunkName:"間奏",steps:[{...structuredClone(p.sections[0].steps[0]),id:"c-third"}]};
+  const third={...structuredClone(second),id:"s-fourth",name:"Fourth",chunkId:"chunk-3",
+    chunkName:"終結",steps:[{...structuredClone(second.steps[0]),id:"c-fourth"}]};
+  p.sections.push(second,third);
+  const sourceIds=p.sections.filter(s=>s.chunkId==="chunk-1").map(s=>s.id);
+  const before=JSON.stringify(p);
+  assert.equal(moveChunk(p,"chunk-3","chunk-1"),true);
+  assert.deepEqual(chunksOf(p).map(c=>c.id),["chunk-3","chunk-1","chunk-2"]);
+  assert.deepEqual(p.sections.filter(s=>s.chunkId==="chunk-1").map(s=>s.id),sourceIds);
+  assert.equal(moveChunk(p,"chunk-1",null),true);
+  assert.deepEqual(chunksOf(p).map(c=>c.id),["chunk-3","chunk-2","chunk-1"]);
+  assert.equal(moveChunk(p,"chunk-3","chunk-2"),false);
+  assert.throws(()=>moveChunk(p,"nonexistent","chunk-2"),/見つかりません/);
+  assert.throws(()=>moveChunk(p,"chunk-1","nonexistent"),/見つかりません/);
+  const normalized=validateProject(p);
+  assert.deepEqual(chunksOf(importText(exportText(normalized))).map(c=>c.id),
+    chunksOf(normalized).map(c=>c.id));
+  assert.deepEqual(validateProject(JSON.parse(JSON.stringify(normalized))),normalized);
+  assert.notEqual(JSON.stringify(p),before);
 });

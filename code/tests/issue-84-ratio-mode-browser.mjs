@@ -480,6 +480,50 @@ try{
     await page.locator("#chunkInlineName").fill("間奏");
     await page.locator("#chunkInlineName").press("Enter");
     assert.equal(await page.locator("#chunkJump option").last().innerText(),"間奏");
+
+    assert.equal(await page.locator("#chunkReorderToggle").isVisible(),true,
+      "second chunk must make reorder affordance visible");
+    if(width===390){
+      const original=await page.locator("#chunkJump option").evaluateAll(els=>els.map(x=>x.textContent));
+      const selected=await page.locator("#chunkJump").inputValue();
+      await page.locator("#chunkReorderToggle").click();
+      assert.equal(await page.locator("#chunkOrderPanel").isVisible(),true);
+      assert.equal(await page.locator(".ratio-chunk-order-item").count(),2);
+      await page.locator(".ratio-chunk-order-item").last().locator(".ratio-chunk-order-grip").focus();
+      await page.keyboard.press("Alt+ArrowUp");
+      assert.deepEqual(await page.locator("#chunkJump option").evaluateAll(els=>els.map(x=>x.textContent)),
+        original.slice().reverse(),"keyboard chunk move did not reorder the actual project");
+      assert.equal(await page.locator("#chunkJump").inputValue(),selected,
+        "reorder changed the selected chunk");
+      await page.locator("#undo").click();
+      assert.deepEqual(await page.locator("#chunkJump option").evaluateAll(els=>els.map(x=>x.textContent)),
+        original,"one Undo failed to restore chunk order");
+      await page.locator("#redo").click();
+      assert.deepEqual(await page.locator("#chunkJump option").evaluateAll(els=>els.map(x=>x.textContent)),
+        original.slice().reverse(),"Redo failed to replay chunk order");
+      await page.locator("#undo").click();
+      if(!(await page.locator("#chunkOrderPanel").isVisible()))await page.locator("#chunkReorderToggle").click();
+      const firstRow=page.locator(".ratio-chunk-order-item").first();
+      await page.locator(".ratio-chunk-order-item").last().locator(".ratio-chunk-order-grip")
+        .dragTo(firstRow,{targetPosition:{x:10,y:4}});
+      assert.deepEqual(await page.locator("#chunkJump option").evaluateAll(els=>els.map(x=>x.textContent)),
+        original.slice().reverse(),"native mouse chunk drag failed");
+      await page.locator("#undo").click();
+      assert.deepEqual(await page.locator("#chunkJump option").evaluateAll(els=>els.map(x=>x.textContent)),
+        original,"drag reorder must be a single Undo transaction");
+      await page.locator("#chunkReorderToggle").click();
+      assert.equal(await page.locator("#chunkOrderPanel").isVisible(),false);
+    }
+    if(width===320){
+      await page.locator("#chunkReorderToggle").click();
+      assert.equal(await page.locator("#chunkOrderPanel").isVisible(),true);
+      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+2),
+        "compact chunk order created document-wide sideways scroll");
+      await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-chunk-order-open-320.png"});
+      await page.keyboard.press("Escape");
+      assert.equal(await page.locator("#chunkOrderPanel").isVisible(),false);
+    }
+
     assert.equal(await page.locator(".progression-chunk-head").count(),0);
     await page.locator("#newSection").click();
     assert.equal(await page.locator(".ratio-section-header").count(),2);
@@ -683,5 +727,25 @@ try{
     assert.equal(await touchPage.locator(".ratio-section-group").first().getAttribute("data-section-id"),"sA",
       "Undo failed to restore section order after touch move");
     console.log("touch section grip reorder + one Undo PASS");
+    // Touch-only chunk order: dedicated 300ms hold on a single grip.
+    await touchPage.locator("#newChunk").click();
+    await touchPage.locator("#chunkInlineName").fill("間奏");
+    await touchPage.locator("#chunkInlineName").press("Enter");
+    await touchPage.locator("#chunkReorderToggle").click();
+    const chunkGrip=await touchPage.locator(".ratio-chunk-order-item").last()
+      .locator(".ratio-chunk-order-grip").boundingBox();
+    const chunkTarget=await touchPage.locator(".ratio-chunk-order-item").first().boundingBox();
+    const chx=chunkGrip.x+chunkGrip.width/2,chy=chunkGrip.y+chunkGrip.height/2;
+    const cxx=chunkTarget.x+chunkTarget.width*.30,cyy=chunkTarget.y+4;
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:point(chx,chy)});
+    await touchPage.waitForTimeout(355);
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:point(cxx,cyy)});
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
+    assert.equal(await touchPage.locator("#chunkJump option").first().innerText(),"間奏",
+      "long-hold touch did not move chunk without a modal");
+    await touchPage.locator("#undo").click();
+    assert.equal(await touchPage.locator("#chunkJump option").first().innerText(),"チャンク 1",
+      "chunk touch reorder did not undo as one change");
+    console.log("chunk touch long-hold reorder + single Undo PASS");
   }finally{await touchContext.close()}
 }finally{await browser.close()}
