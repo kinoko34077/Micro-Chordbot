@@ -558,12 +558,18 @@ try{
       assert.equal(await page.locator("#play").evaluate(el=>el.classList.contains("playing")),true,
         "Undo restarted/stopped live transport");
       const active=await page.locator(".progression-cell.active").getAttribute("data-cid");
+      const beforeSectionSelection=await page.locator(".progression-cell.active").getAttribute("data-cid");
+      const beforeSectionChunk=await page.locator("#chunkJump").inputValue();
       await page.locator("#newSection").click();
       assert.equal(await page.locator("#play").evaluate(el=>el.classList.contains("playing")),true,
         "creating section stopped transport");
       await page.locator("#undo").click();
       assert.equal(await page.locator("#play").evaluate(el=>el.classList.contains("playing")),true,
         "structural Undo stopped transport");
+      assert.equal(await page.locator(".progression-cell.active").getAttribute("data-cid"),beforeSectionSelection,
+        "Undo jumped to unrelated chord instead of restoring editing selection");
+      assert.equal(await page.locator("#chunkJump").inputValue(),beforeSectionChunk,
+        "Undo jumped from previous chunk to the beginning");
       await page.locator("#stop").click();
     }
     await page.locator("#removeChunk").click();

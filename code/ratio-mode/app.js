@@ -65,7 +65,7 @@ function chooseFirst(){
 }
 function mutate(change,{structural=false,audition=false,preserveTargets=false}={}){
   try{
-    const before=copy(project),draft=copy(project);change(draft);
+    const before=copy(project),beforeSelection=copy(selection),draft=copy(project);change(draft);
     const next=validateProject(draft);
     if(JSON.stringify(before)===JSON.stringify(next))return true;
     const soundingBefore=before.sections.flatMap(x=>x.steps).find(x=>x.id===playingStepId);
@@ -76,7 +76,9 @@ function mutate(change,{structural=false,audition=false,preserveTargets=false}={
       JSON.stringify(before.presets)!==JSON.stringify(next.presets)));
     // Structural edits do not reset the transport; the next boundary reads
     // the latest project, while the current sounding occurrence finishes.
-    project=next;history.push({type:"ratio_edit",before,after:copy(next)});
+    project=next;history.push({type:"ratio_edit",
+      before:{project:before,selection:beforeSelection},
+      after:{project:copy(next),selection:copy(selection)}});
     chooseFirst();saveSelection();save();if(saveAllowed)notice("");
     if(preserveTargets){refreshCardValues();renderPresets();renderSelection();renderHistory()}
     else render();
@@ -107,7 +109,9 @@ function setSelection(sid,cid){
 }
 function restore(snapshot){
   const prior=project;
-  project=copy(snapshot);
+  const state=snapshot?.project?snapshot:{project:snapshot,selection:null};
+  project=copy(state.project);
+  if(state.selection)selection=copy(state.selection);
   chooseFirst();saveSelection();save();render();if(saveAllowed)notice("");
   const current=selectedLocation().step;
   $("editExpr").value=chordExpression(current,project.presets);$("editPitch").value=current.pitch;
@@ -1177,9 +1181,11 @@ $("ioImport").addEventListener("click",()=>{
   const source=$("ioText").value;
   try{
     const incoming=source.trim().startsWith("{")?validateProject(JSON.parse(source)):importText(source);
-    const before=copy(project);
+    const before=copy(project),beforeSelection=copy(selection);
     stopPlayback();project=incoming;
-    history.push({type:"ratio_import",before,after:copy(incoming)});
+    history.push({type:"ratio_import",
+      before:{project:before,selection:beforeSelection},
+      after:{project:copy(incoming),selection:copy(selection)}});
     chooseFirst();saveSelection();save();render();$("ioStatus").textContent="進行を読み込みました";
     notice("読み込み成功。元に戻すで直前の進行に復帰できます");
   }catch(error){$("ioStatus").textContent="読み込み失敗（現在の進行は保持）: "+error.message}
