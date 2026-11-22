@@ -34,17 +34,17 @@
             <button id="removeChunk" type="button" class="ratio-inline-action danger" title="チャンクを削除（元に戻せます）" aria-label="選択チャンクを削除">×</button>
           </div>
           <div class="progression-transport">
-            <button id="play" type="button" class="primary" aria-label="選択コードから再生、再度押すと再スタート">▶ 再生</button>
+            <label class="ratio-play-scope" title="現在の再生範囲"><span class="ratio-scope-caption">範囲</span><select id="playScope" aria-label="再生する範囲を選択">
+              <option value="all">全体</option><option value="chunk">チャンク</option><option value="section">セクション</option>
+            </select></label>
+            <button id="play" type="button" class="primary" aria-label="選択コードから再生、再度押すと再スタート"><span class="play-icon" aria-hidden="true">▶</span><span class="play-word"> 再生</span></button>
             <button id="stop" type="button" aria-label="再生を停止" title="停止">■</button>
             <button id="progMenuToggleBtn" class="progression-menu-toggle" type="button" aria-label="その他の操作・設定を開く" aria-expanded="false" aria-controls="progToolbarActions">設定</button>
           </div>
           <div id="progToolbarActions" class="progression-toolbar-actions">
-            <label class="ratio-play-scope">再生範囲 <select id="playScope" aria-label="再生する範囲を選択">
-              <option value="all">全体</option><option value="chunk">チャンク</option><option value="section">セクション</option>
-            </select></label>
-            <label class="progression-columns ratio-column-setting">列数 <input id="gridColumns" type="number" min="1" max="12" step="1" value="4" aria-label="コード箱の列数"></label>
+            <label class="progression-columns ratio-column-setting">列数 <input id="gridColumns" type="text" inputmode="numeric" readonly value="4" aria-label="コード箱の列数、上下スライド・ダブルタップで編集"><span id="effectiveColumns" class="ratio-effective-columns" hidden aria-live="polite"></span></label>
             <label class="inline-check loop-inline"><input id="loop" type="checkbox" checked><span>ループ</span></label>
-            <label>BPM <input id="bpm" type="number" min="20" max="300" step="1" value="110"></label>
+            <label>BPM <input id="bpm" type="text" inputmode="numeric" readonly value="110" aria-label="BPM、上下スライド・ダブルタップで編集"></label>
             <label>音色 <select id="wave"><option value="sine">sine</option><option value="square">square</option><option value="sawtooth">sawtooth</option></select></label>
             <label class="mobile-volume">音量 <input id="masterVolumeMobile" type="range" min="0" max="1" step=".01" value=".3" aria-label="マスター音量"></label>
           </div>
