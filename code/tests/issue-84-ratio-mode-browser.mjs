@@ -670,6 +670,8 @@ try{
       await page.locator("#play").click();
       await page.locator("#offscreenPlayback").waitFor({state:"visible",timeout:5000});
       assert.match(await page.locator("#offscreenPlayback").innerText(),/間奏/);
+      assert.match(await page.locator("#offscreenPlayback").getAttribute("aria-label"),/Minor G4/,
+        "offscreen location must identify the sounding chord, not just its section");
       assert.equal(await page.locator("#chunkJump").inputValue(),"chunk-a",
         "live transport improperly changed the editing chunk");
       await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-playback-offscreen-390.png"});
