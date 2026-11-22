@@ -4011,6 +4011,16 @@ function deleteSelectedActiveNotes() {
 }
 
 function attachEvents() {
+  attachGlobalAndSettingsEvents();
+  attachPitchAndChordEvents();
+  attachProgressionEditorEvents();
+  attachLibraryRowEvents();
+  attachProgressionReorderEvents();
+  attachPitchCanvasEvents();
+  attachPlatformAndImportEvents();
+}
+
+function attachGlobalAndSettingsEvents() {
   attachWorkspaceResizers();
   attachTableColumnResizers();
   selectMenuPanel("settings");
@@ -4143,6 +4153,9 @@ function attachEvents() {
     }
   });
 
+}
+
+function attachPitchAndChordEvents() {
   els.octaveInput.addEventListener("change", () => {
     const before = snapshotState();
     syncDraftFromCent(state.pitchDraft.cent, Number(els.octaveInput.value));
@@ -4283,6 +4296,9 @@ function attachEvents() {
     renderRecallSummary();
     renderChordPresetsV2();
   });
+}
+
+function attachProgressionEditorEvents() {
   els.addProgPartBtn.addEventListener("click", addProgressionPart);
   els.addProgChunkBtn?.addEventListener("click", addProgressionChunk);
   els.addProgSectionBtn?.addEventListener("click", addProgressionSection);
@@ -4545,6 +4561,9 @@ function attachEvents() {
     markProjectDirty();
     render();
   });
+}
+
+function attachLibraryRowEvents() {
   els.activeNotesList.addEventListener("click", (ev) => {
     const target = ev.target;
     if (!(target instanceof HTMLElement)) return;
@@ -4755,6 +4774,9 @@ function attachEvents() {
       });
     }
   });
+}
+
+function attachProgressionReorderEvents() {
   els.progressionGrid.addEventListener("dragstart", (ev) => {
     const target = ev.target;
     if (!(target instanceof HTMLElement)) return;
@@ -4843,6 +4865,9 @@ function attachEvents() {
   els.progressionGrid.addEventListener("pointerup", clearGridLongPress);
   els.progressionGrid.addEventListener("pointercancel", clearGridLongPress);
 
+}
+
+function attachPitchCanvasEvents() {
   const canvas = els.lineCanvas;
   let lastPitchTouchTap = null;
   const pitchTapMaxDelayMs = 360;
@@ -5009,6 +5034,9 @@ function attachEvents() {
     removeActiveNote(hitNote.id);
   });
 
+}
+
+function attachPlatformAndImportEvents() {
   window.addEventListener("resize", () => {
     syncWorkspaceViewState();
     syncProgressionLayoutState();
@@ -5036,8 +5064,8 @@ function attachEvents() {
     void refreshAudibleVoices().catch((error) => {
       setAudioFailure(error);
     });
-  });
-}
+  });}
+
 
 function classifyRuntime() {
   const protocol = window.location.protocol;
