@@ -275,6 +275,25 @@ export function moveChord(project,fromSectionId,stepId,toSectionId,beforeStepId=
   return true;
 }
 
+// One stable operation for moving a section within a chunk or into another.
+// The source chunk must retain at least one section; project chunk groups
+// remain contiguous, preserving legacy text / JSON contracts.
+export function moveSection(project,sectionId,targetSectionId,after=false){
+  const sourceIndex=project.sections.findIndex(s=>s.id===sectionId);
+  const targetIndex=project.sections.findIndex(s=>s.id===targetSectionId);
+  if(sourceIndex<0||targetIndex<0)fail("移動対象のセクションが見つかりません");
+  if(sourceIndex===targetIndex)return false;
+  const source=project.sections[sourceIndex],target=project.sections[targetIndex];
+  const cross=source.chunkId!==target.chunkId;
+  if(cross&&project.sections.filter(s=>s.chunkId===source.chunkId).length<=1)
+    fail("チャンクにはセクションを1つ以上残してください");
+  const [moved]=project.sections.splice(sourceIndex,1);
+  if(cross){moved.chunkId=target.chunkId;moved.chunkName=target.chunkName}
+  const adjusted=project.sections.findIndex(s=>s.id===targetSectionId);
+  project.sections.splice(adjusted+(after?1:0),0,moved);
+  return true;
+}
+
 export function chunksOf(project) {
   const chunks=[];
   for(const section of project.sections){

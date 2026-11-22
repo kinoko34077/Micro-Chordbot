@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFile} from "node:fs/promises";
-import {parsePitch,parseRatio,flickPitch,flickGridPitch,flickEnharmonicCells,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,moveChord,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
+import {parsePitch,parseRatio,flickPitch,flickGridPitch,flickEnharmonicCells,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,moveChord,moveSection,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {AudioEngine} from "../src/audio.js";
 const hz=(s)=>{const p=parsePitch(s);return frequencyFromPitch(440,p.octave,p.microStepInOctave)};
@@ -224,4 +224,28 @@ test("stable-ID chord reorder supports before/end and cross-section with one sem
   assert.equal(a.steps.length,1);
   assert.equal(moveChord(project,b.id,ids[1],b.id,ids[1]),false);
   assert.ok(validateProject(project));
+});
+
+test("stable section move respects chunk grouping and protects last section",()=>{
+  const p=validateProject(newProject());
+  const source=p.sections[0].id,other=p.sections[1].id;
+  const extra={...structuredClone(p.sections[0]),id:"s-extra",name:"Extra",repeat:1,
+    steps:[{...structuredClone(p.sections[0].steps[0]),id:"c-extra"}]};
+  p.sections.push(extra);
+  assert.equal(moveSection(p,extra.id,source,false),true);
+  assert.deepEqual(p.sections.map(s=>s.id),[extra.id,source,other]);
+  assert.equal(moveSection(p,extra.id,extra.id),false);
+  const newChunk={...structuredClone(extra),id:"s-other-chunk",chunkId:"chunk-other",chunkName:"Other",
+    steps:[{...structuredClone(extra.steps[0]),id:"c-other-chunk"}]};
+  p.sections.push(newChunk);
+  assert.equal(moveSection(p,extra.id,newChunk.id,true),true);
+  assert.equal(p.sections.at(-1).id,extra.id);
+  assert.equal(p.sections.at(-1).chunkId,"chunk-other");
+  assert.equal(p.sections.at(-1).chunkName,"Other");
+  assert.ok(validateProject(p));
+  const singleton={...structuredClone(newChunk),id:"s-solo",chunkId:"chunk-solo",chunkName:"Solo",
+    steps:[{...structuredClone(newChunk.steps[0]),id:"c-solo"}]};
+  p.sections.push(singleton);
+  assert.throws(()=>moveSection(p,singleton.id,newChunk.id),/セクションを1つ以上残して/);
+  assert.ok(validateProject(p));
 });

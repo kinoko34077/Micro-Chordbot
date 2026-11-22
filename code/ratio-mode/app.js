@@ -1,7 +1,7 @@
 import {AudioEngine} from "../src/audio.js";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {HistoryManager, isNativeUndoTarget} from "../src/history.js";
-import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,moveChord,importText,exportText} from "./model.mjs";
+import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,moveChord,moveSection,importText,exportText} from "./model.mjs";
 
 const $=id=>document.getElementById(id);
 const copy=value=>JSON.parse(JSON.stringify(value));
@@ -272,13 +272,16 @@ function makeCard(section,step,index){
     card.classList.remove("reorder-source");clearDropCue()
   });
   card.addEventListener("dragover",e=>{
-    if(!e.dataTransfer)return;
+    if(!e.dataTransfer||e.dataTransfer.types.includes("text/x-ratio-section"))return;
     e.preventDefault();e.dataTransfer.dropEffect="move";
     const rect=card.getBoundingClientRect();
     showDropCue(dropPosition(rect.left+Math.max(1,Math.min(rect.width-1,e.clientX-rect.left)),
       rect.top+Math.max(1,Math.min(rect.height-1,e.clientY-rect.top))));
   });
-  card.addEventListener("drop",e=>receiveChordDrop(e,dropPosition(e.clientX,e.clientY)));
+  card.addEventListener("drop",e=>{
+    if(e.dataTransfer?.types.includes("text/x-ratio-section"))return;
+    receiveChordDrop(e,dropPosition(e.clientX,e.clientY));
+  });
   shell.append(card);
   if(section.steps.length>1){
     const remove=document.createElement("button");remove.type="button";
@@ -526,6 +529,99 @@ function refreshCardValues(){
     card.setAttribute("aria-label",section.name+" のコード "+name+" "+step.pitch+" "+beatLabel(step)+"、押すと試聴");
   }
 }
+// Reorder only from the explicit small section grip. Text tapping the
+// section name still means inline rename; chord dragging is independent.
+let sectionDropCue=null,sectionTouchSuppressUntil=0;
+function sectionPlacement(x,y){
+  const el=document.elementFromPoint(x,y),group=el?.closest(".ratio-section-group");
+  if(!group)return null;
+  const rect=group.getBoundingClientRect(),after=y>rect.top+rect.height/2;
+  return {id:group.dataset.sectionId,after,node:group};
+}
+function clearSectionCue(){
+  if(sectionDropCue)sectionDropCue.node.classList.remove("ratio-section-drop-before","ratio-section-drop-after");
+  sectionDropCue=null;
+}
+function showSectionCue(target){
+  if(sectionDropCue&&target&&sectionDropCue.id===target.id&&sectionDropCue.after===target.after)return;
+  clearSectionCue();
+  if(!target)return;
+  target.node.classList.add(target.after?"ratio-section-drop-after":"ratio-section-drop-before");
+  sectionDropCue=target;
+}
+function applySectionMove(sourceId,target){
+  if(!sourceId||!target||sourceId===target.id)return false;
+  const currentSection=selectedLocation().section;
+  const selectedId=currentSection?.id,selectedChord=selectedLocation().step?.id;
+  const okay=mutate(d=>moveSection(d,sourceId,target.id,target.after),{structural:true});
+  if(okay&&project.sections.some(x=>x.id===selectedId&&x.steps.some(y=>y.id===selectedChord)))
+    setSelection(selectedId,selectedChord);
+  return okay;
+}
+function bindSectionTouchDrag(grip,sectionId){
+  let hold=null;
+  function cancel(){
+    if(!hold)return;
+    clearTimeout(hold.timer);
+    grip.classList.remove("reorder-source");
+    if(hold.active)sectionTouchSuppressUntil=performance.now()+450;
+    hold=null;clearSectionCue();
+  }
+  grip.addEventListener("touchstart",e=>{
+    if(e.touches.length!==1||hold)return;
+    const t=e.touches[0];
+    const g={x:t.clientX,y:t.clientY,active:false,timer:null};
+    hold=g;g.timer=setTimeout(()=>{
+      if(hold!==g)return;
+      g.active=true;grip.classList.add("reorder-source");
+      sectionTouchSuppressUntil=performance.now()+450;
+      showSectionCue(sectionPlacement(g.x,g.y));
+    },300);
+  },{passive:true});
+  grip.addEventListener("touchmove",e=>{
+    if(!hold)return;
+    if(e.touches.length!==1){cancel();return}
+    const t=e.touches[0];
+    if(!hold.active){
+      if(Math.hypot(t.clientX-hold.x,t.clientY-hold.y)>8)cancel();
+      return;
+    }
+    e.preventDefault();showSectionCue(sectionPlacement(t.clientX,t.clientY));
+  },{passive:false});
+  grip.addEventListener("touchend",e=>{
+    if(!hold)return;
+    const g=hold,t=e.changedTouches[0];
+    if(!g.active){cancel();return}
+    e.preventDefault();sectionTouchSuppressUntil=performance.now()+450;
+    const target=t?sectionPlacement(t.clientX,t.clientY):sectionDropCue;
+    cancel();applySectionMove(sectionId,target);
+  },{passive:false});
+  grip.addEventListener("touchcancel",cancel,{passive:true});
+}
+function makeSectionGrip(section){
+  const grip=document.createElement("button");
+  grip.type="button";grip.className="ratio-section-grip";grip.draggable=true;
+  grip.textContent="⠿";
+  grip.title="長押ししてセクションを移動。キーボードは Alt + ↑ / ↓";
+  grip.setAttribute("aria-label",section.name+" の並べ替え。Alt+上下キーで移動");
+  grip.addEventListener("click",e=>{if(performance.now()<sectionTouchSuppressUntil)e.preventDefault()});
+  grip.addEventListener("dragstart",e=>{
+    e.stopPropagation();if(!e.dataTransfer)return;
+    e.dataTransfer.setData("text/x-ratio-section",section.id);
+    e.dataTransfer.effectAllowed="move";grip.classList.add("reorder-source");
+  });
+  grip.addEventListener("dragend",()=>{grip.classList.remove("reorder-source");clearSectionCue()});
+  grip.addEventListener("keydown",e=>{
+    if(!(e.altKey&&["ArrowUp","ArrowDown"].includes(e.key)))return;
+    e.preventDefault();
+    const i=project.sections.findIndex(s=>s.id===section.id);
+    const other=project.sections[i+(e.key==="ArrowDown"?1:-1)];
+    if(other)applySectionMove(section.id,{id:other.id,after:e.key==="ArrowDown"});
+  });
+  bindSectionTouchDrag(grip,section.id);
+  return grip;
+}
+
 function renderTimeline(){
   const timeline=$("timeline"),fragment=document.createDocumentFragment();
   const selected=selectedLocation().section;
@@ -555,7 +651,7 @@ function renderTimeline(){
       commit:value=>mutate(d=>{d.sections.find(s=>s.id===section.id).repeat=value},{preserveTargets:true}),
       min:1,max:16,step:1
     });
-    repeatLabel.append(repeat);header.append(name,repeatLabel);
+    repeatLabel.append(repeat);header.append(makeSectionGrip(section),name,repeatLabel);
     if(project.sections.length>1){
       const remove=document.createElement("button");remove.type="button";
       remove.className="ratio-section-remove";
@@ -565,15 +661,28 @@ function renderTimeline(){
       remove.addEventListener("click",()=>removeSectionById(section.id));
       header.append(remove);
     }
+    group.addEventListener("dragover",e=>{
+      if(!e.dataTransfer?.types.includes("text/x-ratio-section"))return;
+      e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect="move";
+      showSectionCue(sectionPlacement(e.clientX,e.clientY));
+    });
+    group.addEventListener("drop",e=>{
+      if(!e.dataTransfer?.types.includes("text/x-ratio-section"))return;
+      e.preventDefault();e.stopPropagation();
+      const source=e.dataTransfer.getData("text/x-ratio-section");
+      const target=sectionPlacement(e.clientX,e.clientY);
+      clearSectionCue();applySectionMove(source,target);
+    });
     const grid=document.createElement("div");grid.className="progression-chunk-grid";
     group.addEventListener("dragover",e=>{
       if(e.target.closest(".progression-cell[data-cid]"))return;
-      if(!e.dataTransfer)return;
+      if(!e.dataTransfer||e.dataTransfer.types.includes("text/x-ratio-section"))return;
       e.preventDefault();e.dataTransfer.dropEffect="move";
       showDropCue({sectionId:section.id,beforeId:null,node:add,cue:"ratio-drop-target"});
     });
     group.addEventListener("drop",e=>{
       if(e.target.closest(".progression-cell[data-cid]"))return;
+      if(e.dataTransfer?.types.includes("text/x-ratio-section"))return;
       receiveChordDrop(e,{sectionId:section.id,beforeId:null});
     });
     section.steps.forEach((step,index)=>grid.append(makeCard(section,step,index)));
@@ -782,7 +891,10 @@ function renderSelection(){
     card.classList.toggle("active",active);
     card.setAttribute("aria-pressed",active?"true":"false");
   }
-  $("moveLeft").disabled=loc.index===0;$("moveRight").disabled=loc.index===loc.section.steps.length-1;
+  const sectionIndex=project.sections.findIndex(s=>s.id===loc.section.id);
+  $("moveLeft").disabled=loc.index===0&&(!project.sections[sectionIndex-1]||loc.section.steps.length<=1);
+  $("moveRight").disabled=loc.index===loc.section.steps.length-1&&
+    (!project.sections[sectionIndex+1]||loc.section.steps.length<=1);
   try{
     const result=calculate(step);
     $("hzReadout").textContent="最下音 "+hz(result.baseHz)+"Hz · "+result.freqs.length+"音";
@@ -990,9 +1102,19 @@ function insertChord(duplicate){
 $("addStep").addEventListener("click",()=>insertChord(false));
 $("duplicate").addEventListener("click",()=>insertChord(true));
 function swap(delta){
-  const {section,index}=selectedLocation();const target=index+delta;
-  if(target<0||target>=section.steps.length)return;
-  mutate(d=>{const steps=d.sections.find(s=>s.id===section.id).steps;[steps[index],steps[target]]=[steps[target],steps[index]]},{structural:true});
+  const {section,index,step}=selectedLocation(),target=index+delta;
+  if(target>=0&&target<section.steps.length){
+    mutate(d=>{
+      const steps=d.sections.find(s=>s.id===section.id).steps;
+      [steps[index],steps[target]]=[steps[target],steps[index]];
+    },{structural:true});return;
+  }
+  const sectionIndex=project.sections.findIndex(s=>s.id===section.id);
+  const next=project.sections[sectionIndex+(delta>0?1:-1)];
+  if(!next||section.steps.length<=1)return;
+  const beforeId=delta>0?next.steps[0].id:null;
+  if(mutate(d=>moveChord(d,section.id,step.id,next.id,beforeId),{structural:true}))
+    setSelection(next.id,step.id);
 }
 $("moveLeft").addEventListener("click",()=>swap(-1));
 $("moveRight").addEventListener("click",()=>swap(1));
