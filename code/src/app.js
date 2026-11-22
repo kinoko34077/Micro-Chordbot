@@ -4151,9 +4151,7 @@ function attachGlobalAndSettingsEvents() {
       else set.delete(target.dataset.id);
       render();
     }
-  });
-
-}
+  });}
 
 function attachPitchAndChordEvents() {
   els.octaveInput.addEventListener("change", () => {
@@ -4863,9 +4861,7 @@ function attachProgressionReorderEvents() {
     }
   };
   els.progressionGrid.addEventListener("pointerup", clearGridLongPress);
-  els.progressionGrid.addEventListener("pointercancel", clearGridLongPress);
-
-}
+  els.progressionGrid.addEventListener("pointercancel", clearGridLongPress);}
 
 function attachPitchCanvasEvents() {
   const canvas = els.lineCanvas;
@@ -5032,9 +5028,7 @@ function attachPitchCanvasEvents() {
     const hitNote = hitActiveNoteOnLine(canvas, ev.clientX, ev.clientY);
     if (!hitNote) return;
     removeActiveNote(hitNote.id);
-  });
-
-}
+  });}
 
 function attachPlatformAndImportEvents() {
   window.addEventListener("resize", () => {
@@ -5064,8 +5058,8 @@ function attachPlatformAndImportEvents() {
     void refreshAudibleVoices().catch((error) => {
       setAudioFailure(error);
     });
-  });}
-
+  });
+}
 
 function classifyRuntime() {
   const protocol = window.location.protocol;
