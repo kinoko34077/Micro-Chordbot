@@ -268,8 +268,11 @@ test("stable chunk reorder keeps entire chunk sections contiguous and roundtrips
   assert.throws(()=>moveChunk(p,"nonexistent","chunk-2"),/見つかりません/);
   assert.throws(()=>moveChunk(p,"chunk-1","nonexistent"),/見つかりません/);
   const normalized=validateProject(p);
-  assert.deepEqual(chunksOf(importText(exportText(normalized))).map(c=>c.id),
-    chunksOf(normalized).map(c=>c.id));
+  // Text IO intentionally remints internal chunk IDs; verify musical order
+  // and contents, not transient identities. JSON preserves stable IDs.
+  const semantic=p=>chunksOf(p).map(c=>[c.name,c.sections.map(s=>
+    [s.name,s.repeat,s.steps.map(x=>[x.expr,x.pitch,x.beats,x.beatUnit])])]);
+  assert.deepEqual(semantic(importText(exportText(normalized))),semantic(normalized));
   assert.deepEqual(validateProject(JSON.parse(JSON.stringify(normalized))),normalized);
   assert.notEqual(JSON.stringify(p),before);
 });
