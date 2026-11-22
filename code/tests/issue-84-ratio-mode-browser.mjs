@@ -54,6 +54,20 @@ try{
     };
     await cells.first().waitFor();
     assert.ok(await cells.count()>=5);
+    if(width===390){
+      // The existing arrow control must cross into an adjacent section,
+      // preserving code ID and 1-click Undo without a separate modal.
+      await cells.nth(2).click();
+      await page.locator("#moveRight").click();
+      assert.deepEqual(await page.locator(".ratio-section-group").nth(0).locator(".progression-cell[data-cid]").evaluateAll(
+        els=>els.map(el=>el.dataset.cid)),["a1","a2"]);
+      assert.equal(await page.locator(".ratio-section-group").nth(1).locator(".progression-cell[data-cid]").first().getAttribute("data-cid"),"a3");
+      assert.equal(await page.locator(".progression-cell.active").getAttribute("data-cid"),"a3");
+      await page.locator("#undo").click();
+      assert.deepEqual(await page.locator(".ratio-section-group").nth(0).locator(".progression-cell[data-cid]").evaluateAll(
+        els=>els.map(el=>el.dataset.cid)),["a1","a2","a3"]);
+      await cells.first().click();
+    }
     const layout=await page.evaluate(()=>{
       const cells=[...document.querySelectorAll(".progression-chunk:first-child .progression-cell[data-cid]")].slice(0,3);
       const boxes=cells.map(el=>el.getBoundingClientRect());
@@ -473,6 +487,16 @@ try{
     await page.locator(".ratio-section-name-input").fill("ブリッジ");
     await page.locator(".ratio-section-name-input").press("Enter");
     assert.equal(await page.locator(".ratio-section-name").last().innerText(),"ブリッジ");
+    if(width===390){
+      const before=await page.locator(".ratio-section-group").evaluateAll(els=>els.map(el=>el.dataset.sectionId));
+      await page.locator(".ratio-section-group").last().locator(".ratio-section-grip").focus();
+      await page.keyboard.press("Alt+ArrowUp");
+      const after=await page.locator(".ratio-section-group").evaluateAll(els=>els.map(el=>el.dataset.sectionId));
+      assert.deepEqual(after,before.slice().reverse(),"keyboard Alt+Up must reorder sections");
+      await page.locator("#undo").click();
+      assert.deepEqual(await page.locator(".ratio-section-group").evaluateAll(els=>els.map(el=>el.dataset.sectionId)),
+        before,"one Undo must restore section order");
+    }
     const chordId=await page.locator(".progression-cell.active").getAttribute("data-cid");
     const n=await page.evaluate(()=>window.__ratioStarted.length);
     await page.locator(".ratio-section-name").first().click();
@@ -643,5 +667,21 @@ try{
     assert.deepEqual(await touchPage.locator(".progression-cell[data-cid]").evaluateAll(
       els=>els.slice(0,3).map(el=>el.dataset.cid)),["a1","a2","a3"],"one Undo failed to restore touch move");
     console.log("touch long-hold reorder + single Undo PASS");
+    // Dedicated section grip must allow actual vertical touch reorder
+    // without hijacking the section name's inline editing behavior.
+    const bGrip=await touchPage.locator(".ratio-section-group").nth(1).locator(".ratio-section-grip").boundingBox();
+    const aHeader=await touchPage.locator(".ratio-section-group").first().locator(".ratio-section-header").boundingBox();
+    const gs=bGrip.x+bGrip.width*.5,gy=bGrip.y+bGrip.height*.5;
+    const tx=aHeader.x+aHeader.width*.3,ty=aHeader.y+aHeader.height*.5;
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:point(gs,gy)});
+    await touchPage.waitForTimeout(360);
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:point(tx,ty)});
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
+    assert.equal(await touchPage.locator(".ratio-section-group").first().getAttribute("data-section-id"),"sB",
+      "section long-hold did not move B before A");
+    await touchPage.locator("#undo").click();
+    assert.equal(await touchPage.locator(".ratio-section-group").first().getAttribute("data-section-id"),"sA",
+      "Undo failed to restore section order after touch move");
+    console.log("touch section grip reorder + one Undo PASS");
   }finally{await touchContext.close()}
 }finally{await browser.close()}
