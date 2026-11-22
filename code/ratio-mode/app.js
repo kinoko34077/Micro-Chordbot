@@ -1349,7 +1349,8 @@ function updateOffscreenPlayback(){
   if(visible){button.hidden=true;return}
   const root=$("view-progression").getBoundingClientRect();
   button.style.top=Math.max(0,viewport.top-root.top+6)+"px";
-  const label=playingAt.section.chunkName+" / "+playingAt.section.name;
+  const chord=parseRatio(playingAt.step.expr,project.presets).name||playingAt.step.expr;
+  const label=playingAt.section.chunkName+" / "+playingAt.section.name+" · "+chord+" "+playingAt.step.pitch;
   button.textContent="▶ "+label;
   button.title=label+"：再生中のコードへ移動";
   button.setAttribute("aria-label","再生中 "+label+"。このコードへ表示を移動");
