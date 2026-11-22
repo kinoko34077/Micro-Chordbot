@@ -243,6 +243,9 @@ test("stable section move respects chunk grouping and protects last section",()=
   assert.equal(p.sections.at(-1).chunkId,"chunk-other");
   assert.equal(p.sections.at(-1).chunkName,"Other");
   assert.ok(validateProject(p));
-  assert.throws(()=>moveSection(p,source,newChunk.id),/セクションを1つ以上残して/);
+  const singleton={...structuredClone(newChunk),id:"s-solo",chunkId:"chunk-solo",chunkName:"Solo",
+    steps:[{...structuredClone(newChunk.steps[0]),id:"c-solo"}]};
+  p.sections.push(singleton);
+  assert.throws(()=>moveSection(p,singleton.id,newChunk.id),/セクションを1つ以上残して/);
   assert.ok(validateProject(p));
 });
