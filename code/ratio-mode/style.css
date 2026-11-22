@@ -1705,9 +1705,11 @@ dialog::backdrop{background:#0009}
   background:transparent!important;border-color:transparent!important
 }
 .ratio-app .ratio-section-remove svg{width:13px;height:13px}
+/* Two independent corner actions cannot share a 44px-high card's right edge;
+   retain non-overlapping areas rather than creating a destructive overlap. */
 .ratio-app .preset-item>.preset-edit{
-  width:31px;min-width:31px;height:30px;min-height:30px;
-  right:0;bottom:0
+  width:22px;min-width:22px;height:20px;min-height:20px;
+  right:3px;bottom:2px
 }
 @media(max-width:950px){
   .ratio-app .progression-transport .ratio-play-scope .ratio-scope-caption{display:none}
