@@ -180,6 +180,10 @@ try{
     assert.equal(await page.locator("#bpm").inputValue(),"110","BPM edit should be a single Undo");
     await page.locator("#redo").click();
     assert.equal(await page.locator("#bpm").inputValue(),"120");
+    if(width<=950){
+      assert.equal(await page.locator("#progMenuToggleBtn").getAttribute("aria-expanded"),"false","Undo outside popover must close settings");
+      await page.locator("#progMenuToggleBtn").click();
+    }
     await typeNumeric("#bpm",110);
     if(width<=950)await page.locator("#progMenuToggleBtn").click();
     await mkdir("artifacts/issue-28-layout-audit",{recursive:true});
