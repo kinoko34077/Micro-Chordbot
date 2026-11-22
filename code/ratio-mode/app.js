@@ -277,8 +277,8 @@ function applySectionMove(sourceId,where,{focus=true}={}){
   if(!where?.chunkId)return false;
   const done=mutate(d=>moveSection(d,sourceId,where.chunkId,where.beforeId),{structural:true});
   if(done&&focus)requestAnimationFrame(()=>
-    [...document.querySelectorAll(".ratio-section-group")].find(x=>x.dataset.sectionId===sourceId)?
-      .querySelector(".ratio-section-grip")?.focus({preventScroll:true}));
+    [...document.querySelectorAll(".ratio-section-group")].find(x=>x.dataset.sectionId===sourceId)
+      ?.querySelector(".ratio-section-grip")?.focus({preventScroll:true}));
   return done;
 }
 function moveSectionByKey(sectionId,delta){
