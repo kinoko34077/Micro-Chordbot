@@ -1,7 +1,7 @@
 import {AudioEngine} from "../src/audio.js";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {HistoryManager, isNativeUndoTarget} from "../src/history.js";
-import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,importText,exportText} from "./model.mjs";
+import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,moveChord,importText,exportText} from "./model.mjs";
 
 const $=id=>document.getElementById(id);
 const copy=value=>JSON.parse(JSON.stringify(value));
@@ -10,6 +10,7 @@ const UI_STORE="muChordbot.ratioMode.ui.v1";
 const history=new HistoryManager(100);
 const engine=new AudioEngine();
 let project,saveAllowed=true,selection={sectionId:null,stepId:null},columns=4,playScope="all";
+const chunkViews=new Map();let chunkScrollTimer=null,transport=null;
 let timer=null,runId=0,playing=false,playingStepId=null,voiceCount=0;
 let tapVersion=0,tapTimer=null,tapVoiceIds=[],transportVoiceIds=[],voiceGeneration=0;
 const id=prefix=>prefix+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
@@ -33,11 +34,20 @@ function boot(){
     if(ui&&typeof ui.sectionId==="string"&&typeof ui.stepId==="string")selection={sectionId:ui.sectionId,stepId:ui.stepId};
     if(ui&&Number.isInteger(ui.columns)&&ui.columns>=1&&ui.columns<=12)columns=ui.columns;
     if(ui&&["all","chunk","section"].includes(ui.playScope))playScope=ui.playScope;
+    if(ui?.chunkViews&&typeof ui.chunkViews==="object"&&!Array.isArray(ui.chunkViews)){
+      for(const [chunkId,value] of Object.entries(ui.chunkViews).slice(0,32)){
+        if(!value||typeof value!=="object"||typeof value.sectionId!=="string"||
+          typeof value.stepId!=="string"||!Number.isFinite(value.scrollTop)||value.scrollTop<0||value.scrollTop>100000)continue;
+        const section=project.sections.find(s=>s.id===value.sectionId&&s.chunkId===chunkId);
+        if(section?.steps.some(step=>step.id===value.stepId))
+          chunkViews.set(chunkId,{sectionId:value.sectionId,stepId:value.stepId,scrollTop:value.scrollTop});
+      }
+    }
   }catch(error){/* UI-only state is non-authoritative. */}
   chooseFirst();render();
 }
 function saveSelection(){
-  try{localStorage.setItem(UI_STORE,JSON.stringify({...selection,columns,playScope}))}catch(error){/* UI selection optional. */}
+  try{localStorage.setItem(UI_STORE,JSON.stringify({...selection,columns,playScope,chunkViews:Object.fromEntries(chunkViews)}))}catch(error){/* UI selection optional. */}
 }
 function save(){
   if(!saveAllowed){$("saveState").textContent="保存停止";$("saveState").dataset.error="true";notice("保存停止中です。入出力からファイルに退避してください。",true);return}
@@ -58,37 +68,61 @@ function mutate(change,{structural=false,audition=false,preserveTargets=false}={
     const before=copy(project),draft=copy(project);change(draft);
     const next=validateProject(draft);
     if(JSON.stringify(before)===JSON.stringify(next))return true;
-    if(structural)stopPlayback();
+    const soundingBefore=before.sections.flatMap(x=>x.steps).find(x=>x.id===playingStepId);
+    const soundingAfter=next.sections.flatMap(x=>x.steps).find(x=>x.id===playingStepId);
+    const audibleChanged=!!(playing&&soundingBefore&&soundingAfter&&(
+      soundingBefore.expr!==soundingAfter.expr||soundingBefore.pitch!==soundingAfter.pitch||
+      before.settings.wave!==next.settings.wave||
+      JSON.stringify(before.presets)!==JSON.stringify(next.presets)));
+    // Structural edits do not reset the transport; the next boundary reads
+    // the latest project, while the current sounding occurrence finishes.
     project=next;history.push({type:"ratio_edit",before,after:copy(next)});
     chooseFirst();saveSelection();save();if(saveAllowed)notice("");
     if(preserveTargets){refreshCardValues();renderPresets();renderSelection();renderHistory()}
     else render();
-    if(playing&&playingStepId)void refreshPlayingVoices();
+    if(audibleChanged)void refreshPlayingVoices();
     if(audition)void preview();
     return true;
   }catch(error){notice(error.message||String(error),true);return false}
 }
+function rememberCurrentChunk(){
+  const section=project.sections.find(s=>s.id===selection.sectionId);
+  if(!section)return;
+  const prev=chunkViews.get(section.chunkId)||{};
+  chunkViews.set(section.chunkId,{...prev,sectionId:selection.sectionId,stepId:selection.stepId,
+    scrollTop:$("timeline").scrollTop});
+}
 function setSelection(sid,cid){
-  finishActiveText(true);
-  cancelValueGesture?.();
+  finishActiveText(true);cancelValueGesture?.();
   const old=project.sections.find(s=>s.id===selection.sectionId)?.chunkId;
-  const next=project.sections.find(s=>s.id===sid)?.chunkId;
+  const dest=project.sections.find(s=>s.id===sid);
+  if(!dest||!dest.steps.some(step=>step.id===cid))return;
+  const next=dest.chunkId;
+  rememberCurrentChunk();
   selection={sectionId:sid,stepId:cid};
-  saveSelection();
   if(old!==next)renderTimeline();
   renderSelection();
+  chunkViews.set(next,{sectionId:sid,stepId:cid,scrollTop:$("timeline").scrollTop});
+  saveSelection();
 }
 function restore(snapshot){
-  const wasPlaying=playing;
-  stopPlayback();project=copy(snapshot);
+  const prior=project;
+  project=copy(snapshot);
   chooseFirst();saveSelection();save();render();if(saveAllowed)notice("");
-  // Undo/redo is authoritative even if a text field retains native focus.
   const current=selectedLocation().step;
   $("editExpr").value=chordExpression(current,project.presets);$("editPitch").value=current.pitch;
   $("editBeats").value=current.beats+"/"+(current.beatUnit||4);
-  // History restores data, not unsolicited sound.
-  if(wasPlaying)startPlayback();
+  // Undo/redo restores the project, never re-starts the transport or audition.
+  if(playing&&playingStepId){
+    const before=prior.sections.flatMap(s=>s.steps).find(s=>s.id===playingStepId);
+    const after=project.sections.flatMap(s=>s.steps).find(s=>s.id===playingStepId);
+    if(before&&after&&(before.expr!==after.expr||before.pitch!==after.pitch||
+      before.settings.wave!==project.settings.wave||
+      JSON.stringify(prior.presets)!==JSON.stringify(project.presets)))
+      void refreshPlayingVoices();
+  }
 }
+
 function undo(){if(cancelActiveDraft())return;history.undo(restore);renderHistory()}
 function redo(){if(cancelActiveDraft())return;history.redo(restore);renderHistory()}
 function renderHistory(){
@@ -397,10 +431,12 @@ function refreshCardValues(){
   }
 }
 function renderTimeline(){
-  const timeline=$("timeline"),top=timeline.scrollTop,fragment=document.createDocumentFragment();
+  const timeline=$("timeline"),fragment=document.createDocumentFragment();
   const selected=selectedLocation().section;
   const chunk=chunksOf(project).find(c=>c.id===selected?.chunkId)||chunksOf(project)[0];
   if(!chunk)return;
+  const renderedChunk=timeline.querySelector(".progression-chunk")?.dataset.chunkId;
+  const top=renderedChunk===chunk.id?timeline.scrollTop:chunkViews.get(chunk.id)?.scrollTop||0;
   const wrap=document.createElement("section");wrap.className="progression-chunk";
   wrap.dataset.chunkId=chunk.id;
   // The chunk name exists only in its selector; no duplicate heading.
@@ -766,8 +802,16 @@ document.addEventListener("keydown",e=>{
 });
 $("chunkJump").addEventListener("change",e=>{
   const chunk=chunksOf(project).find(c=>c.id===e.target.value);
-  if(chunk)setSelection(chunk.sections[0].id,chunk.sections[0].steps[0].id);
+  if(!chunk)return;
+  const previous=chunkViews.get(chunk.id);
+  const remembered=chunk.sections.find(s=>s.id===previous?.sectionId);
+  const target=remembered?.steps.find(s=>s.id===previous?.stepId);
+  setSelection(target?remembered.id:chunk.sections[0].id,target?.id||chunk.sections[0].steps[0].id);
 });
+$("timeline").addEventListener("scroll",()=>{
+  rememberCurrentChunk();
+  clearTimeout(chunkScrollTimer);chunkScrollTimer=setTimeout(saveSelection,160);
+},{passive:true});
 
 bindBeatFlick($("editBeats"));
 bindPitchFlick($("editPitch"));
@@ -861,7 +905,7 @@ function updatePlayStatus(running){
   button.title=running?"再生中：押すと選択位置から再スタート":"選択位置から再生";
 }
 function stopPlayback(){
-  stopAudition();transportVoiceIds=[];
+  stopAudition();transportVoiceIds=[];transport=null;
   runId++;playing=false;playingStepId=null;voiceCount=0;clearTimeout(timer);timer=null;
   engine.stopAll();updatePlayStatus(false);
   document.querySelectorAll(".progression-cell.playing").forEach(el=>el.classList.remove("playing"));
@@ -900,23 +944,55 @@ function highlightStep(step){
     card.classList.toggle("playing",card.dataset.cid===step.id);
   }
 }
+// The scope is captured at Play. Each boundary follows the latest project,
+// keyed by (section, chord, repeat occurrence) rather than a stale array index.
+function sequenceForScope(sectionId,chunkId){
+  const counts=new Map();
+  return flatten(project,sectionId,chunkId).map(step=>{
+    const base=step.sectionId+"\u0000"+step.stepId,n=counts.get(base)||0;
+    counts.set(base,n+1);
+    return {...step,occurrence:base+"\u0000"+n};
+  });
+}
+function nextSequencePosition(seq,state){
+  if(state.last===null)return Math.max(0,seq.findIndex(s=>s.stepId===state.initialStepId));
+  const index=seq.findIndex(s=>s.occurrence===state.last);
+  if(index>=0)return index+1;
+  // The current occurrence was deleted. Rejoin at the first surviving old
+  // successor instead of jumping back to the start or replaying past notes.
+  for(const old of state.priorSequence.slice(state.priorIndex+1)){
+    const n=seq.findIndex(s=>s.occurrence===old);
+    if(n>=0)return n;
+  }
+  return seq.length;
+}
 function startPlayback(sectionId=null,chunkId=null){
   stopPlayback();
-  const steps=flatten(project,sectionId,chunkId);if(!steps.length)return;
+  const steps=sequenceForScope(sectionId,chunkId);if(!steps.length)return;
   const token=runId;
-  const selectedIndex=steps.findIndex(s=>s.stepId===selection.stepId);
-  let index=selectedIndex>=0?selectedIndex:0;
+  transport={sectionId,chunkId,initialStepId:selection.stepId,
+    last:null,priorSequence:[],priorIndex:-1,deadline:null};
   playing=true;updatePlayStatus(true);
   const advance=async()=>{
-    if(token!==runId||!playing)return;
-    if(index>=steps.length){if(project.settings.loop)index=0;else{stopPlayback();return}}
-    const step=steps[index++];
+    if(token!==runId||!playing||!transport)return;
+    const scope=transport,seq=sequenceForScope(scope.sectionId,scope.chunkId);
+    if(!seq.length){stopPlayback();notice("再生対象のセクション／チャンクがなくなりました",true);return}
+    let index=nextSequencePosition(seq,scope);
+    if(index>=seq.length){
+      if(project.settings.loop)index=0;
+      else{stopPlayback();return}
+    }
+    const step=seq[index];
+    scope.last=step.occurrence;
+    scope.priorSequence=seq.map(s=>s.occurrence);
+    scope.priorIndex=index;
     try{
       const ok=await startVoices(step,token);
-      if(!ok)return;
+      if(!ok||token!==runId)return;
       highlightStep(step);
       const duration=quarterBeats(step)*60000/project.settings.bpm;
-      timer=setTimeout(advance,duration);
+      scope.deadline=Math.max(performance.now(),scope.deadline??0)+duration;
+      timer=setTimeout(advance,Math.max(0,scope.deadline-performance.now()));
     }catch(error){stopPlayback();notice(error.message||"再生できません",true)}
   };
   void advance();
