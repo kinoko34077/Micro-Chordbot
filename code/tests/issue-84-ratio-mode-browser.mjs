@@ -511,7 +511,8 @@ try{
       await page.locator("#undo").click();
       assert.deepEqual(await page.locator("#chunkJump option").evaluateAll(els=>els.map(x=>x.textContent)),
         original,"drag reorder must be a single Undo transaction");
-      await page.locator("#chunkReorderToggle").click();
+      if(await page.locator("#chunkOrderPanel").isVisible())
+        await page.locator("#chunkReorderToggle").click();
       assert.equal(await page.locator("#chunkOrderPanel").isVisible(),false);
     }
     if(width===320){
