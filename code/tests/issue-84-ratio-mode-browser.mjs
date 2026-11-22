@@ -830,7 +830,7 @@ try{
       await perfPage.locator("#openIO").click();
       await perfPage.locator("#ioText").fill(fixture);
       await perfPage.locator("#ioImport").click();
-      assert.match(await perfPage.locator("#ioStatus").innerText(),/成功/,"fixture import failed");
+      assert.match(await perfPage.locator("#ioStatus").innerText(),/読み込みました/,"fixture import failed");
       await perfPage.locator("#ioClose").click();
       assert.equal(await perfPage.locator(".progression-cell[data-cid]").count(),count);
       const measurement=await perfPage.evaluate(()=>{
