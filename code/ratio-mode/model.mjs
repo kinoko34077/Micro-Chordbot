@@ -275,6 +275,41 @@ export function moveChord(project,fromSectionId,stepId,toSectionId,beforeStepId=
   return true;
 }
 
+// Reposition a section using stable IDs, preserving contiguous chunk groups.
+// Refuse moving the last section out of its chunk: silently deleting a chunk
+// is a different user action and must remain undoable on its own.
+export function moveSection(project,sectionId,toChunkId,beforeSectionId=null){
+  const sections=project.sections;
+  const source=sections.find(s=>s.id===sectionId);
+  const destination=sections.find(s=>s.chunkId===toChunkId);
+  if(!source||!destination)fail("セクションまたは移動先のチャンクがありません");
+  if(beforeSectionId&&!sections.some(s=>s.id===beforeSectionId&&s.chunkId===toChunkId))
+    fail("移動先セクションが見つかりません");
+  if(sectionId===beforeSectionId)return false;
+  const same=source.chunkId===toChunkId;
+  if(!same&&sections.filter(s=>s.chunkId===source.chunkId).length<=1)
+    fail("最後のセクションは別チャンクへ移動できません");
+  const prior=sections.map(s=>s.id+"@"+s.chunkId).join("|");
+  sections.splice(sections.indexOf(source),1);
+  source.chunkId=destination.chunkId;source.chunkName=destination.chunkName;
+  const index=beforeSectionId?sections.findIndex(s=>s.id===beforeSectionId):
+    sections.findLastIndex(s=>s.chunkId===toChunkId)+1;
+  sections.splice(index,0,source);
+  return prior!==sections.map(s=>s.id+"@"+s.chunkId).join("|");
+}
+export function moveChunk(project,fromChunkId,beforeChunkId=null){
+  if(fromChunkId===beforeChunkId)return false;
+  const sections=project.sections;
+  if(!sections.some(s=>s.chunkId===fromChunkId)||beforeChunkId&&!sections.some(s=>s.chunkId===beforeChunkId))
+    fail("移動対象チャンクが見つかりません");
+  const previous=sections.map(s=>s.id).join("|");
+  const moved=sections.filter(s=>s.chunkId===fromChunkId);
+  const others=sections.filter(s=>s.chunkId!==fromChunkId);
+  const target=beforeChunkId?others.findIndex(s=>s.chunkId===beforeChunkId):others.length;
+  others.splice(target,0,...moved);project.sections=others;
+  return previous!==others.map(s=>s.id).join("|");
+}
+
 export function chunksOf(project) {
   const chunks=[];
   for(const section of project.sections){

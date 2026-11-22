@@ -117,6 +117,29 @@ try{
     assert.equal(await page.locator("#columnActual").count(),0,"redundant detached '4列' label remains");
     assert.equal(await page.locator("#chunkJump option").count(),1,"legacy progressions should start with one chunk");
     assert.equal(await page.locator(".ratio-section-header").count(),2);
+    assert.equal(await page.locator(".ratio-section-grip").count(),2,"section move handles missing");
+    if(width===390){
+      const order=()=>page.locator(".ratio-section-group").evaluateAll(xs=>xs.map(el=>el.dataset.sectionId));
+      await page.locator('.ratio-section-group[data-section-id="sA"] .ratio-section-grip').focus();
+      await page.keyboard.press("ArrowDown");
+      assert.deepEqual(await order(),["sB","sA"],"section keyboard reorder failed");
+      await page.locator("#undo").click();
+      assert.deepEqual(await order(),["sA","sB"],"section reorder must be one Undo");
+      await page.locator('.progression-cell[data-cid="a3"]').click();
+      await page.locator("#moveRight").click();
+      assert.deepEqual(await page.locator('.ratio-section-group[data-section-id="sB"] .progression-cell[data-cid]').evaluateAll(
+        xs=>xs.map(el=>el.dataset.cid)),["a3","b1","b2"],"code arrow did not cross section boundary");
+      await page.locator("#undo").click();
+      assert.deepEqual(await page.locator('.ratio-section-group[data-section-id="sA"] .progression-cell[data-cid]').evaluateAll(
+        xs=>xs.map(el=>el.dataset.cid)),["a1","a2","a3"],"code boundary move Undo failed");
+      await page.locator('.progression-cell[data-cid="a3"]').focus();
+      await page.keyboard.press("Alt+ArrowRight");
+      assert.equal(await page.locator('.ratio-section-group[data-section-id="sB"] .progression-cell[data-cid="a3"]').count(),1,
+        "keyboard cross-section chord move failed");
+      await page.locator("#undo").click();
+      await page.locator('.progression-cell[data-cid="a1"]').click();
+    }
+
     assert.equal(await page.locator(".progression-chunk-head,#chunkDetails,#sectionDetails").count(),0,"duplicate title or modal remains");
     const playWidth=await page.locator("#play").evaluate(el=>el.getBoundingClientRect().width);
     assert.ok(playWidth<=80,"play button wastes space "+playWidth);
@@ -643,5 +666,26 @@ try{
     assert.deepEqual(await touchPage.locator(".progression-cell[data-cid]").evaluateAll(
       els=>els.slice(0,3).map(el=>el.dataset.cid)),["a1","a2","a3"],"one Undo failed to restore touch move");
     console.log("touch long-hold reorder + single Undo PASS");
+    // Section headers stay editable; only the grip owns the mobile move.
+    await touchPage.locator("#timeline").evaluate(el=>el.scrollTop=0);
+    const sourceGrip=touchPage.locator('.ratio-section-group[data-section-id="sB"] .ratio-section-grip');
+    const targetHeader=touchPage.locator('.ratio-section-group[data-section-id="sA"] .ratio-section-header');
+    const sourceRect=await sourceGrip.boundingBox(),targetRect=await targetHeader.boundingBox();
+    assert.ok(sourceRect&&targetRect&&sourceRect.y>0&&sourceRect.y<844&&targetRect.y>0,
+      "section handles cannot both be reached in a short phone viewport");
+    const gx=sourceRect.x+sourceRect.width/2,gy=sourceRect.y+sourceRect.height/2;
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:point(gx,gy)});
+    await touchPage.waitForTimeout(370);
+    assert.equal(await sourceGrip.evaluate(el=>el.classList.contains("reorder-source")),true,
+      "section grip long-hold failed");
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:point(
+      targetRect.x+targetRect.width*.15,targetRect.y+targetRect.height*.25)});
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
+    assert.deepEqual(await touchPage.locator(".ratio-section-group").evaluateAll(
+      xs=>xs.map(el=>el.dataset.sectionId)),["sB","sA"],"section grip touch move order incorrect");
+    await touchPage.locator("#undo").click();
+    assert.deepEqual(await touchPage.locator(".ratio-section-group").evaluateAll(
+      xs=>xs.map(el=>el.dataset.sectionId)),["sA","sB"],"touch section move must be one Undo");
+    console.log("touch section long-hold reorder + Undo PASS");
   }finally{await touchContext.close()}
 }finally{await browser.close()}

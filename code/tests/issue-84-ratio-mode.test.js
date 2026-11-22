@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFile} from "node:fs/promises";
-import {parsePitch,parseRatio,flickPitch,flickGridPitch,flickEnharmonicCells,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,moveChord,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
+import {parsePitch,parseRatio,flickPitch,flickGridPitch,flickEnharmonicCells,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,moveChord,moveSection,moveChunk,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {AudioEngine} from "../src/audio.js";
 const hz=(s)=>{const p=parsePitch(s);return frequencyFromPitch(440,p.octave,p.microStepInOctave)};
@@ -224,4 +224,26 @@ test("stable-ID chord reorder supports before/end and cross-section with one sem
   assert.equal(a.steps.length,1);
   assert.equal(moveChord(project,b.id,ids[1],b.id,ids[1]),false);
   assert.ok(validateProject(project));
+});
+
+test("stable section moves preserve chunk adjacency and refuse silent last-section deletion",()=>{
+  const p=validateProject(newProject());
+  const next={id:"sC",chunkId:"chunk-2",chunkName:"間奏",name:"C",repeat:1,
+    steps:[{id:"c1",expr:"Major",pitch:"C4",beats:4,beatUnit:4}]};
+  p.sections.push(next);
+  assert.equal(moveSection(p,"sB","chunk-1","sA"),true);
+  assert.deepEqual(p.sections.map(s=>s.id),["sB","sA","sC"]);
+  assert.equal(moveSection(p,"sB","chunk-2","sC"),true);
+  assert.deepEqual(p.sections.map(s=>s.id),["sA","sB","sC"]);
+  assert.equal(p.sections[1].chunkId,"chunk-2");
+  assert.equal(p.sections[1].chunkName,"間奏");
+  assert.throws(()=>moveSection(p,"sA","chunk-2","sC"),/最後のセクション/);
+  assert.equal(p.sections[0].chunkId,"chunk-1");
+  assert.equal(moveSection(p,"sB","chunk-2","sC"),false);
+  assert.ok(validateProject(p));
+  assert.equal(moveChunk(p,"chunk-2","chunk-1"),true);
+  assert.deepEqual(p.sections.map(s=>s.id),["sB","sC","sA"]);
+  assert.deepEqual(chunksOf(p).map(c=>c.id),["chunk-2","chunk-1"]);
+  assert.equal(moveChunk(p,"chunk-2","chunk-1"),false);
+  assert.ok(validateProject(p));
 });
