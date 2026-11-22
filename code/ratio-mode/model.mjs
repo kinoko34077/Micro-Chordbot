@@ -333,6 +333,28 @@ export function flatten(project,oneSection=null,oneChunk=null) {
   }
   return out;
 }
+// The scope is captured at Play. Each boundary follows the latest project,
+// keyed by (section, chord, repeat occurrence) rather than a stale array index.
+export function sequenceForScope(project,sectionId,chunkId){
+  const counts=new Map();
+  return flatten(project,sectionId,chunkId).map(step=>{
+    const base=step.sectionId+"\u0000"+step.stepId,n=counts.get(base)||0;
+    counts.set(base,n+1);
+    return {...step,occurrence:base+"\u0000"+n};
+  });
+}
+export function nextSequencePosition(seq,state){
+  if(state.last===null)return Math.max(0,seq.findIndex(s=>s.stepId===state.initialStepId));
+  const index=seq.findIndex(s=>s.occurrence===state.last);
+  if(index>=0)return index+1;
+  // The current occurrence was deleted. Rejoin at the first surviving old
+  // successor instead of jumping back to the start or replaying past notes.
+  for(const old of state.priorSequence.slice(state.priorIndex+1)){
+    const n=seq.findIndex(s=>s.occurrence===old);
+    if(n>=0)return n;
+  }
+  return seq.length;
+}
 export function exportText(project) {
   const lines=["# "+project.title,"@settings bpm="+project.settings.bpm+" loop="+(project.settings.loop?"on":"off")+" wave="+project.settings.wave];
   for(const p of project.presets)lines.push("@preset "+p.name+" = "+p.ratios);
