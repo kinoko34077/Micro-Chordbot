@@ -1,7 +1,7 @@
 import {AudioEngine} from "../src/audio.js";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {HistoryManager, isNativeUndoTarget} from "../src/history.js";
-import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,moveChord,importText,exportText} from "./model.mjs";
+import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,moveChord,moveSection,moveChunk,importText,exportText} from "./model.mjs";
 
 const $=id=>document.getElementById(id);
 const copy=value=>JSON.parse(JSON.stringify(value));
@@ -63,7 +63,7 @@ function chooseFirst(){
   const loc=selectedLocation();
   selection={sectionId:loc.section?.id??null,stepId:loc.step?.id??null};
 }
-function mutate(change,{structural=false,audition=false,preserveTargets=false}={}){
+function mutate(change,{structural=false,audition=false,preserveTargets=false,selectAfter=null}={}){
   try{
     const before=copy(project),beforeSelection=copy(selection),draft=copy(project);change(draft);
     const next=validateProject(draft);
@@ -76,10 +76,13 @@ function mutate(change,{structural=false,audition=false,preserveTargets=false}={
       JSON.stringify(before.presets)!==JSON.stringify(next.presets)));
     // Structural edits do not reset the transport; the next boundary reads
     // the latest project, while the current sounding occurrence finishes.
-    project=next;history.push({type:"ratio_edit",
+    project=next;
+    if(selectAfter)selection={sectionId:selectAfter.sectionId,stepId:selectAfter.stepId};
+    chooseFirst();
+    history.push({type:"ratio_edit",
       before:{project:before,selection:beforeSelection},
       after:{project:copy(next),selection:copy(selection)}});
-    chooseFirst();saveSelection();save();if(saveAllowed)notice("");
+    saveSelection();save();if(saveAllowed)notice("");
     if(preserveTargets){refreshCardValues();renderPresets();renderSelection();renderHistory()}
     else render();
     if(audibleChanged)void refreshPlayingVoices();
@@ -185,9 +188,9 @@ function showDropCue(where){
 function applyChordMove(fromSectionId,stepId,where){
   if(!where||!where.sectionId||!project.sections.some(s=>s.id===fromSectionId&&s.steps.some(c=>c.id===stepId)))return false;
   if(fromSectionId===where.sectionId&&where.beforeId===stepId)return false;
-  const success=mutate(d=>moveChord(d,fromSectionId,stepId,where.sectionId,where.beforeId),{structural:true});
-  if(success)setSelection(where.sectionId,stepId);
-  return success;
+  rememberCurrentChunk();
+  return mutate(d=>moveChord(d,fromSectionId,stepId,where.sectionId,where.beforeId),
+    {structural:true,selectAfter:{sectionId:where.sectionId,stepId}});
 }
 function dragSource(event){
   const value=event.dataTransfer?.getData("text/plain")||"";
@@ -244,6 +247,86 @@ function bindTouchChordMove(card,sectionId,stepId){
   card.addEventListener("touchcancel",cancel,{passive:true});
 }
 
+// Section reordering shares the model-level stable-ID contract with chord
+// movement. A grip (not the editable name) owns its mouse/touch gesture.
+let sectionDropCue=null,draggingSectionId=null;
+function clearSectionCue(){
+  if(sectionDropCue?.node)sectionDropCue.node.classList.remove("section-drop-before","section-drop-after");
+  sectionDropCue=null;
+}
+function sectionDropPosition(x,y){
+  const el=document.elementFromPoint(x,y),group=el?.closest(".ratio-section-group");
+  if(!group||!el.closest("#timeline"))return null;
+  const header=group.querySelector(".ratio-section-header");
+  if(!header)return null;
+  const rect=header.getBoundingClientRect(),after=y>rect.top+rect.height/2;
+  const next=group.nextElementSibling?.classList.contains("ratio-section-group")?
+    group.nextElementSibling.dataset.sectionId:null;
+  return {chunkId:project.sections.find(s=>s.id===group.dataset.sectionId)?.chunkId,
+    beforeId:after?next:group.dataset.sectionId,node:group,after};
+}
+function showSectionCue(where){
+  if(sectionDropCue?.node===where?.node&&sectionDropCue?.after===where?.after)return;
+  clearSectionCue();
+  if(where?.node){
+    where.node.classList.add(where.after?"section-drop-after":"section-drop-before");
+    sectionDropCue=where;
+  }
+}
+function applySectionMove(sourceId,where,{focus=true}={}){
+  if(!where?.chunkId)return false;
+  const done=mutate(d=>moveSection(d,sourceId,where.chunkId,where.beforeId),{structural:true});
+  if(done&&focus)requestAnimationFrame(()=>
+    [...document.querySelectorAll(".ratio-section-group")].find(x=>x.dataset.sectionId===sourceId)?
+      .querySelector(".ratio-section-grip")?.focus({preventScroll:true}));
+  return done;
+}
+function moveSectionByKey(sectionId,delta){
+  const index=project.sections.findIndex(s=>s.id===sectionId),target=project.sections[index+delta];
+  if(!target)return;
+  const next=project.sections[index+delta+1],after=delta>0;
+  applySectionMove(sectionId,{chunkId:target.chunkId,
+    beforeId:after&&next?.chunkId===target.chunkId?next.id:after?null:target.id},
+    {focus:true});
+}
+function bindTouchSectionMove(handle,sectionId){
+  let hold=null;
+  const cancel=()=>{
+    if(!hold)return;
+    clearTimeout(hold.timer);
+    handle.classList.remove("reorder-source");
+    hold=null;clearSectionCue();
+  };
+  handle.addEventListener("touchstart",e=>{
+    if(e.touches.length!==1||hold)return;
+    const t=e.touches[0],g={x:t.clientX,y:t.clientY,active:false,timer:null};
+    hold=g;
+    g.timer=setTimeout(()=>{
+      if(hold!==g)return;
+      g.active=true;handle.classList.add("reorder-source");
+      showSectionCue(sectionDropPosition(g.x,g.y));
+    },300);
+  },{passive:true});
+  handle.addEventListener("touchmove",e=>{
+    if(!hold)return;
+    if(e.touches.length!==1){cancel();return}
+    const t=e.touches[0];
+    if(!hold.active){
+      if(Math.hypot(t.clientX-hold.x,t.clientY-hold.y)>8)cancel();
+      return;
+    }
+    e.preventDefault();showSectionCue(sectionDropPosition(t.clientX,t.clientY));
+  },{passive:false});
+  handle.addEventListener("touchend",e=>{
+    if(!hold)return;
+    if(!hold.active){cancel();return}
+    e.preventDefault();
+    const t=e.changedTouches[0],where=t?sectionDropPosition(t.clientX,t.clientY):sectionDropCue;
+    cancel();applySectionMove(sectionId,where,{focus:false});
+  },{passive:false});
+  handle.addEventListener("touchcancel",cancel,{passive:true});
+}
+
 function makeCard(section,step,index){
   // A sibling button is used instead of nesting a delete button inside a button.
   const shell=document.createElement("div");shell.className="progression-cell-shell";
@@ -261,6 +344,11 @@ function makeCard(section,step,index){
   card.addEventListener("click",e=>{
     if(performance.now()<skipNextCardClickUntil){e.preventDefault();return}
     setSelection(section.id,step.id);void auditionCard(selectedLocation().step);
+  });
+  card.addEventListener("keydown",e=>{
+    if(!e.altKey||!["ArrowLeft","ArrowRight"].includes(e.key))return;
+    e.preventDefault();setSelection(section.id,step.id);
+    moveSelectedChord(e.key==="ArrowLeft"?-1:1,true);
   });
   bindTouchChordMove(card,section.id,step.id);
   card.addEventListener("dragstart",e=>{
@@ -540,6 +628,36 @@ function renderTimeline(){
     const group=document.createElement("section");group.className="ratio-section-group";
     group.dataset.sectionId=section.id;
     const header=document.createElement("div");header.className="ratio-section-header";
+    const grip=document.createElement("button");grip.type="button";grip.className="ratio-section-grip";
+    grip.textContent="⠿";grip.draggable=true;
+    grip.title="セクションをドラッグ／長押しで移動。上下キーでも移動";
+    grip.setAttribute("aria-label",section.name+" を移動（上下キー、ドラッグ、長押し）");
+    grip.setAttribute("aria-keyshortcuts","ArrowUp ArrowDown");
+    grip.addEventListener("keydown",e=>{
+      if(!["ArrowUp","ArrowDown"].includes(e.key))return;
+      e.preventDefault();moveSectionByKey(section.id,e.key==="ArrowUp"?-1:1);
+    });
+    grip.addEventListener("dragstart",e=>{
+      if(!e.dataTransfer)return;
+      draggingSectionId=section.id;
+      e.dataTransfer.setData("text/plain","section:"+section.id);
+      e.dataTransfer.effectAllowed="move";grip.classList.add("reorder-source");
+    });
+    grip.addEventListener("dragend",()=>{
+      draggingSectionId=null;grip.classList.remove("reorder-source");clearSectionCue()
+    });
+    bindTouchSectionMove(grip,section.id);
+    header.addEventListener("dragover",e=>{
+      if(!draggingSectionId)return;
+      e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect="move";
+      showSectionCue(sectionDropPosition(e.clientX,e.clientY));
+    });
+    header.addEventListener("drop",e=>{
+      if(!draggingSectionId)return;
+      e.preventDefault();e.stopPropagation();
+      const id=draggingSectionId,where=sectionDropPosition(e.clientX,e.clientY);
+      draggingSectionId=null;clearSectionCue();applySectionMove(id,where);
+    });
     const name=document.createElement("button");name.type="button";name.className="ratio-section-name";
     name.textContent=section.name;name.title="この場でセクション名を編集";
     name.setAttribute("aria-label",section.name+" の名前を編集");
@@ -555,7 +673,7 @@ function renderTimeline(){
       commit:value=>mutate(d=>{d.sections.find(s=>s.id===section.id).repeat=value},{preserveTargets:true}),
       min:1,max:16,step:1
     });
-    repeatLabel.append(repeat);header.append(name,repeatLabel);
+    repeatLabel.append(repeat);header.append(grip,name,repeatLabel);
     if(project.sections.length>1){
       const remove=document.createElement("button");remove.type="button";
       remove.className="ratio-section-remove";
@@ -782,7 +900,13 @@ function renderSelection(){
     card.classList.toggle("active",active);
     card.setAttribute("aria-pressed",active?"true":"false");
   }
-  $("moveLeft").disabled=loc.index===0;$("moveRight").disabled=loc.index===loc.section.steps.length-1;
+  const idx=project.sections.findIndex(s=>s.id===loc.section.id);
+  $("moveLeft").disabled=loc.index===0&&
+    (idx===0||loc.section.steps.length===1);
+  $("moveRight").disabled=loc.index===loc.section.steps.length-1&&
+    (idx>=project.sections.length-1||loc.section.steps.length===1);
+  $("moveLeft").title="コードを前へ移動（セクション境界も移動）";
+  $("moveRight").title="コードを後へ移動（セクション境界も移動）";
   try{
     const result=calculate(step);
     $("hzReadout").textContent="最下音 "+hz(result.baseHz)+"Hz · "+result.freqs.length+"音";
@@ -989,13 +1113,33 @@ function insertChord(duplicate){
 }
 $("addStep").addEventListener("click",()=>insertChord(false));
 $("duplicate").addEventListener("click",()=>insertChord(true));
-function swap(delta){
-  const {section,index}=selectedLocation();const target=index+delta;
-  if(target<0||target>=section.steps.length)return;
-  mutate(d=>{const steps=d.sections.find(s=>s.id===section.id).steps;[steps[index],steps[target]]=[steps[target],steps[index]]},{structural:true});
+function moveSelectedChord(delta,focus=false){
+  const {section,step,index}=selectedLocation();
+  const secIndex=project.sections.findIndex(s=>s.id===section.id);
+  let target=section,beforeId=null;
+  if(delta<0){
+    if(index>0)beforeId=section.steps[index-1].id;
+    else{
+      target=project.sections[secIndex-1];
+      if(!target||section.steps.length<=1)return false;
+    }
+  }else{
+    if(index<section.steps.length-1)beforeId=section.steps[index+2]?.id||null;
+    else{
+      target=project.sections[secIndex+1];
+      if(!target||section.steps.length<=1)return false;
+      beforeId=target.steps[0].id;
+    }
+  }
+  rememberCurrentChunk();
+  const okay=mutate(d=>moveChord(d,section.id,step.id,target.id,beforeId),
+    {structural:true,selectAfter:{sectionId:target.id,stepId:step.id}});
+  if(okay&&focus)requestAnimationFrame(()=>
+    [...document.querySelectorAll(".progression-cell[data-cid]")].find(x=>x.dataset.cid===step.id)?.focus({preventScroll:true}));
+  return okay;
 }
-$("moveLeft").addEventListener("click",()=>swap(-1));
-$("moveRight").addEventListener("click",()=>swap(1));
+$("moveLeft").addEventListener("click",()=>moveSelectedChord(-1));
+$("moveRight").addEventListener("click",()=>moveSelectedChord(1));
 bindNumberScrub($("gridColumns"),{
   get:()=>columns,
   commit:value=>{columns=value;saveSelection();updateGridColumns()},
