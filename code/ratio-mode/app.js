@@ -1,7 +1,7 @@
 import {AudioEngine} from "../src/audio.js";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {HistoryManager, isNativeUndoTarget} from "../src/history.js";
-import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,importText,exportText} from "./model.mjs";
+import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,moveChord,importText,exportText} from "./model.mjs";
 
 const $=id=>document.getElementById(id);
 const copy=value=>JSON.parse(JSON.stringify(value));
@@ -10,6 +10,7 @@ const UI_STORE="muChordbot.ratioMode.ui.v1";
 const history=new HistoryManager(100);
 const engine=new AudioEngine();
 let project,saveAllowed=true,selection={sectionId:null,stepId:null},columns=4,playScope="all";
+const chunkViews=new Map();let chunkScrollTimer=null,transport=null;
 let timer=null,runId=0,playing=false,playingStepId=null,voiceCount=0;
 let tapVersion=0,tapTimer=null,tapVoiceIds=[],transportVoiceIds=[],voiceGeneration=0;
 const id=prefix=>prefix+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
@@ -33,11 +34,20 @@ function boot(){
     if(ui&&typeof ui.sectionId==="string"&&typeof ui.stepId==="string")selection={sectionId:ui.sectionId,stepId:ui.stepId};
     if(ui&&Number.isInteger(ui.columns)&&ui.columns>=1&&ui.columns<=12)columns=ui.columns;
     if(ui&&["all","chunk","section"].includes(ui.playScope))playScope=ui.playScope;
+    if(ui?.chunkViews&&typeof ui.chunkViews==="object"&&!Array.isArray(ui.chunkViews)){
+      for(const [chunkId,value] of Object.entries(ui.chunkViews).slice(0,32)){
+        if(!value||typeof value!=="object"||typeof value.sectionId!=="string"||
+          typeof value.stepId!=="string"||!Number.isFinite(value.scrollTop)||value.scrollTop<0||value.scrollTop>100000)continue;
+        const section=project.sections.find(s=>s.id===value.sectionId&&s.chunkId===chunkId);
+        if(section?.steps.some(step=>step.id===value.stepId))
+          chunkViews.set(chunkId,{sectionId:value.sectionId,stepId:value.stepId,scrollTop:value.scrollTop});
+      }
+    }
   }catch(error){/* UI-only state is non-authoritative. */}
   chooseFirst();render();
 }
 function saveSelection(){
-  try{localStorage.setItem(UI_STORE,JSON.stringify({...selection,columns,playScope}))}catch(error){/* UI selection optional. */}
+  try{localStorage.setItem(UI_STORE,JSON.stringify({...selection,columns,playScope,chunkViews:Object.fromEntries(chunkViews)}))}catch(error){/* UI selection optional. */}
 }
 function save(){
   if(!saveAllowed){$("saveState").textContent="保存停止";$("saveState").dataset.error="true";notice("保存停止中です。入出力からファイルに退避してください。",true);return}
@@ -55,40 +65,68 @@ function chooseFirst(){
 }
 function mutate(change,{structural=false,audition=false,preserveTargets=false}={}){
   try{
-    const before=copy(project),draft=copy(project);change(draft);
+    const before=copy(project),beforeSelection=copy(selection),draft=copy(project);change(draft);
     const next=validateProject(draft);
     if(JSON.stringify(before)===JSON.stringify(next))return true;
-    if(structural)stopPlayback();
-    project=next;history.push({type:"ratio_edit",before,after:copy(next)});
+    const soundingBefore=before.sections.flatMap(x=>x.steps).find(x=>x.id===playingStepId);
+    const soundingAfter=next.sections.flatMap(x=>x.steps).find(x=>x.id===playingStepId);
+    const audibleChanged=!!(playing&&soundingBefore&&soundingAfter&&(
+      soundingBefore.expr!==soundingAfter.expr||soundingBefore.pitch!==soundingAfter.pitch||
+      before.settings.wave!==next.settings.wave||
+      JSON.stringify(before.presets)!==JSON.stringify(next.presets)));
+    // Structural edits do not reset the transport; the next boundary reads
+    // the latest project, while the current sounding occurrence finishes.
+    project=next;history.push({type:"ratio_edit",
+      before:{project:before,selection:beforeSelection},
+      after:{project:copy(next),selection:copy(selection)}});
     chooseFirst();saveSelection();save();if(saveAllowed)notice("");
     if(preserveTargets){refreshCardValues();renderPresets();renderSelection();renderHistory()}
     else render();
-    if(playing&&playingStepId)void refreshPlayingVoices();
+    if(audibleChanged)void refreshPlayingVoices();
     if(audition)void preview();
     return true;
   }catch(error){notice(error.message||String(error),true);return false}
 }
+function rememberCurrentChunk(){
+  const section=project.sections.find(s=>s.id===selection.sectionId);
+  if(!section)return;
+  const prev=chunkViews.get(section.chunkId)||{};
+  chunkViews.set(section.chunkId,{...prev,sectionId:selection.sectionId,stepId:selection.stepId,
+    scrollTop:$("timeline").scrollTop});
+}
 function setSelection(sid,cid){
-  finishActiveText(true);
-  cancelValueGesture?.();
+  finishActiveText(true);cancelValueGesture?.();
   const old=project.sections.find(s=>s.id===selection.sectionId)?.chunkId;
-  const next=project.sections.find(s=>s.id===sid)?.chunkId;
+  const dest=project.sections.find(s=>s.id===sid);
+  if(!dest||!dest.steps.some(step=>step.id===cid))return;
+  const next=dest.chunkId;
+  rememberCurrentChunk();
   selection={sectionId:sid,stepId:cid};
-  saveSelection();
   if(old!==next)renderTimeline();
   renderSelection();
+  chunkViews.set(next,{sectionId:sid,stepId:cid,scrollTop:$("timeline").scrollTop});
+  saveSelection();
 }
 function restore(snapshot){
-  const wasPlaying=playing;
-  stopPlayback();project=copy(snapshot);
+  const prior=project;
+  const state=snapshot?.project?snapshot:{project:snapshot,selection:null};
+  project=copy(state.project);
+  if(state.selection)selection=copy(state.selection);
   chooseFirst();saveSelection();save();render();if(saveAllowed)notice("");
-  // Undo/redo is authoritative even if a text field retains native focus.
   const current=selectedLocation().step;
   $("editExpr").value=chordExpression(current,project.presets);$("editPitch").value=current.pitch;
   $("editBeats").value=current.beats+"/"+(current.beatUnit||4);
-  // History restores data, not unsolicited sound.
-  if(wasPlaying)startPlayback();
+  // Undo/redo restores the project, never re-starts the transport or audition.
+  if(playing&&playingStepId){
+    const before=prior.sections.flatMap(s=>s.steps).find(s=>s.id===playingStepId);
+    const after=project.sections.flatMap(s=>s.steps).find(s=>s.id===playingStepId);
+    if(before&&after&&(before.expr!==after.expr||before.pitch!==after.pitch||
+      prior.settings.wave!==project.settings.wave||
+      JSON.stringify(prior.presets)!==JSON.stringify(project.presets)))
+      void refreshPlayingVoices();
+  }
 }
+
 function undo(){if(cancelActiveDraft())return;history.undo(restore);renderHistory()}
 function redo(){if(cancelActiveDraft())return;history.redo(restore);renderHistory()}
 function renderHistory(){
@@ -115,6 +153,97 @@ function removeStep(sectionId,stepId){
   if(mutate(d=>d.sections.find(s=>s.id===sectionId).steps.splice(index,1),{structural:true})&&wasSelected)
     setSelection(sectionId,successor.id);
 }
+// Native mouse DnD and touch long-hold both resolve a stable chord insertion
+// point; neither movement starts playback or creates a transient project edit.
+let dropCue=null,skipNextCardClickUntil=0;
+function clearDropCue(){
+  if(dropCue)dropCue.node.classList.remove("drop-before","drop-after","ratio-drop-target");
+  dropCue=null;
+}
+function dropPosition(x,y){
+  const el=document.elementFromPoint(x,y);
+  if(!el||!el.closest("#timeline"))return null;
+  const card=el.closest(".progression-cell[data-cid]");
+  if(card){
+    const rect=card.getBoundingClientRect();
+    const vertical=Number($("timeline").dataset.columns)===1;
+    const after=vertical?y>rect.top+rect.height/2:x>rect.left+rect.width/2;
+    return {sectionId:card.dataset.sid,beforeId:after?
+      card.closest(".progression-cell-shell")?.nextElementSibling?.querySelector(".progression-cell[data-cid]")?.dataset.cid||null:card.dataset.cid,
+      node:card,cue:after?"drop-after":"drop-before"};
+  }
+  const group=el.closest(".ratio-section-group");
+  if(!group)return null;
+  return {sectionId:group.dataset.sectionId,beforeId:null,
+    node:group.querySelector(".ratio-add-small"),cue:"ratio-drop-target"};
+}
+function showDropCue(where){
+  if(dropCue&&where&&dropCue.node===where.node&&dropCue.cue===where.cue)return;
+  clearDropCue();
+  if(where?.node){where.node.classList.add(where.cue);dropCue=where}
+}
+function applyChordMove(fromSectionId,stepId,where){
+  if(!where||!where.sectionId||!project.sections.some(s=>s.id===fromSectionId&&s.steps.some(c=>c.id===stepId)))return false;
+  if(fromSectionId===where.sectionId&&where.beforeId===stepId)return false;
+  const success=mutate(d=>moveChord(d,fromSectionId,stepId,where.sectionId,where.beforeId),{structural:true});
+  if(success)setSelection(where.sectionId,stepId);
+  return success;
+}
+function dragSource(event){
+  const value=event.dataTransfer?.getData("text/plain")||"";
+  const parts=value.split(":");
+  return parts.length===2?parts:null;
+}
+function receiveChordDrop(e,where){
+  e.preventDefault();e.stopPropagation();
+  const source=dragSource(e);
+  clearDropCue();
+  if(source)applyChordMove(source[0],source[1],where);
+}
+function bindTouchChordMove(card,sectionId,stepId){
+  let hold=null;
+  function cancel(){
+    if(!hold)return;
+    clearTimeout(hold.timer);
+    card.classList.remove("reorder-source");
+    if(hold.active)skipNextCardClickUntil=performance.now()+750;
+    hold=null;clearDropCue();
+  }
+  card.addEventListener("touchstart",e=>{
+    if(e.touches.length!==1||hold)return;
+    const t=e.touches[0];
+    const g={x:t.clientX,y:t.clientY,active:false,timer:null};
+    hold=g;
+    g.timer=setTimeout(()=>{
+      if(hold!==g)return;
+      g.active=true;card.classList.add("reorder-source");
+      skipNextCardClickUntil=performance.now()+750;
+      showDropCue(dropPosition(g.x,g.y));
+    },300);
+  },{passive:true});
+  card.addEventListener("touchmove",e=>{
+    if(!hold)return;
+    if(e.touches.length!==1){cancel();return}
+    const t=e.touches[0];
+    if(!hold.active){
+      if(Math.hypot(t.clientX-hold.x,t.clientY-hold.y)>8)cancel();
+      return; // short swipes remain ordinary timeline scrolling
+    }
+    e.preventDefault();
+    showDropCue(dropPosition(t.clientX,t.clientY));
+  },{passive:false});
+  card.addEventListener("touchend",e=>{
+    if(!hold)return;
+    const g=hold,target=e.changedTouches[0];
+    if(!g.active){cancel();return}
+    e.preventDefault();skipNextCardClickUntil=performance.now()+750;
+    const where=target?dropPosition(target.clientX,target.clientY):dropCue;
+    cancel();
+    applyChordMove(sectionId,stepId,where);
+  },{passive:false});
+  card.addEventListener("touchcancel",cancel,{passive:true});
+}
+
 function makeCard(section,step,index){
   // A sibling button is used instead of nesting a delete button inside a button.
   const shell=document.createElement("div");shell.className="progression-cell-shell";
@@ -123,32 +252,33 @@ function makeCard(section,step,index){
   if(step.id===playingStepId)card.classList.add("playing");
   card.draggable=true;
   // Grid width is owned by the standard progression columns setting.
-  card.setAttribute("aria-label",section.name+" のコード "+step.expr+" "+step.pitch+" "+beatLabel(step)+"、押すと試聴");
+  card.setAttribute("aria-label",section.name+" のコード "+step.expr+" "+step.pitch+" "+beatLabel(step)+"。タップで試聴、長押しして移動");
+  card.title="タップで試聴・長押しで順序変更";
   const name=document.createElement("span");name.className="cell-title";name.textContent=parseRatio(step.expr,project.presets).name||step.expr;
   const note=document.createElement("span");note.className="cell-note";note.textContent=step.pitch;
   const meta=document.createElement("span");meta.className="cell-meta";meta.textContent=beatLabel(step);
   card.append(name,note,meta);
-  card.addEventListener("click",()=>{setSelection(section.id,step.id);void auditionCard(selectedLocation().step)});
+  card.addEventListener("click",e=>{
+    if(performance.now()<skipNextCardClickUntil){e.preventDefault();return}
+    setSelection(section.id,step.id);void auditionCard(selectedLocation().step);
+  });
+  bindTouchChordMove(card,section.id,step.id);
   card.addEventListener("dragstart",e=>{
+    if(!e.dataTransfer)return;
     e.dataTransfer.setData("text/plain",section.id+":"+step.id);
     e.dataTransfer.effectAllowed="move";card.classList.add("reorder-source");
   });
-  card.addEventListener("dragend",()=>card.classList.remove("reorder-source"));
-  card.addEventListener("dragover",e=>{e.preventDefault();e.dataTransfer.dropEffect="move";card.classList.add("drop-before")});
-  card.addEventListener("dragleave",()=>card.classList.remove("drop-before"));
-  card.addEventListener("drop",e=>{
-    e.preventDefault();card.classList.remove("drop-before");
-    const source=e.dataTransfer.getData("text/plain").split(":");
-    if(source.length!==2||source[1]===step.id)return;
-    const from=project.sections.find(s=>s.id===source[0]),to=project.sections.find(s=>s.id===section.id);
-    if(!from||!to||(from!==to&&from.steps.length<=1))return;
-    if(mutate(d=>{
-      const a=d.sections.find(s=>s.id===source[0]),b=d.sections.find(s=>s.id===section.id);
-      const old=a.steps.findIndex(c=>c.id===source[1]);if(old<0)return;
-      const moved=a.steps.splice(old,1)[0],at=b.steps.findIndex(c=>c.id===step.id);
-      b.steps.splice(at,0,moved);
-    },{structural:true}))setSelection(section.id,source[1]);
+  card.addEventListener("dragend",()=>{
+    card.classList.remove("reorder-source");clearDropCue()
   });
+  card.addEventListener("dragover",e=>{
+    if(!e.dataTransfer)return;
+    e.preventDefault();e.dataTransfer.dropEffect="move";
+    const rect=card.getBoundingClientRect();
+    showDropCue(dropPosition(rect.left+Math.max(1,Math.min(rect.width-1,e.clientX-rect.left)),
+      rect.top+Math.max(1,Math.min(rect.height-1,e.clientY-rect.top))));
+  });
+  card.addEventListener("drop",e=>receiveChordDrop(e,dropPosition(e.clientX,e.clientY)));
   shell.append(card);
   if(section.steps.length>1){
     const remove=document.createElement("button");remove.type="button";
@@ -397,10 +527,12 @@ function refreshCardValues(){
   }
 }
 function renderTimeline(){
-  const timeline=$("timeline"),top=timeline.scrollTop,fragment=document.createDocumentFragment();
+  const timeline=$("timeline"),fragment=document.createDocumentFragment();
   const selected=selectedLocation().section;
   const chunk=chunksOf(project).find(c=>c.id===selected?.chunkId)||chunksOf(project)[0];
   if(!chunk)return;
+  const renderedChunk=timeline.querySelector(".progression-chunk")?.dataset.chunkId;
+  const top=renderedChunk===chunk.id?timeline.scrollTop:chunkViews.get(chunk.id)?.scrollTop||0;
   const wrap=document.createElement("section");wrap.className="progression-chunk";
   wrap.dataset.chunkId=chunk.id;
   // The chunk name exists only in its selector; no duplicate heading.
@@ -434,6 +566,16 @@ function renderTimeline(){
       header.append(remove);
     }
     const grid=document.createElement("div");grid.className="progression-chunk-grid";
+    group.addEventListener("dragover",e=>{
+      if(e.target.closest(".progression-cell[data-cid]"))return;
+      if(!e.dataTransfer)return;
+      e.preventDefault();e.dataTransfer.dropEffect="move";
+      showDropCue({sectionId:section.id,beforeId:null,node:add,cue:"ratio-drop-target"});
+    });
+    group.addEventListener("drop",e=>{
+      if(e.target.closest(".progression-cell[data-cid]"))return;
+      receiveChordDrop(e,{sectionId:section.id,beforeId:null});
+    });
     section.steps.forEach((step,index)=>grid.append(makeCard(section,step,index)));
     const add=document.createElement("button");add.type="button";
     add.className="progression-cell progression-cell-add";add.textContent="+";
@@ -447,6 +589,11 @@ function renderTimeline(){
       }
     });
     add.classList.add("ratio-add-small");
+    add.addEventListener("dragover",e=>{
+      e.preventDefault();e.stopPropagation();
+      showDropCue({sectionId:section.id,beforeId:null,node:add,cue:"ratio-drop-target"});
+    });
+    add.addEventListener("drop",e=>receiveChordDrop(e,{sectionId:section.id,beforeId:null}));
     group.append(header,grid,add);wrap.append(group);
   }
   fragment.append(wrap);
@@ -766,8 +913,16 @@ document.addEventListener("keydown",e=>{
 });
 $("chunkJump").addEventListener("change",e=>{
   const chunk=chunksOf(project).find(c=>c.id===e.target.value);
-  if(chunk)setSelection(chunk.sections[0].id,chunk.sections[0].steps[0].id);
+  if(!chunk)return;
+  const previous=chunkViews.get(chunk.id);
+  const remembered=chunk.sections.find(s=>s.id===previous?.sectionId);
+  const target=remembered?.steps.find(s=>s.id===previous?.stepId);
+  setSelection(target?remembered.id:chunk.sections[0].id,target?.id||chunk.sections[0].steps[0].id);
 });
+$("timeline").addEventListener("scroll",()=>{
+  rememberCurrentChunk();
+  clearTimeout(chunkScrollTimer);chunkScrollTimer=setTimeout(saveSelection,160);
+},{passive:true});
 
 bindBeatFlick($("editBeats"));
 bindPitchFlick($("editPitch"));
@@ -861,7 +1016,7 @@ function updatePlayStatus(running){
   button.title=running?"再生中：押すと選択位置から再スタート":"選択位置から再生";
 }
 function stopPlayback(){
-  stopAudition();transportVoiceIds=[];
+  stopAudition();transportVoiceIds=[];transport=null;
   runId++;playing=false;playingStepId=null;voiceCount=0;clearTimeout(timer);timer=null;
   engine.stopAll();updatePlayStatus(false);
   document.querySelectorAll(".progression-cell.playing").forEach(el=>el.classList.remove("playing"));
@@ -900,23 +1055,55 @@ function highlightStep(step){
     card.classList.toggle("playing",card.dataset.cid===step.id);
   }
 }
+// The scope is captured at Play. Each boundary follows the latest project,
+// keyed by (section, chord, repeat occurrence) rather than a stale array index.
+function sequenceForScope(sectionId,chunkId){
+  const counts=new Map();
+  return flatten(project,sectionId,chunkId).map(step=>{
+    const base=step.sectionId+"\u0000"+step.stepId,n=counts.get(base)||0;
+    counts.set(base,n+1);
+    return {...step,occurrence:base+"\u0000"+n};
+  });
+}
+function nextSequencePosition(seq,state){
+  if(state.last===null)return Math.max(0,seq.findIndex(s=>s.stepId===state.initialStepId));
+  const index=seq.findIndex(s=>s.occurrence===state.last);
+  if(index>=0)return index+1;
+  // The current occurrence was deleted. Rejoin at the first surviving old
+  // successor instead of jumping back to the start or replaying past notes.
+  for(const old of state.priorSequence.slice(state.priorIndex+1)){
+    const n=seq.findIndex(s=>s.occurrence===old);
+    if(n>=0)return n;
+  }
+  return seq.length;
+}
 function startPlayback(sectionId=null,chunkId=null){
   stopPlayback();
-  const steps=flatten(project,sectionId,chunkId);if(!steps.length)return;
+  const steps=sequenceForScope(sectionId,chunkId);if(!steps.length)return;
   const token=runId;
-  const selectedIndex=steps.findIndex(s=>s.stepId===selection.stepId);
-  let index=selectedIndex>=0?selectedIndex:0;
+  transport={sectionId,chunkId,initialStepId:selection.stepId,
+    last:null,priorSequence:[],priorIndex:-1,deadline:null};
   playing=true;updatePlayStatus(true);
   const advance=async()=>{
-    if(token!==runId||!playing)return;
-    if(index>=steps.length){if(project.settings.loop)index=0;else{stopPlayback();return}}
-    const step=steps[index++];
+    if(token!==runId||!playing||!transport)return;
+    const scope=transport,seq=sequenceForScope(scope.sectionId,scope.chunkId);
+    if(!seq.length){stopPlayback();notice("再生対象のセクション／チャンクがなくなりました",true);return}
+    let index=nextSequencePosition(seq,scope);
+    if(index>=seq.length){
+      if(project.settings.loop)index=0;
+      else{stopPlayback();return}
+    }
+    const step=seq[index];
+    scope.last=step.occurrence;
+    scope.priorSequence=seq.map(s=>s.occurrence);
+    scope.priorIndex=index;
     try{
       const ok=await startVoices(step,token);
-      if(!ok)return;
+      if(!ok||token!==runId)return;
       highlightStep(step);
       const duration=quarterBeats(step)*60000/project.settings.bpm;
-      timer=setTimeout(advance,duration);
+      scope.deadline=Math.max(performance.now(),scope.deadline??0)+duration;
+      timer=setTimeout(advance,Math.max(0,scope.deadline-performance.now()));
     }catch(error){stopPlayback();notice(error.message||"再生できません",true)}
   };
   void advance();
@@ -994,9 +1181,11 @@ $("ioImport").addEventListener("click",()=>{
   const source=$("ioText").value;
   try{
     const incoming=source.trim().startsWith("{")?validateProject(JSON.parse(source)):importText(source);
-    const before=copy(project);
+    const before=copy(project),beforeSelection=copy(selection);
     stopPlayback();project=incoming;
-    history.push({type:"ratio_import",before,after:copy(incoming)});
+    history.push({type:"ratio_import",
+      before:{project:before,selection:beforeSelection},
+      after:{project:copy(incoming),selection:copy(selection)}});
     chooseFirst();saveSelection();save();render();$("ioStatus").textContent="進行を読み込みました";
     notice("読み込み成功。元に戻すで直前の進行に復帰できます");
   }catch(error){$("ioStatus").textContent="読み込み失敗（現在の進行は保持）: "+error.message}

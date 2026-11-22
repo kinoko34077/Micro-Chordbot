@@ -256,6 +256,25 @@ export function validateProject(value) {
   }
   return {format:FORMAT,title:text(value.title).slice(0,120)||"無題",settings:{bpm,loop:!!s.loop,wave},presets,sections};
 }
+// Cross-section choreography uses stable IDs and one model transaction.
+// Refuse a move that leaves a section without its required final chord.
+export function moveChord(project,fromSectionId,stepId,toSectionId,beforeStepId=null){
+  const source=project.sections.find(s=>s.id===fromSectionId);
+  const dest=project.sections.find(s=>s.id===toSectionId);
+  if(!source||!dest)fail("移動元または移動先のセクションが見つかりません");
+  const index=source.steps.findIndex(s=>s.id===stepId);
+  if(index<0)fail("移動元コードが見つかりません");
+  if(source!==dest&&source.steps.length<=1)
+    fail("セクションにはコードを1つ以上残してください");
+  if(beforeStepId&&dest.steps.every(s=>s.id!==beforeStepId))
+    fail("挿入先のコードが見つかりません");
+  if(source===dest&&beforeStepId===stepId)return false;
+  const [moved]=source.steps.splice(index,1);
+  const place=beforeStepId?dest.steps.findIndex(s=>s.id===beforeStepId):dest.steps.length;
+  dest.steps.splice(place,0,moved);
+  return true;
+}
+
 export function chunksOf(project) {
   const chunks=[];
   for(const section of project.sections){

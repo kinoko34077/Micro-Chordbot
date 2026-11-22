@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFile} from "node:fs/promises";
-import {parsePitch,parseRatio,flickPitch,flickGridPitch,flickEnharmonicCells,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
+import {parsePitch,parseRatio,flickPitch,flickGridPitch,flickEnharmonicCells,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,moveChord,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {AudioEngine} from "../src/audio.js";
 const hz=(s)=>{const p=parsePitch(s);return frequencyFromPitch(440,p.octave,p.microStepInOctave)};
@@ -208,4 +208,20 @@ test("named chord local override never mutates shared preset, and survives text 
   assert.equal(importText(exportText(p)).sections[0].steps[0].expr,st.expr);
   assert.equal(validateProject(JSON.parse(JSON.stringify(p))).sections[0].steps[0].expr,st.expr);
   setChordExpression(p,st,"[Major]8:10:12");assert.equal(st.expr,"Major");
+});
+
+test("stable-ID chord reorder supports before/end and cross-section with one semantic move",()=>{
+  const project=validateProject(newProject());
+  const a=project.sections[0],b=project.sections[1],ids=a.steps.map(s=>s.id);
+  assert.equal(moveChord(project,a.id,ids[0],a.id,ids[2]),true);
+  assert.deepEqual(a.steps.map(s=>s.id),[ids[1],ids[0],ids[2]]);
+  assert.equal(moveChord(project,a.id,ids[2],b.id,b.steps[1].id),true);
+  assert.deepEqual(b.steps.map(s=>s.id),["b1",ids[2],"b2"]);
+  assert.equal(a.steps.length,2);
+  assert.equal(moveChord(project,a.id,ids[1],b.id),true);
+  assert.equal(b.steps.at(-1).id,ids[1]);
+  assert.throws(()=>moveChord(project,a.id,ids[0],b.id),/1つ以上残して/);
+  assert.equal(a.steps.length,1);
+  assert.equal(moveChord(project,b.id,ids[1],b.id,ids[1]),false);
+  assert.ok(validateProject(project));
 });
