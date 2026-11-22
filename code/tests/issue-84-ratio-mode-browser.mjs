@@ -30,6 +30,15 @@ try{
     assert.equal(await link.count(),1,"standard menu must still expose ratio mode");
     await link.click();await page.waitForURL("**/ratio-mode/");
     const cells=page.locator(".progression-cell[data-cid]");
+    const typeNumeric=async(selector,value)=>{
+      const field=page.locator(selector).first();
+      await field.dblclick();
+      assert.equal(await field.evaluate(el=>el.readOnly),false,"double tap/click should unlock "+selector);
+      await field.fill(String(value));
+      await field.dispatchEvent("change");
+      assert.equal(await field.inputValue(),String(value));
+      assert.equal(await field.evaluate(el=>el.readOnly),true,"numeric commit must relock "+selector);
+    };
     const setPitch=async value=>{
       await page.locator("#editPitch").dblclick();
       assert.equal(await page.locator("#editPitch").evaluate(el=>el.readOnly),false,"double must unlock pitch");
@@ -141,23 +150,37 @@ try{
     assert.equal(await page.locator("#presetManager").count(),0,"preset edit must never open a separate dialog");
     assert.equal(await page.locator("#presetInlineRow").isVisible(),false,"inline edit starts collapsed");
     assert.equal(await cells.first().locator(".cell-meta").innerText(),"4/4拍","card should show beats fraction, never ordinal");
-    if(width<=950)await page.locator("#progMenuToggleBtn").click();
+    assert.equal(await page.locator("#playScope").isVisible(),true,"play scope hidden in settings");
+    const scopeRect=await page.locator("#playScope").boundingBox();
+    assert.ok(scopeRect&&scopeRect.x>=0&&scopeRect.x+scopeRect.width<=width+2,"play scope outside viewport");
+    if(width<=950){
+      await page.locator("#progMenuToggleBtn").click();
+      const align=await page.locator("#progMenuToggleBtn").evaluate(el=>({align:getComputedStyle(el).alignItems,justify:getComputedStyle(el).justifyContent}));
+      assert.deepEqual(align,{align:"center",justify:"center"},"settings label not internally centered");
+    }
     if(width<=640){
       await page.locator("#masterVolumeMobile").evaluate(el=>{
         el.value="0.45";el.dispatchEvent(new Event("input",{bubbles:true}));
       });
       assert.equal(await page.locator("#masterVolume").inputValue(),"0.45","mobile slider did not update AudioEngine master control");
     }
-    await page.locator("#gridColumns").fill("1");
-    await page.locator("#gridColumns").dispatchEvent("change");
+    await typeNumeric("#gridColumns",1);
     assert.equal(await page.locator("#timeline").getAttribute("data-columns"),"1");
     const one=await page.locator(".progression-chunk:first-child .progression-cell[data-cid]").evaluateAll(nodes=>nodes.slice(0,2).map(el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y}}));
     assert.ok(Math.abs(one[0].x-one[1].x)<3&&one[1].y>one[0].y+20,"single-column setting did not wrap");
-    await page.locator("#gridColumns").fill("12");
-    await page.locator("#gridColumns").dispatchEvent("change");
+    await typeNumeric("#gridColumns",12);
     assert.equal(await page.locator("#timeline").getAttribute("data-columns"),String(Math.min(12,expectedCap)),"12-column setting must clamp on narrow devices");
-    await page.locator("#gridColumns").fill("4");
-    await page.locator("#gridColumns").dispatchEvent("change");
+    const shownColumn=Number(await page.locator("#timeline").getAttribute("data-columns"));
+    assert.equal(await page.locator("#effectiveColumns").isVisible(),shownColumn<12);
+    if(shownColumn<12)assert.equal(await page.locator("#effectiveColumns").innerText(),"表示"+shownColumn);
+    await typeNumeric("#gridColumns",4);
+    await typeNumeric("#bpm",120);
+    assert.equal(await page.locator("#bpm").inputValue(),"120");
+    await page.locator("#undo").click();
+    assert.equal(await page.locator("#bpm").inputValue(),"110","BPM edit should be a single Undo");
+    await page.locator("#redo").click();
+    assert.equal(await page.locator("#bpm").inputValue(),"120");
+    await typeNumeric("#bpm",110);
     if(width<=950)await page.locator("#progMenuToggleBtn").click();
     await mkdir("artifacts/issue-28-layout-audit",{recursive:true});
     await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-mode-"+width+"x"+height+".png"});
@@ -452,8 +475,7 @@ try{
     assert.equal(await page.locator(".ratio-section-name").first().innerText(),"前奏");
     assert.equal(await page.locator(".progression-cell.active").getAttribute("data-cid"),chordId,"rename changed selected chord");
     assert.equal(await page.evaluate(()=>window.__ratioStarted.length),n,"renaming unexpectedly played audio");
-    await page.locator(".ratio-section-repeat input").first().fill("3");
-    await page.locator(".ratio-section-repeat input").first().dispatchEvent("change");
+    await typeNumeric(".ratio-section-repeat input",3);
     assert.equal(await page.locator(".ratio-section-repeat input").first().inputValue(),"3");
     const repeatBox=await page.locator(".ratio-section-repeat input").first().boundingBox();
     const rx=repeatBox.x+repeatBox.width/2,ry=repeatBox.y+repeatBox.height/2;
@@ -468,13 +490,23 @@ try{
     assert.equal(await cells.count(),5,"switching chunk must show all original chord cells");
     await page.locator("#chunkJump").selectOption({label:"間奏"});
     assert.equal(await cells.count(),2,"switching chunk must show its own chord cells only");
-    if(width<=950)await page.locator("#progMenuToggleBtn").click();
     assert.equal(await page.locator("#playChunk,#playSection").count(),0,"redundant playback buttons remain");
+    assert.equal(await page.locator("#playScope").isVisible(),true,"scope must be visible without settings");
     await page.locator("#playScope").selectOption("chunk");
-    if(width<=950)await page.locator("#progMenuToggleBtn").click();
+    assert.equal(await page.locator("#playScope").inputValue(),"chunk");
     await page.locator("#play").click();
+    assert.ok(await page.locator("#play").innerText(),"play label missing");
     await page.waitForFunction(()=>document.querySelectorAll(".progression-cell.playing").length===1);
     await page.locator("#stop").click();
+    if(width<=950){
+      await page.locator("#progMenuToggleBtn").click();
+      assert.equal(await page.locator("#progMenuToggleBtn").getAttribute("aria-expanded"),"true");
+      await page.keyboard.press("Escape");
+      assert.equal(await page.locator("#progMenuToggleBtn").getAttribute("aria-expanded"),"false");
+      await page.locator("#progMenuToggleBtn").click();
+      await page.locator("#playScope").click();
+      assert.equal(await page.locator("#progMenuToggleBtn").getAttribute("aria-expanded"),"false","outside tap should close settings");
+    }
     await page.locator("#openIO").click();
     assert.match(await page.locator("#ioText").inputValue(),/@chunk チャンク 1/);
     assert.match(await page.locator("#ioText").inputValue(),/@chunk 間奏/);
