@@ -495,8 +495,17 @@ try{
     assert.equal(await page.locator(".progression-cell.active").getAttribute("data-cid"),chordId);
     await page.locator("#chunkJump").selectOption({label:"チャンク 1"});
     assert.equal(await cells.count(),5,"switching chunk must show all original chord cells");
+    const rememberedId=await cells.nth(1).getAttribute("data-cid");
+    await cells.nth(1).click();
     await page.locator("#chunkJump").selectOption({label:"間奏"});
     assert.equal(await cells.count(),2,"switching chunk must show its own chord cells only");
+    await page.locator("#chunkJump").selectOption({label:"チャンク 1"});
+    assert.equal(await page.locator(".progression-cell.active").getAttribute("data-cid"),rememberedId,
+      "switching chunks lost the prior chord selection");
+    await page.locator("#chunkJump").selectOption({label:"間奏"});
+    assert.equal(await cells.count(),2);
+    const storedView=await page.evaluate(()=>JSON.parse(localStorage.getItem("muChordbot.ratioMode.ui.v1")).chunkViews);
+    assert.ok(Object.values(storedView).some(v=>v.stepId===rememberedId),"chunk view not persisted");
     assert.equal(await page.locator("#playChunk,#playSection").count(),0,"redundant playback buttons remain");
     assert.equal(await page.locator("#playScope").isVisible(),true,"scope must be visible without settings");
     await page.locator("#playScope").selectOption("chunk");
@@ -522,6 +531,10 @@ try{
     assert.equal(await page.locator("#playScope").inputValue(),"chunk","playback scope not retained");
     assert.equal(await page.locator("#chunkJump option").count(),2,"chunk hierarchy lost on reload");
     assert.equal(await page.locator("#chunkJump").inputValue(),await page.locator("#chunkJump option").last().getAttribute("value"),"active chunk lost on reload");
+    await page.locator("#chunkJump").selectOption({label:"チャンク 1"});
+    assert.equal(await page.locator(".progression-cell.active").getAttribute("data-cid"),rememberedId,
+      "reload did not restore the saved selection in other chunk");
+    await page.locator("#chunkJump").selectOption({label:"間奏"});
     const initialCount=await cells.count();
     await page.locator("#editExpr").fill("7:9:11");
     await page.locator("#editExpr").dispatchEvent("change");
@@ -532,6 +545,27 @@ try{
     assert.equal(await cells.count(),initialCount+2,"add chord didn't create");
     assert.equal(await page.locator("#editExpr").inputValue(),"4,5,6","add chord incorrectly copied");
     await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-mode-"+width+"x"+height+"-edited.png"});
+    if(width===390){
+      // Transport is keyed to musical occurrence, not to the current editor
+      // selection or a stale array that ignores structural changes.
+      await page.locator("#playScope").selectOption("all");
+      await page.locator("#play").click();
+      await page.waitForFunction(()=>document.querySelector("#play").classList.contains("playing"));
+      await page.locator("#addStep").click();
+      assert.equal(await page.locator("#play").evaluate(el=>el.classList.contains("playing")),true,
+        "adding chord abruptly stopped transport");
+      await page.locator("#undo").click();
+      assert.equal(await page.locator("#play").evaluate(el=>el.classList.contains("playing")),true,
+        "Undo restarted/stopped live transport");
+      const active=await page.locator(".progression-cell.active").getAttribute("data-cid");
+      await page.locator("#newSection").click();
+      assert.equal(await page.locator("#play").evaluate(el=>el.classList.contains("playing")),true,
+        "creating section stopped transport");
+      await page.locator("#undo").click();
+      assert.equal(await page.locator("#play").evaluate(el=>el.classList.contains("playing")),true,
+        "structural Undo stopped transport");
+      await page.locator("#stop").click();
+    }
     await page.locator("#removeChunk").click();
     assert.equal(await page.locator("#chunkJump option").count(),1,"chunk deletion left orphaned selectors");
     assert.equal(await page.locator("#chunkJump option").first().innerText(),"チャンク 1","deleting active chunk should select a neighboring chunk");
@@ -585,5 +619,23 @@ try{
     assert.equal(await touchPage.locator("#editPitch").inputValue(),"B4");
     assert.equal(await touchPage.locator("#pitchFlickPanel").isVisible(),false);
     console.log("touch pointer flick B4→C5→B4 PASS");
+    // Touch reorder uses long-hold, not a destructive tap or page-scroll gesture.
+    const first=touchPage.locator('.progression-cell[data-cid="a1"]');
+    const third=touchPage.locator('.progression-cell[data-cid="a3"]');
+    const firstBox=await first.boundingBox(),thirdBox=await third.boundingBox();
+    const sx=firstBox.x+firstBox.width*.32,sy=firstBox.y+firstBox.height*.52;
+    const dx=thirdBox.x+thirdBox.width*.24,dy=thirdBox.y+thirdBox.height*.52;
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:point(sx,sy)});
+    await touchPage.waitForTimeout(370);
+    assert.equal(await first.evaluate(el=>el.classList.contains("reorder-source")),true,"long-hold did not initiate move");
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:point(dx,dy)});
+    await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
+    const moved=await touchPage.locator(".progression-cell[data-cid]").evaluateAll(
+      els=>els.slice(0,3).map(el=>el.dataset.cid));
+    assert.deepEqual(moved,["a2","a1","a3"],"touch reorder did not insert the chord before target");
+    await touchPage.locator("#undo").click();
+    assert.deepEqual(await touchPage.locator(".progression-cell[data-cid]").evaluateAll(
+      els=>els.slice(0,3).map(el=>el.dataset.cid)),["a1","a2","a3"],"one Undo failed to restore touch move");
+    console.log("touch long-hold reorder + single Undo PASS");
   }finally{await touchContext.close()}
 }finally{await browser.close()}
