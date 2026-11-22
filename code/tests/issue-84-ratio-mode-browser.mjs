@@ -809,4 +809,67 @@ try{
       "chunk touch reorder did not undo as one change");
     console.log("chunk touch long-hold reorder + single Undo PASS");
   }finally{await touchContext.close()}
+
+  // #104 R4: record the real synchronous ratio-value commit path before/after
+  // an indexing refactor. Do not assert arbitrary wall-time performance budgets.
+  // Node identity, scroll, focus, Undo, and validated 256-step import ARE contracts.
+  for(const count of [128,256]){
+    const perfPage=await browser.newPage({viewport:{width:390,height:844}});
+    try{
+      await perfPage.goto("http://127.0.0.1:4173/ratio-mode/",{waitUntil:"domcontentloaded"});
+      const fixture=await perfPage.evaluate(async n=>{
+        const {newProject}=await import("./model.mjs");
+        const project=newProject(),section=project.sections[0];
+        section.repeat=1;
+        section.steps=Array.from({length:n},(_,index)=>({
+          id:"bench-"+index,expr:"Major",pitch:"C4",beats:4,beatUnit:4
+        }));
+        project.sections=[section];
+        return JSON.stringify(project);
+      },count);
+      await perfPage.locator("#openIO").click();
+      await perfPage.locator("#ioText").fill(fixture);
+      await perfPage.locator("#ioImport").click();
+      assert.match(await perfPage.locator("#ioStatus").innerText(),/成功/,"fixture import failed");
+      await perfPage.locator("#ioClose").click();
+      assert.equal(await perfPage.locator(".progression-cell[data-cid]").count(),count);
+      const measurement=await perfPage.evaluate(()=>{
+        const input=document.querySelector("#editExpr"),track=document.querySelector("#timeline");
+        const card=document.querySelector(".progression-cell[data-cid]"),times=[];
+        track.scrollTop=220;const beforeScroll=track.scrollTop;
+        let focusRetained=true,identityRetained=true;
+        for(let attempt=0;attempt<12;attempt++){
+          input.focus();
+          input.value=attempt%2?"Major":"Minor";
+          input.dispatchEvent(new Event("input",{bubbles:true}));
+          const start=performance.now();
+          input.dispatchEvent(new Event("change",{bubbles:true}));
+          times.push(performance.now()-start);
+          focusRetained&&=document.activeElement===input;
+          identityRetained&&=document.querySelector(".progression-cell[data-cid]")===card;
+          input.blur();
+        }
+        const ordered=times.slice(2).sort((a,b)=>a-b);
+        return {
+          steps:document.querySelectorAll(".progression-cell[data-cid]").length,
+          allMs:times.map(x=>Number(x.toFixed(3))),
+          medianMs:Number(ordered[Math.floor(ordered.length/2)].toFixed(3)),
+          p95Ms:Number(ordered[Math.ceil(ordered.length*.95)-1].toFixed(3)),
+          cardText:card.querySelector(".cell-title").textContent,
+          focusRetained,identityRetained,scrollBefore:beforeScroll,scrollAfter:track.scrollTop,
+          undoAvailable:!document.querySelector("#undo").disabled
+        };
+      });
+      assert.equal(measurement.steps,count);
+      assert.equal(measurement.cardText,"Major","ratio change did not propagate to visible card");
+      assert.equal(measurement.focusRetained,true,"input lost focus while committing");
+      assert.equal(measurement.identityRetained,true,"value edit unexpectedly remounted the timeline");
+      assert.equal(measurement.scrollAfter,measurement.scrollBefore,"value edit shifted timeline scroll");
+      assert.equal(measurement.undoAvailable,true,"value editing lost undo");
+      await perfPage.locator("#undo").click();
+      assert.equal(await perfPage.locator(".progression-cell[data-cid]").first().locator(".cell-title").innerText(),"Minor",
+        "one Undo did not restore previous ratio value");
+      console.log("R4_RATIO_CARD_EDIT_BASELINE "+JSON.stringify(measurement));
+    }finally{await perfPage.close()}
+  }
 }finally{await browser.close()}
