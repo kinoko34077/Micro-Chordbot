@@ -106,6 +106,7 @@ function setSelection(sid,cid){
   renderSelection();
   chunkViews.set(next,{sectionId:sid,stepId:cid,scrollTop:$("timeline").scrollTop});
   saveSelection();
+  updateOffscreenPlayback();
 }
 function restore(snapshot){
   const prior=project;
@@ -708,6 +709,11 @@ function renderTimeline(){
   fragment.append(wrap);
   timeline.replaceChildren(fragment);timeline.scrollTop=top;
   updateGridColumns();
+  if(playingStepId){
+    for(const card of timeline.querySelectorAll(".progression-cell[data-cid]"))
+      card.classList.toggle("playing",card.dataset.cid===playingStepId);
+  }
+  updateOffscreenPlayback();
 }
 function removePreset(name){
   mutate(d=>{
@@ -1175,10 +1181,13 @@ $("chunkJump").addEventListener("change",e=>{
   setSelection(target?remembered.id:chunk.sections[0].id,target?.id||chunk.sections[0].steps[0].id);
 });
 $("timeline").addEventListener("scroll",()=>{
+  updateOffscreenPlayback();
   rememberCurrentChunk();
   clearTimeout(chunkScrollTimer);chunkScrollTimer=setTimeout(saveSelection,160);
 },{passive:true});
 
+$("offscreenPlayback").addEventListener("click",jumpToOffscreenPlayback);
+window.addEventListener("resize",updateOffscreenPlayback);
 bindBeatFlick($("editBeats"));
 bindPitchFlick($("editPitch"));
 $("title").addEventListener("change",e=>mutate(d=>d.title=e.target.value));
@@ -1285,6 +1294,7 @@ function stopPlayback(){
   runId++;playing=false;playingStepId=null;voiceCount=0;clearTimeout(timer);timer=null;
   engine.stopAll();updatePlayStatus(false);
   document.querySelectorAll(".progression-cell.playing").forEach(el=>el.classList.remove("playing"));
+  updateOffscreenPlayback();
 }
 async function startVoices(step,token){
   const {freqs}=calculate(step);
@@ -1315,10 +1325,53 @@ async function refreshPlayingVoices(){
   }catch(error){notice(error.message||"音声更新失敗",true)}
 }
 
+// Show the sounding location only while it lies outside the visible timeline.
+// The status is UI-only: it must not change selection, playback scope, Undo or
+// audio until its explicit jump action is used.
+function playbackLocation(){
+  if(!playing||!playingStepId)return null;
+  for(const section of project.sections){
+    const step=section.steps.find(x=>x.id===playingStepId);
+    if(step)return {section,step};
+  }
+  return null;
+}
+function updateOffscreenPlayback(){
+  const button=$("offscreenPlayback"),playingAt=playbackLocation();
+  if(!playingAt){button.hidden=true;return}
+  const timeline=$("timeline"),card=[...timeline.querySelectorAll(".progression-cell[data-cid]")]
+    .find(x=>x.dataset.cid===playingAt.step.id&&x.dataset.sid===playingAt.section.id);
+  const viewport=timeline.getBoundingClientRect();
+  const rect=card?.getBoundingClientRect();
+  // A barely clipped card is not a meaningful point of reference.
+  const visible=!!(rect&&rect.bottom>viewport.top+12&&rect.top<viewport.bottom-12&&
+    rect.right>viewport.left+12&&rect.left<viewport.right-12);
+  if(visible){button.hidden=true;return}
+  const root=$("view-progression").getBoundingClientRect();
+  button.style.top=Math.max(0,viewport.top-root.top+6)+"px";
+  const chord=parseRatio(playingAt.step.expr,project.presets).name||playingAt.step.expr;
+  const label=playingAt.section.chunkName+" / "+playingAt.section.name+" · "+chord+" "+playingAt.step.pitch;
+  button.textContent="▶ "+label;
+  button.title=label+"：再生中のコードへ移動";
+  button.setAttribute("aria-label","再生中 "+label+"。このコードへ表示を移動");
+  button.hidden=false;
+}
+function jumpToOffscreenPlayback(){
+  const playingAt=playbackLocation();if(!playingAt)return;
+  setSelection(playingAt.section.id,playingAt.step.id);
+  requestAnimationFrame(()=>{
+    const target=[...$("timeline").querySelectorAll(".progression-cell[data-cid]")]
+      .find(x=>x.dataset.cid===playingAt.step.id&&x.dataset.sid===playingAt.section.id);
+    target?.scrollIntoView({block:"nearest",inline:"nearest"});
+    updateOffscreenPlayback();
+  });
+}
+
 function highlightStep(step){
   for(const card of document.querySelectorAll(".progression-cell[data-cid]")){
     card.classList.toggle("playing",card.dataset.cid===step.id);
   }
+  updateOffscreenPlayback();
 }
 // The scope is captured at Play. Each boundary follows the latest project,
 // keyed by (section, chord, repeat occurrence) rather than a stale array index.
