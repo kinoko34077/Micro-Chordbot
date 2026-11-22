@@ -655,6 +655,9 @@ try{
         const key="muChordbot.ratioMode.v1";
         const state=JSON.parse(localStorage.getItem(key));
         state.settings.bpm=300;state.settings.loop=true;
+        // Earlier cases rename/remove presets; the fixture must be complete
+        // rather than depend on previous tests' mutable named definitions.
+        state.presets=[{name:"Major",ratios:"4,5,6"},{name:"Minor",ratios:"10,12,15"}];
         state.sections=[
           {id:"visible",chunkId:"chunk-a",chunkName:"主部",name:"A",repeat:1,
             steps:[{id:"v1",expr:"Major",pitch:"C4",beats:1,beatUnit:16}]},
@@ -666,6 +669,8 @@ try{
       });
       await page.reload();
       assert.equal(await page.locator("#offscreenPlayback").isVisible(),false);
+      assert.notEqual(await page.locator("#saveState").innerText(),"保存停止",
+        "offscreen test fixture did not pass the project validator");
       await page.locator("#playScope").selectOption("all");
       await page.locator("#play").click();
       try{await page.locator("#offscreenPlayback").waitFor({state:"visible",timeout:3000})}
