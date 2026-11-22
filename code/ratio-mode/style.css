@@ -1676,3 +1676,55 @@ dialog::backdrop{background:#0009}
 
 /* Shared button alignment, including the responsive settings trigger. */
 .ratio-app .progression-menu-toggle{align-items:center;justify-content:center;text-align:center;}
+
+/* #84 S3: the play range is a visible part of transport, not a hidden
+   setting. Text is compact but the value/meaning remains perceivable. */
+.ratio-app .progression-transport .ratio-play-scope{
+  display:inline-flex;align-items:center;gap:3px;flex:0 0 auto;
+  white-space:nowrap;min-width:0;font-size:11px;
+}
+.ratio-app .progression-transport .ratio-play-scope #playScope{
+  width:clamp(68px,8vw,88px);min-width:0;max-width:88px;
+  min-height:34px;height:34px;padding:2px 1px 2px 3px;
+  border:0;border-bottom:1px solid var(--muted);
+  border-radius:0;background:transparent;
+  color:var(--ink);font-size:11px;
+}
+.ratio-app .ratio-effective-columns{display:inline;font-size:11px;color:var(--muted);white-space:nowrap}
+.ratio-app .ratio-effective-columns[hidden]{display:none!important}
+.ratio-app .ratio-scrub-value[readonly]{cursor:ns-resize;touch-action:none;caret-color:transparent}
+.ratio-app .ratio-scrub-value.exact-editing{cursor:text;touch-action:auto;caret-color:auto}
+.ratio-app .progression-transport #play{
+  display:inline-flex;align-items:center;justify-content:center;
+  white-space:nowrap;gap:0
+}
+.ratio-app .progression-transport #play .play-word{white-space:nowrap}
+.ratio-app .ratio-section-remove{
+  position:relative;min-width:30px!important;width:30px!important;
+  min-height:30px!important;height:30px!important;
+  background:transparent!important;border-color:transparent!important
+}
+.ratio-app .ratio-section-remove svg{width:13px;height:13px}
+.ratio-app .preset-item>.preset-edit{
+  width:31px;min-width:31px;height:30px;min-height:30px;
+  right:0;bottom:0
+}
+@media(max-width:950px){
+  .ratio-app .progression-transport .ratio-play-scope .ratio-scope-caption{display:none}
+  .ratio-app .progression-transport .ratio-play-scope #playScope{
+    width:68px;min-height:34px;height:34px;font-size:11px;
+  }
+}
+@media(max-width:360px){
+  .ratio-app .progression-transport #play .play-word{display:none}
+  .ratio-app .progression-transport #play{
+    min-width:28px;width:28px;min-height:34px;height:34px;padding:3px
+  }
+  .ratio-app .progression-transport .ratio-play-scope #playScope{
+    width:65px;font-size:10.5px
+  }
+  .ratio-app .progression-section-nav .ratio-chunk-jump select,
+  .ratio-app .progression-section-nav .ratio-chunk-jump input{
+    width:clamp(4.6rem,23vw,7rem);min-width:0
+  }
+}
