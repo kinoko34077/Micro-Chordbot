@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {readFile} from "node:fs/promises";
-import {parsePitch,parseRatio,flickPitch,flickGridPitch,flickEnharmonicCells,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,moveChord,moveSection,moveChunk,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,exportText,importText} from "../ratio-mode/model.mjs";
+import {parsePitch,parseRatio,flickPitch,flickGridPitch,flickEnharmonicCells,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,moveChord,moveSection,moveChunk,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,numberFromFraction,newProject,validateProject,chunksOf,flatten,sequenceForScope,nextSequencePosition,exportText,importText} from "../ratio-mode/model.mjs";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {AudioEngine} from "../src/audio.js";
 const hz=(s)=>{const p=parsePitch(s);return frequencyFromPitch(440,p.octave,p.microStepInOctave)};
@@ -275,4 +275,28 @@ test("stable chunk reorder keeps entire chunk sections contiguous and roundtrips
   assert.deepEqual(semantic(importText(exportText(normalized))),semantic(normalized));
   assert.deepEqual(validateProject(JSON.parse(JSON.stringify(normalized))),normalized);
   assert.notEqual(JSON.stringify(p),before);
+});
+
+test("transport occurrence planner keeps repeat identity and rejoins surviving chord after deletion",()=>{
+  const project=validateProject(newProject());
+  const whole=sequenceForScope(project,null,null);
+  const section=sequenceForScope(project,"sA",null);
+  assert.deepEqual(section.map(s=>s.stepId),["a1","a2","a3","a1","a2","a3"]);
+  assert.equal(whole.length,section.length+2);
+  assert.equal(sequenceForScope(project,null,"no-such-chunk").length,0);
+  assert.notEqual(section[0].occurrence,section[3].occurrence,
+    "repeated chord occurrences must have stable distinct keys");
+  const selected={last:null,initialStepId:"a2",priorSequence:[],priorIndex:-1};
+  assert.equal(nextSequencePosition(whole,selected),1,"play starts from selected chord");
+  assert.equal(nextSequencePosition(whole,{...selected,initialStepId:"missing"}),0);
+  const active={last:whole[1].occurrence,initialStepId:"a2",
+    priorSequence:whole.map(s=>s.occurrence),priorIndex:1};
+  assert.equal(nextSequencePosition(whole,active),2,"existing occurrence continues at next beat");
+  const changed=structuredClone(project);
+  changed.sections[0].steps=changed.sections[0].steps.filter(s=>s.id!=="a2");
+  const next=sequenceForScope(changed,null,null);
+  const index=nextSequencePosition(next,active);
+  assert.equal(next[index].stepId,"a3","deleted sounding chord must rejoin surviving old successor");
+  assert.equal(nextSequencePosition([],active),0,"no remaining candidate returns sequence end");
+  assert.deepEqual(sequenceForScope(project,"sA",null),section,"planner must not mutate project");
 });
