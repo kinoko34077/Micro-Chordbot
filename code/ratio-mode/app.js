@@ -1,7 +1,7 @@
 import {AudioEngine} from "../src/audio.js";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {HistoryManager, isNativeUndoTarget} from "../src/history.js";
-import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,flatten,moveChord,moveSection,moveChunk,importText,exportText} from "./model.mjs";
+import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,sequenceForScope,nextSequencePosition,moveChord,moveSection,moveChunk,importText,exportText} from "./model.mjs";
 
 const $=id=>document.getElementById(id);
 const copy=value=>JSON.parse(JSON.stringify(value));
@@ -1373,38 +1373,16 @@ function highlightStep(step){
   }
   updateOffscreenPlayback();
 }
-// The scope is captured at Play. Each boundary follows the latest project,
-// keyed by (section, chord, repeat occurrence) rather than a stale array index.
-function sequenceForScope(sectionId,chunkId){
-  const counts=new Map();
-  return flatten(project,sectionId,chunkId).map(step=>{
-    const base=step.sectionId+"\u0000"+step.stepId,n=counts.get(base)||0;
-    counts.set(base,n+1);
-    return {...step,occurrence:base+"\u0000"+n};
-  });
-}
-function nextSequencePosition(seq,state){
-  if(state.last===null)return Math.max(0,seq.findIndex(s=>s.stepId===state.initialStepId));
-  const index=seq.findIndex(s=>s.occurrence===state.last);
-  if(index>=0)return index+1;
-  // The current occurrence was deleted. Rejoin at the first surviving old
-  // successor instead of jumping back to the start or replaying past notes.
-  for(const old of state.priorSequence.slice(state.priorIndex+1)){
-    const n=seq.findIndex(s=>s.occurrence===old);
-    if(n>=0)return n;
-  }
-  return seq.length;
-}
 function startPlayback(sectionId=null,chunkId=null){
   stopPlayback();
-  const steps=sequenceForScope(sectionId,chunkId);if(!steps.length)return;
+  const steps=sequenceForScope(project,sectionId,chunkId);if(!steps.length)return;
   const token=runId;
   transport={sectionId,chunkId,initialStepId:selection.stepId,
     last:null,priorSequence:[],priorIndex:-1,deadline:null};
   playing=true;updatePlayStatus(true);
   const advance=async()=>{
     if(token!==runId||!playing||!transport)return;
-    const scope=transport,seq=sequenceForScope(scope.sectionId,scope.chunkId);
+    const scope=transport,seq=sequenceForScope(project,scope.sectionId,scope.chunkId);
     if(!seq.length){stopPlayback();notice("再生対象のセクション／チャンクがなくなりました",true);return}
     let index=nextSequencePosition(seq,scope);
     if(index>=seq.length){
