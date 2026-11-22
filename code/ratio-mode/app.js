@@ -298,35 +298,90 @@ function bindBeatFlick(field){bindValueGesture(field,"beats")}
 
 // Repeat count has its own integral range; unlike beats it does not use a
 // fraction grid. One drag still contributes exactly one Undo action.
-function bindNumberScrub(field,{get,commit,min,max,step,fineStep=step}){
-  let gesture=null;
+// Shared direct numeric value control: tap is inert, drag changes a draft,
+// double tap/click and keyboard F2/Enter enable precise inline text.
+// The caller decides whether the value is musical (Undo) or UI-only.
+function bindNumberScrub(field,{get,commit,min,max,step=1,fineStep=step}){
+  let gesture=null,lastTap=null,exact=false,composing=false,finished=false;
+  field.readOnly=true;
+  field.classList.add("ratio-scrub-value");
+  const reset=()=>{field.value=String(get());field.removeAttribute("aria-invalid")};
+  function completeText(save){
+    if(!exact||finished)return;
+    finished=true;
+    const value=Number(field.value);
+    exact=false;field.readOnly=true;
+    field.classList.remove("exact-editing");
+    if(!save){reset();return}
+    if(!field.value.trim()||!Number.isInteger(value)||value<min||value>max){
+      field.setAttribute("aria-invalid","true");
+      notice("数値は"+min+"〜"+max+"の整数で指定してください",true);
+      return; // retain the user's invalid text for the next precise edit
+    }
+    field.removeAttribute("aria-invalid");
+    if(value!==get())commit(value);
+    field.value=String(get());
+  }
+  function precise(){
+    if(exact)return;
+    if(gesture)return;
+    exact=true;finished=false;composing=false;
+    field.readOnly=false;field.classList.add("exact-editing");
+    field.focus();field.select();
+  }
+  function finish(accept,event){
+    const g=gesture;if(!g||event&&g.pointerId!==event.pointerId)return;
+    gesture=null;field.dataset.dragging="false";
+    if(field.hasPointerCapture(g.pointerId))field.releasePointerCapture(g.pointerId);
+    if(accept&&g.moved){
+      if(g.value!==g.original)commit(g.value);
+      lastTap=null;
+    }else if(accept&&!g.moved){
+      const short=performance.now()-g.started<350;
+      if(short&&g.doubleCandidate){lastTap=null;precise()}
+      else if(short)lastTap={time:performance.now(),x:g.x,y:g.y,type:g.type};
+      else lastTap=null;
+    }else lastTap=null;
+    if(!exact)field.value=String(get());
+  }
   field.addEventListener("pointerdown",event=>{
-    if(event.button!==0||!event.isPrimary||gesture)return;
+    if(event.button!==0||!event.isPrimary||gesture||exact)return;
+    event.preventDefault();
+    const now=performance.now();
+    const double=!!(lastTap&&now-lastTap.time<350&&lastTap.type===event.pointerType&&
+      Math.hypot(event.clientX-lastTap.x,event.clientY-lastTap.y)<18);
     const original=get();
-    gesture={pointerId:event.pointerId,originY:event.clientY,original,
-      value:original,increment:event.altKey||event.shiftKey?fineStep:step,moved:false};
+    gesture={pointerId:event.pointerId,x:event.clientX,y:event.clientY,type:event.pointerType,
+      started:now,original,value:original,increment:event.shiftKey||event.altKey?fineStep:step,moved:false,doubleCandidate:double};
     field.setPointerCapture(event.pointerId);
   });
   field.addEventListener("pointermove",event=>{
     const g=gesture;if(!g||g.pointerId!==event.pointerId)return;
-    const dy=g.originY-event.clientY;
+    const dy=g.y-event.clientY;
     if(!g.moved&&Math.abs(dy)<7)return;
-    g.moved=true;
-    const units=Math.round(dy/18);
-    g.value=Math.min(max,Math.max(min,Math.round((g.original+units*g.increment)*100)/100));
-    field.dataset.dragging="true";
-    field.value=String(g.value);
+    g.moved=true;lastTap=null;
+    g.value=Math.max(min,Math.min(max,g.original+Math.round(dy/18)*g.increment));
+    field.dataset.dragging="true";field.value=String(g.value);
   });
-  function finish(event,accept){
-    const g=gesture;if(!g||g.pointerId!==event.pointerId)return;
-    gesture=null;
-    if(field.hasPointerCapture(event.pointerId))field.releasePointerCapture(event.pointerId);
-    field.dataset.dragging="false";
-    if(accept&&g.moved&&g.value!==g.original)commit(g.value);
-    else field.value=String(get());
-  }
-  field.addEventListener("pointerup",event=>finish(event,true));
-  field.addEventListener("pointercancel",event=>finish(event,false));
+  field.addEventListener("pointerup",e=>finish(true,e));
+  field.addEventListener("pointercancel",e=>finish(false,e));
+  field.addEventListener("lostpointercapture",e=>finish(false,e));
+  field.addEventListener("dblclick",e=>e.preventDefault());
+  field.addEventListener("change",()=>{if(exact&&!composing)completeText(true)});
+  field.addEventListener("blur",()=>{if(exact)completeText(!composing)});
+  field.addEventListener("compositionstart",()=>{composing=true});
+  field.addEventListener("compositionend",()=>{composing=false});
+  field.addEventListener("keydown",e=>{
+    if(e.isComposing||composing)return;
+    if(e.key==="Escape"){
+      if(exact){e.preventDefault();completeText(false);field.blur()}
+      else if(gesture){e.preventDefault();finish(false)}
+    }else if(e.key==="Enter"||e.key==="F2"){
+      e.preventDefault();if(exact)completeText(true);else precise();
+    }
+  });
+  window.addEventListener("blur",()=>{lastTap=null;if(gesture)finish(false)});
+  document.addEventListener("visibilitychange",()=>{if(document.hidden&&gesture)finish(false)});
 }
 
 function refreshCardValues(){
@@ -361,19 +416,11 @@ function renderTimeline(){
     const repeat=document.createElement("input");repeat.type="text";repeat.inputMode="numeric";repeat.autocomplete="off";
     repeat.min="1";repeat.max="16";repeat.step="1";repeat.value=String(section.repeat);
     repeat.setAttribute("aria-label",section.name+" の反復回数、上下スライドで変更");
-    repeat.title="上下へスライドして反復回数を変更。タップで直接入力";
+    repeat.title="上下へスライドして反復回数を変更。ダブルタップで文字編集";
     bindNumberScrub(repeat,{
       get:()=>project.sections.find(s=>s.id===section.id)?.repeat??section.repeat,
-      commit:value=>mutate(d=>{d.sections.find(s=>s.id===section.id).repeat=value}),
+      commit:value=>mutate(d=>{d.sections.find(s=>s.id===section.id).repeat=value},{preserveTargets:true}),
       min:1,max:16,step:1
-    });
-    repeat.addEventListener("change",()=>{
-      if(repeat.dataset.dragging==="true")return;
-      const value=Number(repeat.value);
-      if(!Number.isInteger(value)||value<1||value>16){
-        repeat.value=String(project.sections.find(s=>s.id===section.id).repeat);return;
-      }
-      mutate(d=>{d.sections.find(s=>s.id===section.id).repeat=value});
     });
     repeatLabel.append(repeat);header.append(name,repeatLabel);
     if(project.sections.length>1){
@@ -495,7 +542,9 @@ function updateGridColumns(){
   const actual=Math.min(columns,max);
   track.style.setProperty("--progression-columns",String(actual));
   track.dataset.columns=String(actual);
-  $("gridColumns").value=String(columns);
+  if($("gridColumns").readOnly)$("gridColumns").value=String(columns);
+  $("effectiveColumns").hidden=actual===columns;
+  $("effectiveColumns").textContent=actual<columns?"表示"+actual:"";
   $("gridColumns").title=actual<columns
     ?"設定は"+columns+"列。画面幅に合わせて"+actual+"列で表示中"
     :columns+"列";
@@ -722,7 +771,11 @@ $("chunkJump").addEventListener("change",e=>{
 bindBeatFlick($("editBeats"));
 bindPitchFlick($("editPitch"));
 $("title").addEventListener("change",e=>mutate(d=>d.title=e.target.value));
-$("bpm").addEventListener("change",e=>mutate(d=>d.settings.bpm=Number(e.target.value)));
+bindNumberScrub($("bpm"),{
+  get:()=>project.settings.bpm,
+  commit:value=>mutate(d=>{d.settings.bpm=value},{preserveTargets:true}),
+  min:20,max:300,step:1
+});
 $("loop").addEventListener("change",e=>mutate(d=>d.settings.loop=e.target.checked));
 $("wave").addEventListener("change",e=>mutate(d=>d.settings.wave=e.target.value));
 // Pointer activation of the history buttons must cancel a draft BEFORE native blur commits it.
@@ -787,20 +840,29 @@ function swap(delta){
 }
 $("moveLeft").addEventListener("click",()=>swap(-1));
 $("moveRight").addEventListener("click",()=>swap(1));
-$("gridColumns").addEventListener("change",e=>{
-  const v=Number(e.target.value);
-  if(!Number.isInteger(v)||v<1||v>12){e.target.value=String(columns);return}
-  columns=v;saveSelection();updateGridColumns();
+bindNumberScrub($("gridColumns"),{
+  get:()=>columns,
+  commit:value=>{columns=value;saveSelection();updateGridColumns()},
+  min:1,max:12,step:1
 });
 window.addEventListener("resize",updateGridColumns);
+if(typeof ResizeObserver!=="undefined")new ResizeObserver(updateGridColumns).observe($("timeline"));
 function stopAudition(){
   clearTimeout(tapTimer);tapVersion++;
   for(const id of tapVoiceIds)engine.stopVoice(id);tapVoiceIds=[];
 }
+function updatePlayStatus(running){
+  const button=$("play");
+  button.querySelector(".play-icon").textContent=running?"↻":"▶";
+  button.querySelector(".play-word").textContent=running?" 最初から":" 再生";
+  button.classList.toggle("playing",running);
+  button.setAttribute("aria-label",running?"進行を再スタート":"選択コードから進行を再生");
+  button.title=running?"再生中：押すと選択位置から再スタート":"選択位置から再生";
+}
 function stopPlayback(){
   stopAudition();transportVoiceIds=[];
   runId++;playing=false;playingStepId=null;voiceCount=0;clearTimeout(timer);timer=null;
-  engine.stopAll();$("play").textContent="▶ 再生";$("play").classList.remove("playing");
+  engine.stopAll();updatePlayStatus(false);
   document.querySelectorAll(".progression-cell.playing").forEach(el=>el.classList.remove("playing"));
 }
 async function startVoices(step,token){
@@ -843,7 +905,7 @@ function startPlayback(sectionId=null,chunkId=null){
   const token=runId;
   const selectedIndex=steps.findIndex(s=>s.stepId===selection.stepId);
   let index=selectedIndex>=0?selectedIndex:0;
-  playing=true;$("play").textContent="▶ 再生";$("play").classList.add("playing");
+  playing=true;updatePlayStatus(true);
   const advance=async()=>{
     if(token!==runId||!playing)return;
     if(index>=steps.length){if(project.settings.loop)index=0;else{stopPlayback();return}}
