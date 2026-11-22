@@ -149,6 +149,97 @@ function removeStep(sectionId,stepId){
   if(mutate(d=>d.sections.find(s=>s.id===sectionId).steps.splice(index,1),{structural:true})&&wasSelected)
     setSelection(sectionId,successor.id);
 }
+// Native mouse DnD and touch long-hold both resolve a stable chord insertion
+// point; neither movement starts playback or creates a transient project edit.
+let dropCue=null,skipNextCardClickUntil=0;
+function clearDropCue(){
+  if(dropCue)dropCue.node.classList.remove("drop-before","drop-after","ratio-drop-target");
+  dropCue=null;
+}
+function dropPosition(x,y){
+  const el=document.elementFromPoint(x,y);
+  if(!el||!el.closest("#timeline"))return null;
+  const card=el.closest(".progression-cell[data-cid]");
+  if(card){
+    const rect=card.getBoundingClientRect();
+    const vertical=Number($("timeline").dataset.columns)===1;
+    const after=vertical?y>rect.top+rect.height/2:x>rect.left+rect.width/2;
+    return {sectionId:card.dataset.sid,beforeId:after?
+      card.nextElementSibling?.querySelector(".progression-cell[data-cid]")?.dataset.cid||null:card.dataset.cid,
+      node:card,cue:after?"drop-after":"drop-before"};
+  }
+  const group=el.closest(".ratio-section-group");
+  if(!group)return null;
+  return {sectionId:group.dataset.sectionId,beforeId:null,
+    node:group.querySelector(".ratio-add-small"),cue:"ratio-drop-target"};
+}
+function showDropCue(where){
+  if(dropCue&&where&&dropCue.node===where.node&&dropCue.cue===where.cue)return;
+  clearDropCue();
+  if(where?.node){where.node.classList.add(where.cue);dropCue=where}
+}
+function applyChordMove(fromSectionId,stepId,where){
+  if(!where||!where.sectionId||!project.sections.some(s=>s.id===fromSectionId&&s.steps.some(c=>c.id===stepId)))return false;
+  if(fromSectionId===where.sectionId&&where.beforeId===stepId)return false;
+  const success=mutate(d=>moveChord(d,fromSectionId,stepId,where.sectionId,where.beforeId),{structural:true});
+  if(success)setSelection(where.sectionId,stepId);
+  return success;
+}
+function dragSource(event){
+  const value=event.dataTransfer?.getData("text/plain")||"";
+  const parts=value.split(":");
+  return parts.length===2?parts:null;
+}
+function receiveChordDrop(e,where){
+  e.preventDefault();e.stopPropagation();
+  const source=dragSource(e);
+  clearDropCue();
+  if(source)applyChordMove(source[0],source[1],where);
+}
+function bindTouchChordMove(card,sectionId,stepId){
+  let hold=null;
+  function cancel(){
+    if(!hold)return;
+    clearTimeout(hold.timer);
+    card.classList.remove("reorder-source");
+    if(hold.active)skipNextCardClickUntil=performance.now()+750;
+    hold=null;clearDropCue();
+  }
+  card.addEventListener("touchstart",e=>{
+    if(e.touches.length!==1||hold)return;
+    const t=e.touches[0];
+    const g={x:t.clientX,y:t.clientY,active:false,timer:null};
+    hold=g;
+    g.timer=setTimeout(()=>{
+      if(hold!==g)return;
+      g.active=true;card.classList.add("reorder-source");
+      skipNextCardClickUntil=performance.now()+750;
+      showDropCue(dropPosition(g.x,g.y));
+    },300);
+  },{passive:true});
+  card.addEventListener("touchmove",e=>{
+    if(!hold)return;
+    if(e.touches.length!==1){cancel();return}
+    const t=e.touches[0];
+    if(!hold.active){
+      if(Math.hypot(t.clientX-hold.x,t.clientY-hold.y)>8)cancel();
+      return; // short swipes remain ordinary timeline scrolling
+    }
+    e.preventDefault();
+    showDropCue(dropPosition(t.clientX,t.clientY));
+  },{passive:false});
+  card.addEventListener("touchend",e=>{
+    if(!hold)return;
+    const g=hold,target=e.changedTouches[0];
+    if(!g.active){cancel();return}
+    e.preventDefault();skipNextCardClickUntil=performance.now()+750;
+    const where=target?dropPosition(target.clientX,target.clientY):dropCue;
+    cancel();
+    applyChordMove(sectionId,stepId,where);
+  },{passive:false});
+  card.addEventListener("touchcancel",cancel,{passive:true});
+}
+
 function makeCard(section,step,index){
   // A sibling button is used instead of nesting a delete button inside a button.
   const shell=document.createElement("div");shell.className="progression-cell-shell";
@@ -162,27 +253,27 @@ function makeCard(section,step,index){
   const note=document.createElement("span");note.className="cell-note";note.textContent=step.pitch;
   const meta=document.createElement("span");meta.className="cell-meta";meta.textContent=beatLabel(step);
   card.append(name,note,meta);
-  card.addEventListener("click",()=>{setSelection(section.id,step.id);void auditionCard(selectedLocation().step)});
+  card.addEventListener("click",e=>{
+    if(performance.now()<skipNextCardClickUntil){e.preventDefault();return}
+    setSelection(section.id,step.id);void auditionCard(selectedLocation().step);
+  });
+  bindTouchChordMove(card,section.id,step.id);
   card.addEventListener("dragstart",e=>{
+    if(!e.dataTransfer)return;
     e.dataTransfer.setData("text/plain",section.id+":"+step.id);
     e.dataTransfer.effectAllowed="move";card.classList.add("reorder-source");
   });
-  card.addEventListener("dragend",()=>card.classList.remove("reorder-source"));
-  card.addEventListener("dragover",e=>{e.preventDefault();e.dataTransfer.dropEffect="move";card.classList.add("drop-before")});
-  card.addEventListener("dragleave",()=>card.classList.remove("drop-before"));
-  card.addEventListener("drop",e=>{
-    e.preventDefault();card.classList.remove("drop-before");
-    const source=e.dataTransfer.getData("text/plain").split(":");
-    if(source.length!==2||source[1]===step.id)return;
-    const from=project.sections.find(s=>s.id===source[0]),to=project.sections.find(s=>s.id===section.id);
-    if(!from||!to||(from!==to&&from.steps.length<=1))return;
-    if(mutate(d=>{
-      const a=d.sections.find(s=>s.id===source[0]),b=d.sections.find(s=>s.id===section.id);
-      const old=a.steps.findIndex(c=>c.id===source[1]);if(old<0)return;
-      const moved=a.steps.splice(old,1)[0],at=b.steps.findIndex(c=>c.id===step.id);
-      b.steps.splice(at,0,moved);
-    },{structural:true}))setSelection(section.id,source[1]);
+  card.addEventListener("dragend",()=>{
+    card.classList.remove("reorder-source");clearDropCue()
   });
+  card.addEventListener("dragover",e=>{
+    if(!e.dataTransfer)return;
+    e.preventDefault();e.dataTransfer.dropEffect="move";
+    const rect=card.getBoundingClientRect();
+    showDropCue(dropPosition(rect.left+Math.max(1,Math.min(rect.width-1,e.clientX-rect.left)),
+      rect.top+Math.max(1,Math.min(rect.height-1,e.clientY-rect.top))));
+  });
+  card.addEventListener("drop",e=>receiveChordDrop(e,dropPosition(e.clientX,e.clientY)));
   shell.append(card);
   if(section.steps.length>1){
     const remove=document.createElement("button");remove.type="button";
@@ -470,6 +561,16 @@ function renderTimeline(){
       header.append(remove);
     }
     const grid=document.createElement("div");grid.className="progression-chunk-grid";
+    group.addEventListener("dragover",e=>{
+      if(e.target.closest(".progression-cell[data-cid]"))return;
+      if(!e.dataTransfer)return;
+      e.preventDefault();e.dataTransfer.dropEffect="move";
+      showDropCue({sectionId:section.id,beforeId:null,node:add,cue:"ratio-drop-target"});
+    });
+    group.addEventListener("drop",e=>{
+      if(e.target.closest(".progression-cell[data-cid]"))return;
+      receiveChordDrop(e,{sectionId:section.id,beforeId:null});
+    });
     section.steps.forEach((step,index)=>grid.append(makeCard(section,step,index)));
     const add=document.createElement("button");add.type="button";
     add.className="progression-cell progression-cell-add";add.textContent="+";
@@ -483,6 +584,11 @@ function renderTimeline(){
       }
     });
     add.classList.add("ratio-add-small");
+    add.addEventListener("dragover",e=>{
+      e.preventDefault();e.stopPropagation();
+      showDropCue({sectionId:section.id,beforeId:null,node:add,cue:"ratio-drop-target"});
+    });
+    add.addEventListener("drop",e=>receiveChordDrop(e,{sectionId:section.id,beforeId:null}));
     group.append(header,grid,add);wrap.append(group);
   }
   fragment.append(wrap);
