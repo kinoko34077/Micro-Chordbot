@@ -520,8 +520,19 @@ function bindNumberScrub(field,{get,commit,min,max,step=1,fineStep=step}){
 }
 
 function refreshCardValues(){
+  // An inline edit preserves the DOM nodes. Index only the sections whose
+  // cards are actually visible; hidden chunks need no step indexes.
+  const sections=new Map(project.sections.map(section=>[section.id,section]));
+  const visibleSteps=new Map();
   for(const card of $("timeline").querySelectorAll(".progression-cell[data-cid]")){
-    const section=project.sections.find(s=>s.id===card.dataset.sid),step=section?.steps.find(s=>s.id===card.dataset.cid);
+    const section=sections.get(card.dataset.sid);
+    if(!section)continue;
+    let steps=visibleSteps.get(section.id);
+    if(!steps){
+      steps=new Map(section.steps.map(step=>[step.id,step]));
+      visibleSteps.set(section.id,steps);
+    }
+    const step=steps.get(card.dataset.cid);
     if(!step)continue;
     const name=parseRatio(step.expr,project.presets).name||step.expr;
     card.querySelector(".cell-title").textContent=name;
