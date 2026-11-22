@@ -121,7 +121,7 @@ function restore(snapshot){
     const before=prior.sections.flatMap(s=>s.steps).find(s=>s.id===playingStepId);
     const after=project.sections.flatMap(s=>s.steps).find(s=>s.id===playingStepId);
     if(before&&after&&(before.expr!==after.expr||before.pitch!==after.pitch||
-      before.settings.wave!==project.settings.wave||
+      prior.settings.wave!==project.settings.wave||
       JSON.stringify(prior.presets)!==JSON.stringify(project.presets)))
       void refreshPlayingVoices();
   }
