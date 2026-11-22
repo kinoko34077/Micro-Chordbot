@@ -648,6 +648,47 @@ try{
     assert.equal(await page.locator("#chunkJump option").count(),2,"deleted chunk must be undoable");
     await page.reload();
     assert.equal(await page.locator("#chunkJump option").count(),2,"undo must restore chunk in storage");
+    if(width===390){
+      // A transport occurrence outside the currently edited chunk is
+      // addressable without a transport restart, audition, or an Undo step.
+      await page.evaluate(()=>{
+        const key="muChordbot.ratioMode.v1";
+        const state=JSON.parse(localStorage.getItem(key));
+        state.settings.bpm=300;state.settings.loop=true;
+        state.sections=[
+          {id:"visible",chunkId:"chunk-a",chunkName:"主部",name:"A",repeat:1,
+            steps:[{id:"v1",expr:"Major",pitch:"C4",beats:1,beatUnit:16}]},
+          {id:"hidden",chunkId:"chunk-b",chunkName:"間奏",name:"B",repeat:1,
+            steps:[{id:"h1",expr:"Minor",pitch:"G4",beats:64,beatUnit:4}]}
+        ];
+        localStorage.setItem(key,JSON.stringify(state));
+        localStorage.removeItem("muChordbot.ratioMode.ui.v1");
+      });
+      await page.reload();
+      assert.equal(await page.locator("#offscreenPlayback").isVisible(),false);
+      await page.locator("#playScope").selectOption("all");
+      await page.locator("#play").click();
+      await page.locator("#offscreenPlayback").waitFor({state:"visible",timeout:5000});
+      assert.match(await page.locator("#offscreenPlayback").innerText(),/間奏/);
+      assert.equal(await page.locator("#chunkJump").inputValue(),"chunk-a",
+        "live transport improperly changed the editing chunk");
+      await page.screenshot({path:"artifacts/issue-28-layout-audit/ratio-playback-offscreen-390.png"});
+      const audioBefore=await page.evaluate(()=>window.__ratioStarted.length);
+      await page.locator("#offscreenPlayback").click();
+      assert.equal(await page.locator("#chunkJump").inputValue(),"chunk-b",
+        "explicit jump failed to locate the sounding chunk");
+      assert.equal(await page.locator(".progression-cell.active").getAttribute("data-cid"),"h1");
+      assert.equal(await page.locator(".progression-cell.playing").getAttribute("data-cid"),"h1");
+      assert.equal(await page.locator("#offscreenPlayback").isVisible(),false,
+        "locator persisted after sounding chord became visible");
+      assert.equal(await page.locator("#play").evaluate(el=>el.classList.contains("playing")),true,
+        "jump unexpectedly stopped transport");
+      assert.equal(await page.evaluate(()=>window.__ratioStarted.length),audioBefore,
+        "jump unexpectedly replayed or auditioned sound");
+      await page.locator("#stop").click();
+      assert.equal(await page.locator("#offscreenPlayback").isVisible(),false);
+    }
+
     assert.deepEqual(errors,[],"browser errors "+width);
     console.log(JSON.stringify({width,height,layout,started,errors}));
     await page.close();
