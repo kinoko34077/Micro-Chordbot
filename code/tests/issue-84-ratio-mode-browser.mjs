@@ -872,4 +872,105 @@ try{
       console.log("R4_RATIO_CARD_EDIT_BASELINE "+JSON.stringify(measurement));
     }finally{await perfPage.close()}
   }
+
+  // #84 Loudness: verify actual UI-to-AudioEngine gain wiring and synthesized
+  // offline sine power. This does NOT validate calibrated perceptual loudness.
+  const loudPage=await browser.newPage({viewport:{width:390,height:844}});
+  try{
+    await loudPage.goto("http://127.0.0.1:4173/ratio-mode/",{waitUntil:"domcontentloaded"});
+    await loudPage.evaluate(async()=>{
+      const {AudioEngine}=await import("../src/audio.js");
+      const original=AudioEngine.prototype.startVoice;
+      window.__loudnessVoiceCalls=[];
+      AudioEngine.prototype.startVoice=function(id,freq,waveform,gain,...args){
+        window.__loudnessVoiceCalls.push({id,freq,waveform,gain});
+        return original.call(this,id,freq,waveform,gain,...args);
+      };
+    });
+    const setRatio=async ratios=>{
+      const field=loudPage.locator("#editExpr");
+      await field.fill(ratios.join(","));
+      await field.dispatchEvent("change");
+      await loudPage.locator("#stop").click();
+      await loudPage.evaluate(()=>{window.__loudnessVoiceCalls=[]});
+    };
+    const gainByMode={};
+    for(const [count,ratios] of [[3,[4,5,6]],[5,[4,5,6,7,8]]]){
+      await setRatio(ratios);
+      await loudPage.locator("#preview").click();
+      await loudPage.waitForFunction(n=>window.__loudnessVoiceCalls.filter(v=>v.id.startsWith("tap-")).length>=n,count);
+      gainByMode["tap"+count]=await loudPage.evaluate(()=>window.__loudnessVoiceCalls
+        .filter(v=>v.id.startsWith("tap-")).map(v=>v.gain));
+      await loudPage.locator("#stop").click();
+      await loudPage.evaluate(()=>{window.__loudnessVoiceCalls=[]});
+      await loudPage.locator("#play").click();
+      await loudPage.waitForFunction(n=>window.__loudnessVoiceCalls.filter(v=>v.id.startsWith("ratio-")).length>=n,count);
+      gainByMode["transport"+count]=await loudPage.evaluate(()=>window.__loudnessVoiceCalls
+        .filter(v=>v.id.startsWith("ratio-")).map(v=>v.gain));
+      await loudPage.locator("#stop").click();
+    }
+    for(const prefix of ["tap","transport"]){
+      for(const n of [3,5]){
+        const gains=gainByMode[prefix+n];
+        assert.equal(gains.length,n,prefix+" started incorrect number of oscillators");
+        assert.ok(gains.every(g=>g>0&&Math.abs(g-gains[0])<1e-9),"voice gain mismatch");
+      }
+      const a=gainByMode[prefix+"3"][0]*Math.sqrt(3);
+      const b=gainByMode[prefix+"5"][0]*Math.sqrt(5);
+      assert.ok(Math.abs(20*Math.log10(a/b))<0.1,prefix+" counts not power-balanced");
+    }
+    // Editing the active sounding chord must rebalance the existing voices.
+    await setRatio([4,5,6]);
+    await loudPage.locator("#play").click();
+    await loudPage.waitForFunction(()=>window.__loudnessVoiceCalls.filter(v=>v.id.startsWith("ratio-")).length>=3);
+    await loudPage.evaluate(()=>{window.__loudnessVoiceCalls=[]});
+    const edit=loudPage.locator("#editExpr");
+    await edit.fill("4,5,6,7,8");
+    await edit.dispatchEvent("change");
+    await loudPage.waitForFunction(()=>window.__loudnessVoiceCalls.filter(v=>v.id.startsWith("ratio-")).length>=5);
+    const adjusted=await loudPage.evaluate(()=>window.__loudnessVoiceCalls.filter(v=>v.id.startsWith("ratio-")));
+    assert.equal(adjusted.length,5,"live edit did not rebalance all playing voices");
+    assert.ok(adjusted.every(v=>Math.abs(v.gain-gainByMode.transport5[0])<1e-9),
+      "live edit used stale 3-voice gain");
+    await loudPage.locator("#stop").click();
+
+    const offline=await loudPage.evaluate(async()=>{
+      const {chordVoiceGain}=await import("./loudness.mjs");
+      const values=[220,277.182631,329.627557,369.994423,415.304698];
+      const render=async(freqs)=>{
+        const rate=48000,seconds=.6;
+        const context=new OfflineAudioContext(1,Math.round(rate*seconds),rate);
+        const gain=chordVoiceGain(freqs,"transport");
+        for(const freq of freqs){
+          const osc=context.createOscillator(),volume=context.createGain();
+          osc.type="sine";osc.frequency.value=freq;volume.gain.value=gain;
+          osc.connect(volume);volume.connect(context.destination);
+          osc.start(0);osc.stop(seconds);
+        }
+        const output=(await context.startRendering()).getChannelData(0);
+        let power=0,peak=0;
+        for(let i=4800;i<output.length;i++){
+          const sample=output[i];
+          power+=sample*sample;peak=Math.max(peak,Math.abs(sample));
+        }
+        return {rms:Math.sqrt(power/(output.length-4800)),peak};
+      };
+      return {
+        three:await render(values.slice(0,3)),
+        five:await render(values),
+        unisonThree:await render([220,220,220]),
+        unisonFive:await render([220,220,220,220,220]),
+        sixteen:await render(Array.from({length:16},(_,i)=>220*Math.pow(2,i/12)))
+      };
+    });
+    const deltaDb=(a,b)=>20*Math.log10(a/b);
+    assert.ok(Math.abs(deltaDb(offline.three.rms,offline.five.rms))<.6,
+      "synthesized sine 3/5 RMS differs: "+JSON.stringify(offline));
+    assert.ok(Math.abs(deltaDb(offline.unisonThree.rms,offline.unisonFive.rms))<.1,
+      "same-frequency 3/5 RMS differs: "+JSON.stringify(offline));
+    for(const [label,x] of Object.entries(offline)){
+      assert.ok(x.rms>0&&x.peak<=.901,"single chord peak budget violated "+label+" "+JSON.stringify(x));
+    }
+    console.log("RATIO_LOUDNESS_SYNTH "+JSON.stringify({gainByMode,offline}));
+  }finally{await loudPage.close()}
 }finally{await browser.close()}

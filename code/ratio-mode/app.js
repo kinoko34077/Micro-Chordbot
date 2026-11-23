@@ -1,4 +1,5 @@
 import {AudioEngine} from "../src/audio.js";
+import {chordVoiceGain} from "./loudness.mjs";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {HistoryManager, isNativeUndoTarget} from "../src/history.js";
 import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,sequenceForScope,nextSequencePosition,moveChord,moveSection,moveChunk,importText,exportText} from "./model.mjs";
@@ -1316,7 +1317,7 @@ async function startVoices(step,token){
   const generation=++voiceGeneration;
   const ids=freqs.map((_,i)=>"ratio-"+generation+"-"+i);
   transportVoiceIds=ids;voiceCount=freqs.length;playingStepId=step.id;
-  const amplitude=Math.min(.26,.45/freqs.length);
+  const amplitude=chordVoiceGain(freqs,"transport");
   await Promise.all(freqs.map((freq,index)=>engine.startVoice(ids[index],freq,project.settings.wave,amplitude)));
   if(token!==runId||generation!==voiceGeneration){for(const id of ids)engine.stopVoice(id);return false}
   return true;
@@ -1326,7 +1327,7 @@ async function refreshPlayingVoices(){
   if(!step||!engine.ctx)return;
   const token=runId,generation=voiceGeneration;
   try{
-    const {freqs}=calculate(step),amplitude=Math.min(.26,.45/freqs.length);
+    const {freqs}=calculate(step),amplitude=chordVoiceGain(freqs,"transport");
     const ids=freqs.map((_,i)=>"ratio-"+generation+"-"+i);
     for(const id of transportVoiceIds.slice(freqs.length))engine.stopVoice(id);
     transportVoiceIds=ids;
@@ -1428,7 +1429,7 @@ async function auditionCard(step,presets=project.presets){
     await engine.ensure();
     if(version!==tapVersion)return;
     engine.setMasterVolume(Number($("masterVolume").value));
-    const gain=Math.min(.13,.35/freqs.length);
+    const gain=chordVoiceGain(freqs,"audition");
     const voices=freqs.map((freq,i)=>{
       const id="tap-"+version+"-"+i;
       ownIds.push(id);
