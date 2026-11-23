@@ -7,6 +7,7 @@ on:
       - "code/ratio-mode/**"
       - "code/tests/issue-84-ratio-mode-browser.mjs"
       - "code/tests/issue-10-pwa-offline-browser.mjs"
+      - "code/tests/issue-110-ratio-mix-browser.mjs"
       - "code/tools/generate-pwa-cache.mjs"
       - "code/service-worker.js"
       - "code/index.html"
@@ -46,6 +47,7 @@ jobs:
           node code/tests/issue-28-layout-audit.mjs
           node code/tests/issue-84-ratio-mode-browser.mjs
           node code/tests/issue-10-pwa-offline-browser.mjs
+          node code/tests/issue-110-ratio-mix-browser.mjs
 
       - name: Upload viewport screenshots and geometry measurements
         if: always()
