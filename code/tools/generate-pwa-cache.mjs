@@ -14,15 +14,15 @@ function parseArgs(argv) {
   return out;
 }
 
-async function walkJs(root, relative = "") {
+async function walkRuntimeModules(root, relative = "") {
   const dir = path.join(root, relative);
   const entries = await readdir(dir, {withFileTypes: true});
   const files = [];
   for (const entry of entries) {
     const next = path.join(relative, entry.name);
     if (entry.isDirectory()) {
-      files.push(...await walkJs(root, next));
-    } else if (entry.isFile() && entry.name.endsWith(".js")) {
+      files.push(...await walkRuntimeModules(root, next));
+    } else if (entry.isFile() && /\.(?:mjs|js)$/.test(entry.name)) {
       files.push(next.split(path.sep).join("/"));
     }
   }
@@ -41,7 +41,11 @@ async function fileBytes(siteRoot, asset) {
 async function main() {
   const {site} = parseArgs(process.argv.slice(2));
   const siteRoot = path.resolve(site);
-  const runtimeModules = (await walkJs(path.join(siteRoot, "src"))).map((file) => `./src/${file}`);
+  const runtimeModules = [];
+  for (const directory of ["src", "ratio-mode"]) {
+    const modules = await walkRuntimeModules(path.join(siteRoot, directory));
+    runtimeModules.push(...modules.map((file) => `./${directory}/${file}`));
+  }
 
   const contentAssets = uniqueSorted([
     "./index.html",
@@ -50,8 +54,6 @@ async function main() {
     "./default_project.mcb",
     "./ratio-mode/index.html",
     "./ratio-mode/style.css",
-    "./ratio-mode/app.js",
-    "./ratio-mode/model.mjs",
     "./icons/icon-192.svg",
     "./icons/icon-512.svg",
     ...runtimeModules,
@@ -68,6 +70,7 @@ async function main() {
 
   const assets = uniqueSorted([
     "./",
+    "./ratio-mode/",
     ...contentAssets,
     "./pwa-version.js",
     "./pwa-cache-manifest.js",
