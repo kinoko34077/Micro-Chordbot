@@ -1,1 +1,1 @@
-window.__MU_CHORDBOT_PWA_VERSION__ = "sha256-031969b4a9e4ac89";
+window.__MU_CHORDBOT_PWA_VERSION__ = "sha256-faf96778379dc330";
