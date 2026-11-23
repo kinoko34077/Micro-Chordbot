@@ -80,7 +80,7 @@ try{
         }
         return {peak,rms:Math.sqrt(power/(data.length-2400))};
       };
-      return {transport, audition, initialTransport, initialAudition,
+      return {transport, audition, initialTransport, initialAudition, nominalAudition,
         master, masters:window.__mixMasters,
         single:await render(initialTransport,1),
         combinedRaw:await render([...initialTransport,
@@ -96,7 +96,7 @@ try{
       "actual UI mix must stay under 0.9: "+JSON.stringify(result.combinedEffective));
     assert.ok(result.transport.every(x=>x.gain>0&&x.gain<result.initialTransport[0].gain),
       "existing transport voices were not lowered during overlap");
-    assert.ok(result.audition.every(x=>x.gain>0&&x.gain<result.initialAudition[0].gain),
+    assert.ok(result.audition.every(x=>x.gain>0&&x.gain<result.nominalAudition),
       "audition was not given a reduced start gain");
     console.log("AUDIT_110_RATIO_MIX "+JSON.stringify({
       gainTransport:result.transport[0].gain,gainAudition:result.audition[0].gain,
