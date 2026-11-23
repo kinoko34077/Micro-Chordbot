@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {chordVoiceGain} from "../ratio-mode/loudness.mjs";
+import {chordVoiceGain,chordMixHeadroom} from "../ratio-mode/loudness.mjs";
 
 const frequencies=[220,277.182631,329.627557,369.994423,415.304698];
 const close=(actual,expected,tolerance=1e-9)=>
@@ -66,4 +66,32 @@ test("mode contract, nonmutation and invalid frequencies",()=>{
   assert.throws(()=>chordVoiceGain([0,220]),RangeError);
   assert.throws(()=>chordVoiceGain([Number.NaN]),RangeError);
   assert.throws(()=>chordVoiceGain([220],"unknown"),RangeError);
+});
+
+test("mix-level headroom leaves single 3/5-chord loudness unchanged",()=>{
+  const tri=frequencies.slice(0,3),five=frequencies;
+  for(const mode of ["transport","audition"]){
+    for(const freqs of [tri,five]){
+      const single={voices:freqs.length,gain:chordVoiceGain(freqs,mode)};
+      close(chordMixHeadroom([single]),1);
+      close(chordMixHeadroom([single,null]),1);
+    }
+  }
+});
+
+test("two 16-voice streams share a bounded peak budget and restore singly",()=>{
+  const frequencies16=Array.from({length:16},(_,i)=>65.40639132514966*(4*i+1));
+  const transport={voices:16,gain:chordVoiceGain(frequencies16,"transport")};
+  const audition={voices:16,gain:chordVoiceGain(frequencies16,"audition")};
+  const single=chordMixHeadroom([transport]);
+  const simultaneous=chordMixHeadroom([transport,audition]);
+  close(single,1);
+  assert.ok(simultaneous>0&&simultaneous<1);
+  close(simultaneous*(transport.voices*transport.gain+
+    audition.voices*audition.gain),.9);
+  close(chordMixHeadroom([transport,null]),1);
+  const unrelated={voices:3,gain:chordVoiceGain(frequencies.slice(0,3),"audition")};
+  assert.equal(chordMixHeadroom([transport,unrelated])<1,true);
+  assert.throws(()=>chordMixHeadroom([{voices:-1,gain:.2}]),RangeError);
+  assert.throws(()=>chordMixHeadroom([{voices:3,gain:Number.POSITIVE_INFINITY}]),RangeError);
 });

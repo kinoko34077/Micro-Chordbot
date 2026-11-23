@@ -1,5 +1,5 @@
 import {AudioEngine} from "../src/audio.js";
-import {chordVoiceGain} from "./loudness.mjs";
+import {chordVoiceGain,chordMixHeadroom} from "./loudness.mjs";
 import {frequencyFromPitch} from "../src/pitch.js";
 import {HistoryManager, isNativeUndoTarget} from "../src/history.js";
 import {newProject,validateProject,parsePitch,parseRatio,parseNamedRatio,chordExpression,setChordExpression,parseBeatNotation,beatLabel,quarterBeats,flickGridPitch,flickEnharmonicCells,beatFractionGridValue,beatFractionGridCells,FLICK_LETTERS,FLICK_ACCIDENTALS,chunksOf,sequenceForScope,nextSequencePosition,moveChord,moveSection,moveChunk,importText,exportText} from "./model.mjs";
@@ -14,6 +14,8 @@ let project,saveAllowed=true,selection={sectionId:null,stepId:null},columns=4,pl
 const chunkViews=new Map();let chunkScrollTimer=null,transport=null;
 let timer=null,runId=0,playing=false,playingStepId=null,voiceCount=0;
 let tapVersion=0,tapTimer=null,tapVoiceIds=[],transportVoiceIds=[],voiceGeneration=0;
+// Ephemeral output state: never persisted or part of Undo/history.
+let transportMixPlan=null,auditionMixPlan=null;
 const id=prefix=>prefix+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 
 function notice(value="",error=false) {
@@ -1289,9 +1291,21 @@ bindNumberScrub($("gridColumns"),{
 });
 window.addEventListener("resize",updateGridColumns);
 if(typeof ResizeObserver!=="undefined")new ResizeObserver(updateGridColumns).observe($("timeline"));
+// Each code keeps its existing single-stream loudness normalization.
+// Rebalance existing voices through AudioEngine's gain-ramp API when a second
+// stream appears or disappears; do not change the user's master-volume value.
+function rebalanceMix(){
+  const factor=chordMixHeadroom([transportMixPlan,auditionMixPlan]);
+  if(transportMixPlan)for(const id of transportVoiceIds)
+    engine.setVoiceGain(id,transportMixPlan.gain*factor);
+  if(auditionMixPlan)for(const id of tapVoiceIds)
+    engine.setVoiceGain(id,auditionMixPlan.gain*factor);
+  return factor;
+}
 function stopAudition(){
   clearTimeout(tapTimer);tapVersion++;
   for(const id of tapVoiceIds)engine.stopVoice(id);tapVoiceIds=[];
+  auditionMixPlan=null;rebalanceMix();
 }
 function updatePlayStatus(running){
   const button=$("play");
@@ -1302,7 +1316,7 @@ function updatePlayStatus(running){
   button.title=running?"再生中：押すと選択位置から再スタート":"選択位置から再生";
 }
 function stopPlayback(){
-  stopAudition();transportVoiceIds=[];transport=null;
+  stopAudition();transportVoiceIds=[];transportMixPlan=null;transport=null;
   runId++;playing=false;playingStepId=null;voiceCount=0;clearTimeout(timer);timer=null;
   engine.stopAll();updatePlayStatus(false);
   document.querySelectorAll(".progression-cell.playing").forEach(el=>el.classList.remove("playing"));
@@ -1318,8 +1332,11 @@ async function startVoices(step,token){
   const ids=freqs.map((_,i)=>"ratio-"+generation+"-"+i);
   transportVoiceIds=ids;voiceCount=freqs.length;playingStepId=step.id;
   const amplitude=chordVoiceGain(freqs,"transport");
-  await Promise.all(freqs.map((freq,index)=>engine.startVoice(ids[index],freq,project.settings.wave,amplitude)));
+  transportMixPlan={voices:freqs.length,gain:amplitude};
+  const mixFactor=rebalanceMix();
+  await Promise.all(freqs.map((freq,index)=>engine.startVoice(ids[index],freq,project.settings.wave,amplitude*mixFactor)));
   if(token!==runId||generation!==voiceGeneration){for(const id of ids)engine.stopVoice(id);return false}
+  rebalanceMix(); // Covers an audition arriving during async voice creation.
   return true;
 }
 async function refreshPlayingVoices(){
@@ -1331,9 +1348,12 @@ async function refreshPlayingVoices(){
     const ids=freqs.map((_,i)=>"ratio-"+generation+"-"+i);
     for(const id of transportVoiceIds.slice(freqs.length))engine.stopVoice(id);
     transportVoiceIds=ids;
-    await Promise.all(freqs.map((freq,i)=>engine.startVoice(ids[i],freq,project.settings.wave,amplitude)));
-    if(token===runId&&generation===voiceGeneration)voiceCount=freqs.length;
-    else for(const id of ids)engine.stopVoice(id);
+    transportMixPlan={voices:freqs.length,gain:amplitude};
+    const mixFactor=rebalanceMix();
+    await Promise.all(freqs.map((freq,i)=>engine.startVoice(ids[i],freq,project.settings.wave,amplitude*mixFactor)));
+    if(token===runId&&generation===voiceGeneration){
+      voiceCount=freqs.length;rebalanceMix();
+    }else for(const id of ids)engine.stopVoice(id);
   }catch(error){notice(error.message||"音声更新失敗",true)}
 }
 
@@ -1422,7 +1442,7 @@ async function auditionCard(step,presets=project.presets){
   const version=++tapVersion;
   clearTimeout(tapTimer);
   for(const id of tapVoiceIds)engine.stopVoice(id);
-  tapVoiceIds=[];
+  tapVoiceIds=[];auditionMixPlan=null;rebalanceMix();
   const ownIds=[];
   try{
     const {freqs}=calculate(step,presets);
@@ -1430,10 +1450,12 @@ async function auditionCard(step,presets=project.presets){
     if(version!==tapVersion)return;
     engine.setMasterVolume(Number($("masterVolume").value));
     const gain=chordVoiceGain(freqs,"audition");
+    auditionMixPlan={voices:freqs.length,gain};
+    const mixFactor=rebalanceMix();
     const voices=freqs.map((freq,i)=>{
       const id="tap-"+version+"-"+i;
       ownIds.push(id);
-      return engine.startVoice(id,freq,project.settings.wave,gain);
+      return engine.startVoice(id,freq,project.settings.wave,gain*mixFactor);
     });
     await Promise.all(voices);
     if(version!==tapVersion){
@@ -1441,13 +1463,14 @@ async function auditionCard(step,presets=project.presets){
       return;
     }
     tapVoiceIds=ownIds;
+    rebalanceMix(); // Reapply the latest factor if transport changed meanwhile.
     tapTimer=setTimeout(()=>{
       if(version!==tapVersion)return;
-      for(const id of ownIds)engine.stopVoice(id);
-      tapVoiceIds=[];
+      stopAudition();
     },Math.max(320,Math.min(850,quarterBeats(step)*60000/project.settings.bpm)));
   }catch(error){
     for(const id of ownIds)engine.stopVoice(id);
+    if(version===tapVersion){auditionMixPlan=null;rebalanceMix()}
     notice("コードの試聴に失敗しました: "+error.message,true);
   }
 }

@@ -24,3 +24,19 @@ export function chordVoiceGain(freqs,mode="transport"){
   // Overlapping independent audition and transport are a separate mix case.
   return Math.min(TARGET_LEVEL[mode]/Math.sqrt(power),PEAK_CEILING/freqs.length);
 }
+
+// This is a worst-case sum-of-absolute-amplitudes budget across independent
+// sounding streams (transport and tap audition), not an RMS/loudness target.
+// Scale only when their combined peak budget would exceed the single-output
+// ceiling; preserve the established 3/5-chord gain when no overlap occurs.
+export function chordMixHeadroom(streams){
+  let totalPeak=0;
+  for(const stream of streams){
+    if(!stream)continue;
+    const {voices,gain}=stream;
+    if(!Number.isInteger(voices)||voices<0||
+       !Number.isFinite(gain)||gain<0)throw new RangeError("ミックス音量が不正です");
+    totalPeak+=voices*gain;
+  }
+  return totalPeak<=PEAK_CEILING?1:PEAK_CEILING/totalPeak;
+}
