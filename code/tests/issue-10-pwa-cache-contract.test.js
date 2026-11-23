@@ -118,7 +118,8 @@ test("clean-profile install set is sufficient for an offline module launch", asy
   const cached = new Map();
 
   for (const asset of manifest.assets) {
-    const relative = asset === "./" ? "index.html" : asset.replace(/^\.\//, "");
+    const relative = asset === "./" ? "index.html" :
+      asset === "./ratio-mode/" ? "ratio-mode/index.html" : asset.replace(/^\.\//, "");
     cached.set(asset, await readFile(path.join(codeRoot, relative)));
   }
 
