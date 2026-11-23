@@ -13,14 +13,14 @@ const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const codeRoot = path.join(repoRoot, "code");
 const generator = path.join(codeRoot, "tools", "generate-pwa-cache.mjs");
 
-async function walkJs(root, relative = "") {
+async function walkRuntimeModules(root, relative = "") {
   const entries = await readdir(path.join(root, relative), {withFileTypes: true});
   const files = [];
   for (const entry of entries) {
     const next = path.join(relative, entry.name);
     if (entry.isDirectory()) {
-      files.push(...await walkJs(root, next));
-    } else if (entry.isFile() && entry.name.endsWith(".js")) {
+      files.push(...await walkRuntimeModules(root, next));
+    } else if (entry.isFile() && /\.(?:mjs|js)$/.test(entry.name)) {
       files.push(next.split(path.sep).join("/"));
     }
   }
@@ -40,23 +40,24 @@ async function runGenerator(siteRoot) {
 }
 
 function staticImports(source) {
-  return [...source.matchAll(/from\s+["'](\.\.?\/[^"']+\.js)["']/g)].map((match) => match[1]);
+  return [...source.matchAll(/from\s+["'](\.\.?\/[^"']+\.(?:mjs|js))["']/g)].map((match) => match[1]);
 }
 
 test("generated precache manifest covers the complete static runtime module graph", async () => {
   const manifest = await readManifest(codeRoot);
   const assets = new Set(manifest.assets);
-  const modules = await walkJs(path.join(codeRoot, "src"));
-
-  for (const module of modules) {
-    const asset = `./src/${module}`;
+  for (const directory of ["src", "ratio-mode"]) {
+    const modules = await walkRuntimeModules(path.join(codeRoot, directory));
+    for (const module of modules) {
+      const asset = `./${directory}/${module}`;
     assert.ok(assets.has(asset), `missing runtime module from precache: ${asset}`);
 
-    const source = await readFile(path.join(codeRoot, "src", module), "utf8");
+    const source = await readFile(path.join(codeRoot, directory, module), "utf8");
     for (const specifier of staticImports(source)) {
-      const resolved = path.posix.normalize(path.posix.join("./src", path.posix.dirname(module), specifier));
+      const resolved = path.posix.normalize(path.posix.join(`./${directory}`, path.posix.dirname(module), specifier));
       const normalized = resolved.startsWith(".") ? resolved : `./${resolved}`;
       assert.ok(assets.has(normalized), `missing imported module from precache: ${normalized}`);
+    }
     }
   }
 
@@ -66,6 +67,12 @@ test("generated precache manifest covers the complete static runtime module grap
     "./styles.css",
     "./manifest.webmanifest",
     "./default_project.mcb",
+    "./ratio-mode/",
+    "./ratio-mode/index.html",
+    "./ratio-mode/style.css",
+    "./ratio-mode/app.js",
+    "./ratio-mode/model.mjs",
+    "./ratio-mode/loudness.mjs",
     "./pwa-version.js",
     "./pwa-cache-manifest.js",
   ]) {
@@ -95,6 +102,12 @@ test("generator is deterministic and a default-project-only change advances the 
     const changed = await runGenerator(tempCode);
     assert.notEqual(changed.version, first.version);
     assert.deepEqual(changed.assets, first.assets);
+
+    const ratioModule = path.join(tempCode, "ratio-mode", "loudness.mjs");
+    await writeFile(ratioModule, (await readFile(ratioModule, "utf8")) + "\n// cache-version-probe\n");
+    const ratioChanged = await runGenerator(tempCode);
+    assert.notEqual(ratioChanged.version, changed.version);
+    assert.deepEqual(ratioChanged.assets, changed.assets);
   } finally {
     await rm(tempRoot, {recursive: true, force: true});
   }
@@ -115,7 +128,8 @@ test("clean-profile install set is sufficient for an offline module launch", asy
     seen.add(asset);
     assert.ok(cached.has(asset), `offline cache miss: ${asset}`);
 
-    if (!asset.endsWith(".js") || !asset.startsWith("./src/")) return;
+    if (!/\.(?:mjs|js)$/.test(asset) ||
+        !["./src/", "./ratio-mode/"].some(prefix=>asset.startsWith(prefix))) return;
     const source = cached.get(asset).toString("utf8");
     const importerDir = path.posix.dirname(asset);
     for (const specifier of staticImports(source)) {
@@ -125,7 +139,9 @@ test("clean-profile install set is sufficient for an offline module launch", asy
   };
 
   await visit("./src/app.js");
-  assert.ok(seen.size >= 9, "expected the complete app module graph to be traversed");
+  await visit("./ratio-mode/app.js");
+  assert.ok(seen.has("./ratio-mode/loudness.mjs"), "ratio loudness module not cached for offline startup");
+  assert.ok(seen.size >= 12, "expected both app module graphs to be traversed");
 });
 
 test("service worker update replaces only versioned caches and never resets IndexedDB", async () => {
