@@ -24,6 +24,9 @@ jobs:
         run: |
           npm install --no-save --ignore-scripts playwright@1.61.0
           npx playwright install --with-deps chromium
+      - name: Generate deployable PWA manifest for offline browser tests
+        run: node code/tools/generate-pwa-cache.mjs --site code
+
       - name: Serve app and run responsive browser tests
         shell: bash
         run: |
@@ -39,6 +42,7 @@ jobs:
           node code/tests/issue-28-history-audio-browser.mjs
           node code/tests/issue-28-layout-audit.mjs
           node code/tests/issue-84-ratio-mode-browser.mjs
+          node code/tests/issue-10-pwa-offline-browser.mjs
 
       - name: Upload viewport screenshots and geometry measurements
         if: always()
