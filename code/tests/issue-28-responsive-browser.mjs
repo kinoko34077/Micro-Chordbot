@@ -717,6 +717,9 @@ try {
         "/service-worker.js",{scope:"/ratio-mode/"});
       await navigator.serviceWorker.register(
         "/service-worker.js",{scope:"/"});
+      // Register() may resolve before the worker has any active scriptURL.
+      // The cleanup helper intentionally ignores indeterminate identities.
+      await navigator.serviceWorker.ready;
       return registration.scope;
     });
     await cachePage.reload({waitUntil:"domcontentloaded"});
@@ -733,6 +736,7 @@ try {
         foreignScope:registrations.some(r=>r.scope===scope),
         ownRootScope:registrations.some(r=>r.scope===new URL("/",location.href).href)};
     },foreignScope);
+    console.log("AUDIT_110_CACHE_AFTER_BOOT "+JSON.stringify(afterBoot));
     assert.equal(afterBoot.foreignPresent,true,"automatic init deleted unrelated cache");
     assert.equal(afterBoot.foreignContent,"retain","automatic init changed foreign cached value");
     assert.equal(afterBoot.foreignScope,true,"automatic init unregistered a foreign SW scope");
