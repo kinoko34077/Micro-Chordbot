@@ -712,21 +712,24 @@ try {
     const foreignScope=await cachePage.evaluate(async()=>{
       const unrelated=await caches.open("foreign-app-audit-cache");
       await unrelated.put("/foreign-content",new Response("retain"));
-      await caches.open("mu-chordbot-obsolete-audit");
       const registration=await navigator.serviceWorker.register(
         "/service-worker.js",{scope:"/ratio-mode/"});
       await navigator.serviceWorker.register(
         "/service-worker.js",{scope:"/"});
-      // Register() may resolve before the worker has any active scriptURL.
-      // The cleanup helper intentionally ignores indeterminate identities.
+      // Register() can resolve before the SW activates. Also, the SW's own
+      // activate handler removes old mu-chordbot-* caches, so seed the old
+      // cache only AFTER activation for an unambiguous init-cleanup probe.
       await navigator.serviceWorker.ready;
+      await caches.open("mu-chordbot-obsolete-audit");
       return registration.scope;
     });
     await cachePage.reload({waitUntil:"domcontentloaded"});
     await cachePage.waitForFunction(async()=>{
       const names=await caches.keys();
-      return !names.includes("mu-chordbot-obsolete-audit");
-    });
+      const registrations=await navigator.serviceWorker.getRegistrations();
+      return !names.includes("mu-chordbot-obsolete-audit") &&
+        !registrations.some(r=>r.scope===new URL("/",location.href).href);
+    },null,{timeout:15000});
     const afterBoot=await cachePage.evaluate(async scope=>{
       const keys=await caches.keys();
       const registrations=await navigator.serviceWorker.getRegistrations();
