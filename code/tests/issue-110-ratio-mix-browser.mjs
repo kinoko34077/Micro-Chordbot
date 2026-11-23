@@ -29,12 +29,18 @@ try{
     });
     await page.evaluate(async()=>{
       const {AudioEngine}=await import("../src/audio.js");
-      window.__mixStarts=[];window.__mixMasters=[];
+      window.__mixStarts=[];window.__mixMasters=[];window.__mixEvents=[];
       const start=AudioEngine.prototype.startVoice;
       const setMaster=AudioEngine.prototype.setMasterVolume;
+      const setGain=AudioEngine.prototype.setVoiceGain;
       AudioEngine.prototype.startVoice=function(id,freq,wave,gain,...more){
         window.__mixStarts.push({id,freq,wave,gain});
+        window.__mixEvents.push({kind:"start",id,freq,wave,gain});
         return start.call(this,id,freq,wave,gain,...more);
+      };
+      AudioEngine.prototype.setVoiceGain=function(id,gain,...more){
+        window.__mixEvents.push({kind:"gain",id,gain});
+        return setGain.call(this,id,gain,...more);
       };
       AudioEngine.prototype.setMasterVolume=function(value){
         window.__mixMasters.push(value);
@@ -46,8 +52,18 @@ try{
     await page.locator("#preview").click();
     await page.waitForFunction(()=>window.__mixStarts.filter(x=>x.id.startsWith("tap-")).length>=16);
     const result=await page.evaluate(async()=>{
-      const transport=window.__mixStarts.filter(x=>x.id.startsWith("ratio-")).slice(-16);
-      const audition=window.__mixStarts.filter(x=>x.id.startsWith("tap-")).slice(-16);
+      const initialTransport=window.__mixStarts.filter(x=>x.id.startsWith("ratio-")).slice(-16);
+      const initialAudition=window.__mixStarts.filter(x=>x.id.startsWith("tap-")).slice(-16);
+      const {chordVoiceGain}=await import("./loudness.mjs");
+      const nominalAudition=chordVoiceGain(initialAudition.map(x=>x.freq),"audition");
+      const active=new Map();
+      for(const event of window.__mixEvents){
+        if(event.kind==="start")active.set(event.id,{...event});
+        if(event.kind==="gain"&&active.has(event.id))
+          active.get(event.id).gain=event.gain;
+      }
+      const transport=initialTransport.map(x=>active.get(x.id));
+      const audition=initialAudition.map(x=>active.get(x.id));
       const master=window.__mixMasters.at(-1);
       const render=async(specs,volume)=>{
         const rate=48000,length=rate/3,ctx=new OfflineAudioContext(1,length,rate);
@@ -64,21 +80,53 @@ try{
         }
         return {peak,rms:Math.sqrt(power/(data.length-2400))};
       };
-      return {transport, audition, master, masters:window.__mixMasters,
-        single:await render(transport,1),
-        combinedRaw:await render([...transport,...audition],1),
+      return {transport, audition, initialTransport, initialAudition,
+        master, masters:window.__mixMasters,
+        single:await render(initialTransport,1),
+        combinedRaw:await render([...initialTransport,
+          ...initialAudition.map(x=>({...x,gain:nominalAudition}))],1),
         combinedEffective:await render([...transport,...audition],master)};
     });
     assert.equal(result.transport.length,16);
     assert.equal(result.audition.length,16);
     assert.equal(result.master>0,true);
-    assert.ok(result.single.peak>0);
+    assert.ok(result.single.peak>.85&&result.single.peak<.901);
+    assert.ok(result.combinedRaw.peak>1.4,"baseline must reproduce unsafe unbalanced mix");
+    assert.ok(result.combinedEffective.peak<=.901,
+      "actual UI mix must stay under 0.9: "+JSON.stringify(result.combinedEffective));
+    assert.ok(result.transport.every(x=>x.gain>0&&x.gain<result.initialTransport[0].gain),
+      "existing transport voices were not lowered during overlap");
+    assert.ok(result.audition.every(x=>x.gain>0&&x.gain<result.initialAudition[0].gain),
+      "audition was not given a reduced start gain");
     console.log("AUDIT_110_RATIO_MIX "+JSON.stringify({
       gainTransport:result.transport[0].gain,gainAudition:result.audition[0].gain,
+      originalTransport:result.initialTransport[0].gain,
       master:result.master,masters:result.masters,
       single:result.single,combinedRaw:result.combinedRaw,
       combinedEffective:result.combinedEffective
     }));
+    // Tap audition expires after at most 850 ms. Transport must recover its
+    // original stand-alone gain while playback itself stays running.
+    await page.waitForTimeout(950);
+    const afterTap=await page.evaluate(()=>{
+      const starters=window.__mixStarts.filter(x=>x.id.startsWith("ratio-")).slice(-16);
+      const gains=new Map(starters.map(x=>[x.id,x.gain]));
+      for(const event of window.__mixEvents){
+        if(event.kind==="gain"&&gains.has(event.id))gains.set(event.id,event.gain);
+      }
+      return [...gains.values()];
+    });
+    assert.equal(afterTap.length,16);
+    assert.ok(afterTap.every(x=>Math.abs(x-result.initialTransport[0].gain)<1e-8),
+      "stopping audition did not restore transport loudness");
+    assert.ok(await page.locator("#play").evaluate(x=>x.classList.contains("playing")),
+      "tap expiry should not stop transport");
+    // A new stand-alone replay must still receive the old per-voice gain.
+    await page.locator("#stop").click();
+    await page.locator("#play").click();
+    await page.waitForFunction(()=>window.__mixStarts.filter(x=>x.id.startsWith("ratio-")).length>=32);
+    const restarted=await page.evaluate(()=>window.__mixStarts.filter(x=>x.id.startsWith("ratio-")).slice(-16));
+    assert.ok(restarted.every(x=>Math.abs(x.gain-result.initialTransport[0].gain)<1e-8));
     await page.locator("#stop").click();
   }finally{await page.close()}
 }finally{await browser.close()}
