@@ -2091,6 +2091,19 @@ body.workspace-combined .chord-library-panel .panel-note {
     grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.15fr) auto;
     gap: 4px;
   }
+  /* Use matching label/input rows instead of inline line boxes; prevent
+     small baseline offsets between the Section and root note controls. */
+  #view-progression .progression-root-inline {
+    display: grid;
+    grid-template-rows: auto auto;
+    align-content: start;
+    gap: 3px;
+  }
+  #view-progression .progression-root-inline > input,
+  #view-progression .progression-root-combo {
+    width: 100%;
+    min-width: 0;
+  }
   #view-progression .progression-root-combo {
     grid-template-columns: minmax(0, 1fr) 3.3rem;
     gap: 3px;
