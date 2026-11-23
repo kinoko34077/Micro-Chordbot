@@ -9,7 +9,7 @@ const outputDir = path.join(repoRoot, "artifacts/issue-28-layout-audit");
 await mkdir(outputDir, { recursive: true });
 
 const viewports = [
-  [320, 700], [375, 812], [390, 844], [430, 932], [667, 375],
+  [320, 700], [375, 812], [390, 844], [430, 932], [431, 932], [500, 900], [640, 800], [667, 375],
   [768, 1024], [834, 1194], [1024, 768], [1200, 800], [1280, 400], [1280, 650], [1280, 750], [1280, 768], [1280, 800], [1440, 900], [1920, 1080]
 ];
 const browser = await chromium.launch({ headless: true });
@@ -79,6 +79,8 @@ try {
           progressionEditor: box(".progression-editor"),
           progressionEditorBody: box(".progression-editor-body"),
           progressionRootRow: box(".progression-root-row"),
+          progressionPrimaryLabelsGrid: [...document.querySelectorAll(".progression-root-row > .progression-root-inline")].length === 2 &&
+            [...document.querySelectorAll(".progression-root-row > .progression-root-inline")].every((node) => getComputedStyle(node).display === "grid"),
           progressionSectionInput: box("#progSectionNameInput"),
           progressionRootNoteInput: box("#progRootNoteInput"),
           progressionAccidentals: box(".progression-root-row .quick-row"),
@@ -107,9 +109,11 @@ try {
       const screenshot = `${view}_${width}x${height}.png`;
       await page.screenshot({ path: path.join(outputDir, screenshot), fullPage: false });
       measurements.push({ viewport: `${width}x${height}`, selectedView: view, screenshot, ...geometry, pageErrors: [...errors] });
-      if (view === "progression" && width <= 430) {
+      if (view === "progression" && width <= 640) {
         assert.equal(geometry.progressionKeyboardScrollEnabled,false,
           "phone tab view must not add empty voice scroll regions to the keyboard tab order");
+        assert.equal(geometry.progressionPrimaryLabelsGrid, true,
+          "Section and root labels must share explicit label/input grid rows");
         assert.ok(Math.abs(geometry.progressionSectionInput.y - geometry.progressionRootNoteInput.y) <= 1,
           "section and root belong in the same primary cell-edit row: " + JSON.stringify({
             section:geometry.progressionSectionInput,root:geometry.progressionRootNoteInput
