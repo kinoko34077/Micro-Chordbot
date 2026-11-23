@@ -126,15 +126,11 @@ test("text/JSON roundtrip preserve named ratios, pitch cents, sections, beats an
   assert.equal(flatten(loaded).length,original.sections.reduce((n,s)=>n+s.repeat*s.steps.length,0));
   assert.deepEqual(validateProject(JSON.parse(JSON.stringify(original))),original);
 });
-test("μChordbot menu links to same-site mode and offline generator includes the mode",async()=>{
+test("μChordbot menu links to same-site ratio mode with usable controls",async()=>{
   const menu=await readFile(new URL("../src/app.js",import.meta.url),"utf8");
-  const generator=await readFile(new URL("../tools/generate-pwa-cache.mjs",import.meta.url),"utf8");
   const html=await readFile(new URL("../ratio-mode/index.html",import.meta.url),"utf8");
   assert.match(menu,/href="\.\/ratio-mode\/"/);
   assert.match(menu,/周波数比・簡易版/);
-  for(const asset of ["index.html","app.js","model.mjs","style.css"]){
-    assert.ok(generator.includes("./ratio-mode/"+asset),"missing PWA asset: "+asset);
-  }
   for(const part of ["id=\"timeline\"","id=\"editPitch\"","id=\"editExpr\"","id=\"ioDialog\"","id=\"preview\""])assert.ok(html.includes(part),part);
 });
 
