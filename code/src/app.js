@@ -5152,19 +5152,42 @@ function renderPwaPrompt() {
   renderRuntimeInfo();
 }
 
+// Scope both automatic development cleanup and manual refresh to this app.
+// A shared origin may contain other applications' registrations and caches.
+async function getAppServiceWorkerRegistrations() {
+  if (!("serviceWorker" in navigator)) return [];
+  const appScope = new URL("./", window.location.href).href;
+  const scriptUrl = new URL("./service-worker.js", window.location.href);
+  const registrations = await navigator.serviceWorker.getRegistrations().catch(() => []);
+  return registrations.filter((registration) => {
+    if (registration.scope !== appScope) return false;
+    return [registration.active, registration.waiting, registration.installing].some((worker) => {
+      if (!worker?.scriptURL) return false;
+      try {
+        const url = new URL(worker.scriptURL);
+        return url.origin === scriptUrl.origin && url.pathname === scriptUrl.pathname;
+      } catch {
+        return false;
+      }
+    });
+  });
+}
+
 async function resetDevelopmentCaches() {
   if (!("serviceWorker" in navigator)) return;
-  const registrations = await navigator.serviceWorker.getRegistrations().catch(() => []);
+  const registrations = await getAppServiceWorkerRegistrations();
   await Promise.all(registrations.map((registration) => registration.unregister().catch(() => false)));
   if ("caches" in window) {
-    const keys = await caches.keys().catch(() => []);
+    // This prefix is also used by code/service-worker.js during activation.
+    const keys = (await caches.keys().catch(() => []))
+      .filter((key) => key.startsWith("mu-chordbot-"));
     await Promise.all(keys.map((key) => caches.delete(key).catch(() => false)));
   }
 }
 
 async function forceRefreshApplication() {
   if ("serviceWorker" in navigator) {
-    const registrations = await navigator.serviceWorker.getRegistrations().catch(() => []);
+    const registrations = await getAppServiceWorkerRegistrations();
     await Promise.all(
       registrations.map(async (registration) => {
         await registration.update().catch(() => {});

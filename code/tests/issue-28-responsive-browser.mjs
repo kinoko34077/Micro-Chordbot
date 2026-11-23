@@ -702,6 +702,74 @@ try {
   console.log("SETTINGS_KEYBOARD_VIEWPORT",JSON.stringify({compactSettings,scrollBeforeEdit,scrollAfterEdit,reopenedScroll}));
   assert.deepEqual(settingsErrors,[]);
   await compactSettingsPage.close();
+  // Audit #110 A3: this app may share a local or hosted origin. Normal
+  // init and manual refresh must never unregister a foreign SW scope or
+  // delete another app's CacheStorage keys.
+  const isolationContext=await browser.newContext({serviceWorkers:"allow"});
+  try{
+    const cachePage=await isolationContext.newPage();
+    await cachePage.goto("http://127.0.0.1:4173/",{waitUntil:"domcontentloaded"});
+    const foreignScope=await cachePage.evaluate(async()=>{
+      const unrelated=await caches.open("foreign-app-audit-cache");
+      await unrelated.put("/foreign-content",new Response("retain"));
+      const registration=await navigator.serviceWorker.register(
+        "/service-worker.js",{scope:"/ratio-mode/"});
+      await navigator.serviceWorker.register(
+        "/service-worker.js",{scope:"/"});
+      // Register() can resolve before the SW activates. Also, the SW's own
+      // activate handler removes old mu-chordbot-* caches, so seed the old
+      // cache only AFTER activation for an unambiguous init-cleanup probe.
+      await navigator.serviceWorker.ready;
+      await caches.open("mu-chordbot-obsolete-audit");
+      return registration.scope;
+    });
+    await cachePage.reload({waitUntil:"domcontentloaded"});
+    await cachePage.waitForFunction(async()=>{
+      const names=await caches.keys();
+      const registrations=await navigator.serviceWorker.getRegistrations();
+      return !names.includes("mu-chordbot-obsolete-audit") &&
+        !registrations.some(r=>r.scope===new URL("/",location.href).href);
+    },null,{timeout:15000});
+    const afterBoot=await cachePage.evaluate(async scope=>{
+      const keys=await caches.keys();
+      const registrations=await navigator.serviceWorker.getRegistrations();
+      const response=await (await caches.open("foreign-app-audit-cache")).match("/foreign-content");
+      return {keys,foreignPresent:keys.includes("foreign-app-audit-cache"),
+        foreignContent:await response?.text(),
+        foreignScope:registrations.some(r=>r.scope===scope),
+        ownRootScope:registrations.some(r=>r.scope===new URL("/",location.href).href)};
+    },foreignScope);
+    console.log("AUDIT_110_CACHE_AFTER_BOOT "+JSON.stringify(afterBoot));
+    assert.equal(afterBoot.foreignPresent,true,"automatic init deleted unrelated cache");
+    assert.equal(afterBoot.foreignContent,"retain","automatic init changed foreign cached value");
+    assert.equal(afterBoot.foreignScope,true,"automatic init unregistered a foreign SW scope");
+    assert.equal(afterBoot.ownRootScope,false,"automatic init retained this app's own SW registration");
+    assert.ok(!afterBoot.keys.includes("mu-chordbot-obsolete-audit"),
+      "automatic init retained obsolete app cache");
+
+    await cachePage.evaluate(async()=>{
+      await caches.open("foreign-app-refresh-cache");
+      await caches.open("mu-chordbot-refresh-audit");
+    });
+    const navigation=cachePage.waitForEvent("domcontentloaded",{timeout:20000});
+    await cachePage.locator("#runtimeRefreshBtn").evaluate(button=>button.click());
+    await navigation;
+    await cachePage.waitForFunction(async()=>{
+      const names=await caches.keys();
+      return !names.includes("mu-chordbot-refresh-audit");
+    });
+    const afterRefresh=await cachePage.evaluate(async scope=>{
+      const keys=await caches.keys(),registrations=await navigator.serviceWorker.getRegistrations();
+      return {keys,foreignScope:registrations.some(r=>r.scope===scope)};
+    },foreignScope);
+    for(const key of ["foreign-app-audit-cache","foreign-app-refresh-cache"])
+      assert.ok(afterRefresh.keys.includes(key),"manual refresh deleted foreign cache "+key);
+    assert.equal(afterRefresh.foreignScope,true,"manual refresh unregistered unrelated SW scope");
+    assert.ok(!afterRefresh.keys.includes("mu-chordbot-refresh-audit"),
+      "manual refresh retained own obsolete cache");
+    console.log("AUDIT_110_CACHE_ISOLATION PASS "+JSON.stringify({afterBoot,afterRefresh}));
+  }finally{await isolationContext.close()}
+
 } finally {
   await browser.close();
 }
