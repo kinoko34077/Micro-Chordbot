@@ -16,11 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -53,6 +50,16 @@ jobs:
         with:
           path: code
 
+  # Deploy runs as a separate job so the uploaded artifact is listed before
+  # deploy-pages looks it up (single-job runs intermittently reported
+  # "No artifacts named github-pages" right after a successful upload).
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
